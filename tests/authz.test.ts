@@ -63,6 +63,18 @@ describe('edição', () => {
   it('membro não edita global de outro', () => {
     expect(canEditCredential(membro, global_, true)).toBe(false);
   });
+
+  it('dono que saiu da sala (não é mais membro) não edita a própria pessoal', () => {
+    expect(canEditCredential(dono, pessoal, false)).toBe(false);
+  });
+
+  it('master não membro continua editando a global de terceiro', () => {
+    expect(canEditCredential(master, global_, false)).toBe(true);
+  });
+
+  it('master não edita item já na lixeira, mesmo sendo global', () => {
+    expect(canEditCredential(master, apagada, false)).toBe(false);
+  });
 });
 
 describe('remoção', () => {
@@ -77,6 +89,39 @@ describe('remoção', () => {
 
   it('membro não apaga a de outro', () => {
     expect(canDeleteCredential(membro, global_, true)).toBe(false);
+  });
+
+  it('dono que saiu da sala (não é mais membro) não apaga a própria pessoal', () => {
+    expect(canDeleteCredential(dono, pessoal, false)).toBe(false);
+  });
+
+  it('master não membro continua apagando qualquer credencial', () => {
+    expect(canDeleteCredential(master, global_, false)).toBe(true);
+    expect(canDeleteCredential(master, pessoal, false)).toBe(true);
+  });
+
+  it('master não apaga item já na lixeira (precisa restaurar antes)', () => {
+    expect(canDeleteCredential(master, apagada, false)).toBe(false);
+  });
+});
+
+describe('coerência dono removido da sala', () => {
+  it('dono não membro não lê, não edita e não apaga a própria pessoal', () => {
+    expect(canReadCredential(dono, pessoal, false)).toBe(false);
+    expect(canEditCredential(dono, pessoal, false)).toBe(false);
+    expect(canDeleteCredential(dono, pessoal, false)).toBe(false);
+  });
+});
+
+describe('leitura de credencial pessoal apagada', () => {
+  const pessoalApagada: CredentialAcl = { ...pessoal, id: 'c4', deleted_at: '2026-01-01T00:00:00Z' };
+
+  it('dono não lê a própria credencial pessoal se ela estiver na lixeira', () => {
+    expect(canReadCredential(dono, pessoalApagada, true)).toBe(false);
+  });
+
+  it('membro não lê credencial pessoal apagada de outro', () => {
+    expect(canReadCredential(membro, pessoalApagada, true)).toBe(false);
   });
 });
 

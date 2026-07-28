@@ -28,16 +28,19 @@ export function canReadCredential(actor: Actor, c: CredentialAcl, isMember: bool
 /** Master edita globais de terceiros, mas nunca uma senha pessoal alheia. */
 export function canEditCredential(actor: Actor, c: CredentialAcl, isMember: boolean): boolean {
   if (c.deleted_at) return false;
-  if (c.owner_id === actor.id) return true;
   if (isMaster(actor)) return c.is_global;
-  return false;
+  // A sala controla o acesso: sem ser membro, nem o próprio dono edita a credencial.
+  if (!isMember) return false;
+  return c.owner_id === actor.id;
 }
 
 /** Master pode mandar qualquer credencial para a lixeira. */
 export function canDeleteCredential(actor: Actor, c: CredentialAcl, isMember: boolean): boolean {
   if (c.deleted_at) return false;
-  if (c.owner_id === actor.id) return true;
-  return isMaster(actor);
+  if (isMaster(actor)) return true;
+  // A sala controla o acesso: sem ser membro, nem o próprio dono apaga a credencial.
+  if (!isMember) return false;
+  return c.owner_id === actor.id;
 }
 
 export const canManageRooms = (actor: Actor) => isMaster(actor);
