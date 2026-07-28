@@ -12,13 +12,24 @@ const estranho: Actor = { id: 'u-estranho', email: 'e@x', name: 'E', role: 'user
 
 const global_: CredentialAcl = {
   id: 'c1', room_id: 'r1', owner_id: 'u-dono', is_global: true, deleted_at: null,
+  room_deleted_at: null,
 };
 const pessoal: CredentialAcl = {
   id: 'c2', room_id: 'r1', owner_id: 'u-dono', is_global: false, deleted_at: null,
+  room_deleted_at: null,
 };
 const apagada: CredentialAcl = { ...global_, id: 'c3', deleted_at: '2026-01-01T00:00:00Z' };
 const pessoalDoMaster: CredentialAcl = {
   id: 'c5', room_id: 'r1', owner_id: 'u-master', is_global: false, deleted_at: null,
+  room_deleted_at: null,
+};
+const naSalaApagada: CredentialAcl = {
+  id: 'c6', room_id: 'r2', owner_id: 'u-dono', is_global: true, deleted_at: null,
+  room_deleted_at: '2026-01-02T00:00:00Z',
+};
+const pessoalNaSalaApagada: CredentialAcl = {
+  id: 'c7', room_id: 'r2', owner_id: 'u-dono', is_global: false, deleted_at: null,
+  room_deleted_at: '2026-01-02T00:00:00Z',
 };
 
 describe('leitura', () => {
@@ -149,6 +160,37 @@ describe('criação', () => {
 
   it('usuário comum não membro da sala não pode criar', () => {
     expect(canCreateCredential(estranho, false)).toBe(false);
+  });
+});
+
+describe('sala na lixeira corta acesso direto à credencial', () => {
+  it('membro não lê credencial de sala apagada, mesmo sendo global', () => {
+    expect(canReadCredential(membro, naSalaApagada, true)).toBe(false);
+  });
+
+  it('dono não lê a própria credencial se a sala dela foi apagada', () => {
+    expect(canReadCredential(dono, pessoalNaSalaApagada, true)).toBe(false);
+  });
+
+  it('master continua lendo credencial de sala apagada', () => {
+    expect(canReadCredential(master, naSalaApagada, false)).toBe(true);
+    expect(canReadCredential(master, pessoalNaSalaApagada, false)).toBe(true);
+  });
+
+  it('dono não edita a própria credencial se a sala dela foi apagada', () => {
+    expect(canEditCredential(dono, pessoalNaSalaApagada, true)).toBe(false);
+  });
+
+  it('master não edita credencial de sala apagada (precisa restaurar a sala antes)', () => {
+    expect(canEditCredential(master, naSalaApagada, false)).toBe(false);
+  });
+
+  it('dono não apaga a própria credencial se a sala dela foi apagada', () => {
+    expect(canDeleteCredential(dono, pessoalNaSalaApagada, true)).toBe(false);
+  });
+
+  it('master não apaga credencial de sala apagada (precisa restaurar a sala antes)', () => {
+    expect(canDeleteCredential(master, naSalaApagada, false)).toBe(false);
   });
 });
 

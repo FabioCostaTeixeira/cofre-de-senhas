@@ -5,6 +5,7 @@ import {
   canCreateCredential, canDeleteCredential, canEditCredential, canReadCredential,
   NotFoundError, type CredentialAcl,
 } from '@/lib/authz';
+import { assertUuid } from '@/lib/validation';
 import type { Actor, CredentialRow, Room, RoomCard } from '@/lib/types';
 
 /** Salas visíveis: todas para o master, apenas as de que é membro para os demais. */
@@ -26,6 +27,7 @@ export async function listRoomsForActor(actor: Actor): Promise<RoomCard[]> {
 }
 
 export async function getRoomForActor(actor: Actor, roomId: string): Promise<Room> {
+  assertUuid(roomId);
   const visibilidade = actor.role === 'master' ? null : actor.id;
   const rows = (await sql`
     select r.id, r.name, r.description, r.created_at
@@ -111,10 +113,13 @@ type CredentialSecret = CredentialAcl & {
 async function loadForActor(
   actor: Actor, id: string,
 ): Promise<{ row: CredentialSecret; isMember: boolean }> {
+  assertUuid(id);
   const rows = (await sql`
-    select id, room_id, owner_id, is_global, deleted_at,
-           password_ct, password_iv, password_tag
-      from credentials where id = ${id}`) as CredentialSecret[];
+    select c.id, c.room_id, c.owner_id, c.is_global, c.deleted_at, r.deleted_at as room_deleted_at,
+           c.password_ct, c.password_iv, c.password_tag
+      from credentials c
+      join rooms r on r.id = c.room_id
+     where c.id = ${id}`) as CredentialSecret[];
   const row = rows[0];
   if (!row) throw new NotFoundError('Credencial não encontrada');
   const isMember = await isRoomMember(actor.id, row.room_id);
@@ -132,10 +137,13 @@ type CredentialNotes = CredentialAcl & {
 export async function getCredentialForEdit(
   actor: Actor, id: string,
 ): Promise<{ notes: string }> {
+  assertUuid(id);
   const rows = (await sql`
-    select id, room_id, owner_id, is_global, deleted_at,
-           notes_ct, notes_iv, notes_tag
-      from credentials where id = ${id}`) as CredentialNotes[];
+    select c.id, c.room_id, c.owner_id, c.is_global, c.deleted_at, r.deleted_at as room_deleted_at,
+           c.notes_ct, c.notes_iv, c.notes_tag
+      from credentials c
+      join rooms r on r.id = c.room_id
+     where c.id = ${id}`) as CredentialNotes[];
   const row = rows[0];
   if (!row) throw new NotFoundError('Credencial não encontrada');
   const isMember = await isRoomMember(actor.id, row.room_id);
@@ -145,7 +153,7 @@ export async function getCredentialForEdit(
 
   const notes = decrypt(
     { ct: Buffer.from(row.notes_ct), iv: Buffer.from(row.notes_iv), tag: Buffer.from(row.notes_tag) },
-    row.id,
+    `${row.id}:notes`,
   );
   return { notes };
 }
@@ -165,7 +173,7 @@ export async function revealPassword(actor: Actor, id: string): Promise<string> 
   if (!canReadCredential(actor, row, isMember)) throw new NotFoundError();
   return decrypt(
     { ct: Buffer.from(row.password_ct), iv: Buffer.from(row.password_iv), tag: Buffer.from(row.password_tag) },
-    row.id,
+    `${row.id}:password`,
   );
 }
 
@@ -180,6 +188,8 @@ export type CredentialInput = {
 };
 
 export async function insertCredential(actor: Actor, input: CredentialInput): Promise<string> {
+  // O roomId vem do formulário: sem isso, um id malformado derruba a query com erro do Postgres.
+  assertUuid(input.roomId);
   // A sala precisa existir e não estar na lixeira, para qualquer ator (inclusive o master).
   const rooms = (await sql`
     select 1 from rooms where id = ${input.roomId} and deleted_at is null`) as unknown[];
@@ -189,8 +199,8 @@ export async function insertCredential(actor: Actor, input: CredentialInput): Pr
   if (!canCreateCredential(actor, isMember)) throw new NotFoundError('Sala não encontrada');
 
   const id = randomUUID();
-  const senha = encrypt(input.password, id);
-  const notas = input.notes ? encrypt(input.notes, id) : null;
+  const senha = encrypt(input.password, `${id}:password`);
+  const notas = input.notes ? encrypt(input.notes, `${id}:notes`) : null;
 
   await sql`
     insert into credentials (
@@ -204,35 +214,52 @@ export async function insertCredential(actor: Actor, input: CredentialInput): Pr
   return id;
 }
 
-/** Senha em branco no formulário significa "manter a senha atual". */
+/**
+ * Senha em branco no formulário significa "manter a senha atual".
+ * Se `input.roomId` for diferente da sala atual, a credencial é movida de fato —
+ * validando a sala de destino do mesmo jeito que `insertCredential` valida.
+ * Devolve `roomChanged` para a action registrar a mudança de sala no audit.
+ */
 export async function updateCredential(
   actor: Actor, id: string, input: CredentialInput,
-): Promise<void> {
+): Promise<{ roomChanged: boolean }> {
   const { row, isMember } = await loadForActor(actor, id);
   if (!canEditCredential(actor, row, isMember)) throw new NotFoundError();
 
-  const notas = input.notes ? encrypt(input.notes, id) : null;
+  assertUuid(input.roomId);
+  const roomChanged = input.roomId !== row.room_id;
+  if (roomChanged) {
+    const rooms = (await sql`
+      select 1 from rooms where id = ${input.roomId} and deleted_at is null`) as unknown[];
+    if (!rooms[0]) throw new NotFoundError('Sala não encontrada');
+
+    const isMemberDestino = await isRoomMember(actor.id, input.roomId);
+    if (!canCreateCredential(actor, isMemberDestino)) throw new NotFoundError('Sala não encontrada');
+  }
+
+  const notas = input.notes ? encrypt(input.notes, `${id}:notes`) : null;
 
   if (input.password) {
-    const senha = encrypt(input.password, id);
+    const senha = encrypt(input.password, `${id}:password`);
     await sql`
       update credentials
          set title = ${input.title}, username = ${input.username || null},
-             url = ${input.url || null}, is_global = ${input.isGlobal},
+             url = ${input.url || null}, is_global = ${input.isGlobal}, room_id = ${input.roomId},
              password_ct = ${senha.ct}, password_iv = ${senha.iv}, password_tag = ${senha.tag},
              notes_ct = ${notas?.ct ?? null}, notes_iv = ${notas?.iv ?? null},
              notes_tag = ${notas?.tag ?? null}, updated_at = now()
        where id = ${id}`;
-    return;
+    return { roomChanged };
   }
 
   await sql`
     update credentials
        set title = ${input.title}, username = ${input.username || null},
-           url = ${input.url || null}, is_global = ${input.isGlobal},
+           url = ${input.url || null}, is_global = ${input.isGlobal}, room_id = ${input.roomId},
            notes_ct = ${notas?.ct ?? null}, notes_iv = ${notas?.iv ?? null},
            notes_tag = ${notas?.tag ?? null}, updated_at = now()
      where id = ${id}`;
+  return { roomChanged };
 }
 
 export async function softDeleteCredential(actor: Actor, id: string): Promise<void> {
@@ -300,20 +327,29 @@ export type TrashItem = {
   title: string;
   room_name: string | null;
   deleted_at: string;
+  /**
+   * Só preenchido para `kind === 'room'`: quantas credenciais daquela sala (na
+   * lixeira ou não) serão destruídas junto se a sala for expurgada. `null` para
+   * itens do tipo `credential`, onde o expurgo não arrasta mais nada.
+   */
+  credential_count: number | null;
 };
 
 export async function listTrash(): Promise<TrashItem[]> {
   return (await sql`
-    select c.id, 'credential' as kind, c.title, r.name as room_name, c.deleted_at
+    select c.id, 'credential' as kind, c.title, r.name as room_name, c.deleted_at,
+           null::int as credential_count
       from credentials c join rooms r on r.id = c.room_id
      where c.deleted_at is not null
     union all
-    select r.id, 'room' as kind, r.name as title, null as room_name, r.deleted_at
+    select r.id, 'room' as kind, r.name as title, null as room_name, r.deleted_at,
+           (select count(*) from credentials c2 where c2.room_id = r.id)::int as credential_count
       from rooms r where r.deleted_at is not null
      order by deleted_at desc`) as TrashItem[];
 }
 
 export async function restoreItem(kind: 'credential' | 'room', id: string): Promise<void> {
+  assertUuid(id);
   if (kind === 'credential') {
     await sql`update credentials set deleted_at = null where id = ${id}`;
   } else {
@@ -322,6 +358,7 @@ export async function restoreItem(kind: 'credential' | 'room', id: string): Prom
 }
 
 export async function purgeItem(kind: 'credential' | 'room', id: string): Promise<void> {
+  assertUuid(id);
   if (kind === 'credential') {
     await sql`delete from credentials where id = ${id} and deleted_at is not null`;
   } else {

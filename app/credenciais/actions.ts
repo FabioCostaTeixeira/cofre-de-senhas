@@ -74,10 +74,10 @@ export async function saveCredential(
 
   try {
     if (id) {
-      await updateCredential(actor, id, input);
+      const { roomChanged } = await updateCredential(actor, id, input);
       await audit({
         actorId: actor.id, action: 'update', entityType: 'credential', entityId: id,
-        metadata: { title: input.title, is_global: input.isGlobal },
+        metadata: { title: input.title, is_global: input.isGlobal, room_changed: roomChanged },
       });
     } else {
       const novoId = await insertCredential(actor, input);

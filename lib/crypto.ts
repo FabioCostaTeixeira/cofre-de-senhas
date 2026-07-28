@@ -13,7 +13,12 @@ function key(): Buffer {
   return buf;
 }
 
-/** Cifra um texto. `aad` deve ser o id do registro, para prender o ciphertext à linha. */
+/**
+ * Cifra um texto. `aad` deve prender o ciphertext à linha E ao campo — por exemplo
+ * `${id}:password` ou `${id}:notes` — nunca só o id. Sem o campo no AAD, quem tiver
+ * escrita no banco pode copiar `password_ct/iv/tag` para `notes_ct/iv/tag` da mesma
+ * linha e ler a senha em claro pela tela de edição.
+ */
 export function encrypt(plaintext: string, aad: string): EncryptedField {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGO, key(), iv);

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireMaster } from '@/lib/auth/guards';
 import { hashPassword } from '@/lib/auth/password';
+import { isUuid } from '@/lib/validation';
 import { audit } from '@/lib/db/audit';
 import { createUser, setPassword, updateUser } from '@/lib/db/users';
 import type { Role } from '@/lib/types';
@@ -20,6 +21,7 @@ export async function saveUser(_prev: AdminState, formData: FormData): Promise<A
 
   if (!name) return { error: 'Informe o nome.' };
   if (role !== 'master' && role !== 'user') return { error: 'Papel inválido.' };
+  if (id && !isUuid(id)) return { error: 'Usuário não encontrado.' };
 
   if (id) {
     // O próprio master não pode mudar seu papel nem se desativar: `requireMaster()`
@@ -66,6 +68,7 @@ export async function resetUserPassword(
   const actor = await requireMaster();
   const id = String(formData.get('id') ?? '');
   const nova = String(formData.get('novaSenha') ?? '');
+  if (!isUuid(id)) return { error: 'Usuário não encontrado.' };
   if (nova.length < 10) return { error: 'A senha precisa ter ao menos 10 caracteres.' };
 
   await setPassword(id, await hashPassword(nova), true);

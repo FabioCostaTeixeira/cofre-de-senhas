@@ -1,7 +1,8 @@
 import { Nav } from '@/components/Nav';
+import { PurgeButton } from '@/components/PurgeButton';
 import { requireMaster } from '@/lib/auth/guards';
 import { listTrash } from '@/lib/db/queries';
-import { expurgar, restaurar } from './actions';
+import { restaurar } from './actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,12 @@ export default async function LixeiraPage() {
                 <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
                   {item.room_name ? `${item.room_name} · ` : ''}
                   apagado em {new Date(item.deleted_at).toLocaleString('pt-BR')}
+                  {item.kind === 'room' && item.credential_count !== null && (
+                    <>
+                      {' · '}
+                      {item.credential_count} senha{item.credential_count === 1 ? '' : 's'} nela
+                    </>
+                  )}
                 </p>
               </div>
               <form action={restaurar}>
@@ -32,11 +39,10 @@ export default async function LixeiraPage() {
                 <input type="hidden" name="kind" value={item.kind} />
                 <button className="btn">Restaurar</button>
               </form>
-              <form action={expurgar}>
-                <input type="hidden" name="id" value={item.id} />
-                <input type="hidden" name="kind" value={item.kind} />
-                <button className="btn btn-danger">Apagar de vez</button>
-              </form>
+              <PurgeButton
+                kind={item.kind} id={item.id} title={item.title}
+                credentialCount={item.kind === 'room' ? item.credential_count : null}
+              />
             </div>
           ))}
           {itens.length === 0 && (
