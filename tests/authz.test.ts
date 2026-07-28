@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canDeleteCredential, canEditCredential, canManageRooms, canManageUsers,
+  canCreateCredential, canDeleteCredential, canEditCredential, canManageRooms, canManageUsers,
   canReadCredential, canViewAudit, type CredentialAcl,
 } from '@/lib/authz';
 import type { Actor } from '@/lib/types';
@@ -135,6 +135,20 @@ describe('master dono de senha pessoal', () => {
 
   it('master apaga a própria pessoal', () => {
     expect(canDeleteCredential(master, pessoalDoMaster, false)).toBe(true);
+  });
+});
+
+describe('criação', () => {
+  it('master pode criar mesmo não sendo membro da sala', () => {
+    expect(canCreateCredential(master, false)).toBe(true);
+  });
+
+  it('usuário comum membro da sala pode criar', () => {
+    expect(canCreateCredential(membro, true)).toBe(true);
+  });
+
+  it('usuário comum não membro da sala não pode criar', () => {
+    expect(canCreateCredential(estranho, false)).toBe(false);
   });
 });
 

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db/client';
 import { decrypt, encrypt } from '@/lib/crypto';
 import {
-  canDeleteCredential, canEditCredential, canReadCredential,
+  canCreateCredential, canDeleteCredential, canEditCredential, canReadCredential,
   NotFoundError, type CredentialAcl,
 } from '@/lib/authz';
 import type { Actor, CredentialRow, Room, RoomCard } from '@/lib/types';
@@ -94,7 +94,13 @@ export async function listPersonalCredentials(actor: Actor): Promise<CredentialR
       from credentials c
       join rooms r on r.id = c.room_id
       join users u on u.id = c.owner_id
-     where c.deleted_at is null and c.owner_id = ${actor.id} and c.is_global = false
+     where c.deleted_at is null and r.deleted_at is null
+       and c.owner_id = ${actor.id} and c.is_global = false
+       -- Master vê as próprias pessoais mesmo sem ser membro da sala (canReadCredential o isenta disso);
+       -- para os demais, a sala precisa seguir com o ator como membro atual.
+       and (${actor.role} = 'master'
+            or exists (select 1 from room_members m
+                        where m.room_id = c.room_id and m.user_id = ${actor.id}))
      order by c.title`) as CredentialRow[];
 }
 
@@ -145,10 +151,14 @@ export type CredentialInput = {
 };
 
 export async function insertCredential(actor: Actor, input: CredentialInput): Promise<string> {
-  // Qualquer membro da sala pode criar. Master também.
-  if (actor.role !== 'master' && !(await isRoomMember(actor.id, input.roomId))) {
-    throw new NotFoundError('Sala não encontrada');
-  }
+  // A sala precisa existir e não estar na lixeira, para qualquer ator (inclusive o master).
+  const rooms = (await sql`
+    select 1 from rooms where id = ${input.roomId} and deleted_at is null`) as unknown[];
+  if (!rooms[0]) throw new NotFoundError('Sala não encontrada');
+
+  const isMember = await isRoomMember(actor.id, input.roomId);
+  if (!canCreateCredential(actor, isMember)) throw new NotFoundError('Sala não encontrada');
+
   const id = randomUUID();
   const senha = encrypt(input.password, id);
   const notas = input.notes ? encrypt(input.notes, id) : null;
