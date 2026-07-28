@@ -27,11 +27,19 @@ export async function listUsers(): Promise<User[]> {
 }
 
 export async function registerFailedLogin(id: string): Promise<void> {
+  // Se locked_until já expirou (passado), a contagem recomeça do zero: a tentativa
+  // em curso vale 1 e o bloqueio anterior é limpo. Caso contrário, mantém a janela
+  // normal de 5 tentativas em 15 minutos.
   await sql`
     update users
-       set failed_attempts = failed_attempts + 1,
-           locked_until = case when failed_attempts + 1 >= 5
-                               then now() + interval '15 minutes' else locked_until end,
+       set failed_attempts = case when locked_until is not null and locked_until <= now()
+                                   then 1
+                                   else failed_attempts + 1 end,
+           locked_until = case when locked_until is not null and locked_until <= now()
+                                then null
+                                when failed_attempts + 1 >= 5
+                                then now() + interval '15 minutes'
+                                else locked_until end,
            updated_at = now()
      where id = ${id}`;
 }

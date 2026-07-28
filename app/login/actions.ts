@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createSession, destroySession } from '@/lib/auth/session';
+import { createSession, destroySession, readSession } from '@/lib/auth/session';
 import { verifyPassword } from '@/lib/auth/password';
 import { audit } from '@/lib/db/audit';
 import {
@@ -12,6 +12,15 @@ export type LoginState = { error?: string };
 
 const GENERICO = 'E-mail ou senha inválidos.';
 
+// Hash bcrypt (custo 12) de uma string arbitrária, sem relação com qualquer senha real.
+// Existe só para gastar o mesmo tempo de CPU que `verifyPassword` gastaria num login
+// legítimo, quando o e-mail não existe ou a conta está inativa. Sem isso, essas duas
+// respostas voltam quase instantaneamente enquanto uma senha errada em conta válida
+// demora ~100ms por causa do bcrypt, e essa diferença de tempo denuncia quais e-mails
+// existem no sistema (timing side-channel). NÃO REMOVER achando que é código morto:
+// o resultado da comparação é descartado, só o tempo gasto importa.
+const HASH_FANTASMA = '$2b$12$KI2ozafUNPtHxqLrKI3/UuWe61dO0TMwp3QPvqGTMRmWdD/r0owb6';
+
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get('email') ?? '').trim();
   const senha = String(formData.get('senha') ?? '');
@@ -20,6 +29,9 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
   const user = await findUserByEmail(email);
   if (!user || !user.is_active) {
+    // Comparação descartável: iguala o tempo de resposta ao caminho de senha errada,
+    // sem influenciar em nada a decisão — a resposta já está definida como genérica.
+    await verifyPassword(senha, HASH_FANTASMA);
     await audit({ actorId: null, action: 'login_fail', metadata: { email } });
     return { error: GENERICO };
   }
@@ -43,6 +55,12 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 
 /** Recebe FormData porque é usada direto como `action` de um <form>. */
 export async function logout(_formData: FormData): Promise<void> {
+  const actorId = await readSession();
   await destroySession();
+  if (actorId) {
+    await audit({
+      actorId, action: 'logout', entityType: 'user', entityId: actorId,
+    });
+  }
   redirect('/login');
 }
