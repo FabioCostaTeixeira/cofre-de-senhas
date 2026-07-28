@@ -17,6 +17,9 @@ const pessoal: CredentialAcl = {
   id: 'c2', room_id: 'r1', owner_id: 'u-dono', is_global: false, deleted_at: null,
 };
 const apagada: CredentialAcl = { ...global_, id: 'c3', deleted_at: '2026-01-01T00:00:00Z' };
+const pessoalDoMaster: CredentialAcl = {
+  id: 'c5', room_id: 'r1', owner_id: 'u-master', is_global: false, deleted_at: null,
+};
 
 describe('leitura', () => {
   it('master lê tudo, inclusive pessoal de terceiro', () => {
@@ -122,6 +125,16 @@ describe('leitura de credencial pessoal apagada', () => {
 
   it('membro não lê credencial pessoal apagada de outro', () => {
     expect(canReadCredential(membro, pessoalApagada, true)).toBe(false);
+  });
+});
+
+describe('master dono de senha pessoal', () => {
+  it('master edita a própria pessoal mesmo não sendo membro da sala', () => {
+    expect(canEditCredential(master, pessoalDoMaster, false)).toBe(true);
+  });
+
+  it('master apaga a própria pessoal', () => {
+    expect(canDeleteCredential(master, pessoalDoMaster, false)).toBe(true);
   });
 });
 
