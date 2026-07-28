@@ -8,11 +8,12 @@ import type { CredentialRow } from '@/lib/types';
 const inicial: SaveState = {};
 
 export function CredentialForm({
-  salas, salaPadrao, credencial, voltarPara,
+  salas, salaPadrao, credencial, notasAtuais = '', voltarPara,
 }: {
   salas: { id: string; name: string }[];
   salaPadrao: string;
   credencial: CredentialRow | null;
+  notasAtuais?: string;
   voltarPara: string;
 }) {
   const [state, action, pending] = useActionState(saveCredential, inicial);
@@ -52,7 +53,7 @@ export function CredentialForm({
 
       <label className="block space-y-1">
         <span className="text-sm">Notas</span>
-        <textarea name="notes" className="input" rows={3} />
+        <textarea name="notes" className="input" rows={3} defaultValue={notasAtuais} />
       </label>
 
       <label className="block space-y-1">

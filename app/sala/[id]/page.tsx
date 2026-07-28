@@ -5,7 +5,7 @@ import { SearchBox } from '@/components/SearchBox';
 import { CredentialForm } from '@/components/CredentialForm';
 import { requireReadyUser } from '@/lib/auth/guards';
 import {
-  getRoomForActor, listCredentials, listPersonalCredentials, listRoomsForActor,
+  getCredentialForEdit, getRoomForActor, listCredentials, listPersonalCredentials, listRoomsForActor,
 } from '@/lib/db/queries';
 
 export const runtime = 'nodejs';
@@ -33,6 +33,7 @@ export default async function SalaPage({
 
   const salasDoUsuario = await listRoomsForActor(actor);
   const emEdicao = editar ? creds.find((c) => c.id === editar) ?? null : null;
+  const notasAtuais = emEdicao ? (await getCredentialForEdit(actor, emEdicao.id)).notes : '';
 
   return (
     <>
@@ -57,6 +58,7 @@ export default async function SalaPage({
             salas={salasDoUsuario.map((s) => ({ id: s.id, name: s.name }))}
             salaPadrao={pessoal ? salasDoUsuario[0]?.id ?? '' : id}
             credencial={emEdicao}
+            notasAtuais={notasAtuais}
             voltarPara={`/sala/${id}`}
           />
         )}

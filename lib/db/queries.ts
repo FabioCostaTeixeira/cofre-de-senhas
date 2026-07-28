@@ -121,6 +121,35 @@ async function loadForActor(
   return { row, isMember };
 }
 
+type CredentialNotes = CredentialAcl & {
+  notes_ct: Buffer | null; notes_iv: Buffer | null; notes_tag: Buffer | null;
+};
+
+/**
+ * Carrega as notas decifradas para preencher o formulário de edição.
+ * Nunca devolve a senha — só as notas (string vazia quando não houver).
+ */
+export async function getCredentialForEdit(
+  actor: Actor, id: string,
+): Promise<{ notes: string }> {
+  const rows = (await sql`
+    select id, room_id, owner_id, is_global, deleted_at,
+           notes_ct, notes_iv, notes_tag
+      from credentials where id = ${id}`) as CredentialNotes[];
+  const row = rows[0];
+  if (!row) throw new NotFoundError('Credencial não encontrada');
+  const isMember = await isRoomMember(actor.id, row.room_id);
+  if (!canEditCredential(actor, row, isMember)) throw new NotFoundError();
+
+  if (!row.notes_ct || !row.notes_iv || !row.notes_tag) return { notes: '' };
+
+  const notes = decrypt(
+    { ct: Buffer.from(row.notes_ct), iv: Buffer.from(row.notes_iv), tag: Buffer.from(row.notes_tag) },
+    row.id,
+  );
+  return { notes };
+}
+
 export async function getCredentialAcl(
   actor: Actor, id: string,
 ): Promise<{ acl: CredentialAcl; isMember: boolean }> {

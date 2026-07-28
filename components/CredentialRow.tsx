@@ -16,7 +16,7 @@ export function CredentialRowItem({
   showRoom?: boolean;
 }) {
   const [senha, setSenha] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro' } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // A senha em claro nunca fica na tela: some sozinha após 30s.
@@ -31,13 +31,16 @@ export function CredentialRowItem({
   async function aoRevelar() {
     if (senha) { setSenha(null); return; }
     const r = await revealCredential(cred.id);
-    if (r.error) setAviso(r.error);
+    if (r.error) setAviso({ texto: r.error, tipo: 'erro' });
     else setSenha(r.password ?? '');
   }
 
   async function copiar(texto: string, rotulo: string) {
     await navigator.clipboard.writeText(texto);
-    setAviso(`${rotulo} copiado — a área de transferência será limpa em ${SEGUNDOS_VISIVEL}s.`);
+    setAviso({
+      texto: `${rotulo} copiado — a área de transferência será limpa em ${SEGUNDOS_VISIVEL}s.`,
+      tipo: 'ok',
+    });
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       try { await navigator.clipboard.writeText(''); } catch { /* aba sem foco */ }
@@ -47,14 +50,14 @@ export function CredentialRowItem({
 
   async function copiarSenha() {
     const r = await copyCredential(cred.id);
-    if (r.error) { setAviso(r.error); return; }
+    if (r.error) { setAviso({ texto: r.error, tipo: 'erro' }); return; }
     await copiar(r.password ?? '', 'Senha');
   }
 
   async function apagar() {
     if (!confirm(`Mover “${cred.title}” para a lixeira?`)) return;
     const r = await deleteCredential(cred.id);
-    if (r.error) setAviso(r.error);
+    if (r.error) setAviso({ texto: r.error, tipo: 'erro' });
   }
 
   const podeEditar = cred.owner_id === actorId || (isMaster && cred.is_global);
@@ -73,7 +76,12 @@ export function CredentialRowItem({
           <span className="truncate">{cred.username || '—'}</span>
           <code className="font-mono">{senha ?? '••••••••'}</code>
         </div>
-        {aviso && <p className="text-xs mt-1" style={{ color: 'var(--ok)' }}>{aviso}</p>}
+        {aviso && (
+          <p className="text-xs mt-1"
+             style={{ color: aviso.tipo === 'erro' ? 'var(--danger)' : 'var(--ok)' }}>
+            {aviso.texto}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-1">
