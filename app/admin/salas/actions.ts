@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { requireMaster } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
-import { createRoom, setRoomMembers, softDeleteRoom, updateRoom } from '@/lib/db/queries';
+import {
+  createRoom, listRoomMembers, setRoomMembers, softDeleteRoom, updateRoom,
+} from '@/lib/db/queries';
 
 export type SalaState = { error?: string; ok?: string };
 
@@ -43,9 +45,26 @@ export async function saveMembers(_prev: SalaState, formData: FormData): Promise
   const actor = await requireMaster();
   const roomId = String(formData.get('roomId') ?? '');
   const userIds = formData.getAll('userIds').map(String);
+
+  const antes = await listRoomMembers(roomId);
   await setRoomMembers(roomId, userIds);
-  await audit({ actorId: actor.id, action: 'member_add', entityType: 'room', entityId: roomId,
-                metadata: { total: userIds.length } });
+
+  // Registra o que de fato mudou — quem entrou e quem saiu — em vez de sempre
+  // gravar 'member_add' com só o total, para permitir rastrear perda de acesso.
+  const antesSet = new Set(antes);
+  const depoisSet = new Set(userIds);
+  const adicionados = userIds.filter((id) => !antesSet.has(id));
+  const removidos = antes.filter((id) => !depoisSet.has(id));
+
+  if (adicionados.length > 0) {
+    await audit({ actorId: actor.id, action: 'member_add', entityType: 'room', entityId: roomId,
+                  metadata: { userIds: adicionados } });
+  }
+  if (removidos.length > 0) {
+    await audit({ actorId: actor.id, action: 'member_remove', entityType: 'room', entityId: roomId,
+                  metadata: { userIds: removidos } });
+  }
+
   revalidatePath('/admin/salas');
   revalidatePath('/');
   return { ok: 'Membros atualizados.' };

@@ -22,11 +22,25 @@ export async function saveUser(_prev: AdminState, formData: FormData): Promise<A
   if (role !== 'master' && role !== 'user') return { error: 'Papel inválido.' };
 
   if (id) {
-    await updateUser(id, name, role, isActive);
+    // O próprio master não pode mudar seu papel nem se desativar: `requireMaster()`
+    // relê o usuário do banco a cada request, então isso travaria o /admin sem
+    // caminho de recuperação. A troca de nome continua permitida.
+    let finalRole = role;
+    let finalIsActive = isActive;
+    let aviso = '';
+    if (id === actor.id) {
+      finalRole = actor.role;
+      finalIsActive = true;
+      if (role !== actor.role || !isActive) {
+        aviso = ' O master não pode alterar o próprio papel nem se desativar; essa parte da alteração foi ignorada.';
+      }
+    }
+
+    await updateUser(id, name, finalRole, finalIsActive);
     await audit({ actorId: actor.id, action: 'user_update', entityType: 'user', entityId: id,
-                  metadata: { name, role, isActive } });
+                  metadata: { name, role: finalRole, isActive: finalIsActive } });
     revalidatePath('/admin/usuarios');
-    return { ok: 'Usuário atualizado.' };
+    return { ok: `Usuário atualizado.${aviso}` };
   }
 
   if (!email) return { error: 'Informe o e-mail.' };

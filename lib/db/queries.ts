@@ -277,13 +277,19 @@ export async function listRoomMembers(roomId: string): Promise<string[]> {
   return rows.map((r) => r.user_id);
 }
 
+/**
+ * Substitui o conjunto de membros da sala numa única transação: remove só quem saiu
+ * e insere só quem entrou, para nunca haver um instante em que a sala fique sem
+ * nenhum membro (o que negaria acesso a todo mundo via `isRoomMember`/`listRoomsForActor`).
+ */
 export async function setRoomMembers(roomId: string, userIds: string[]): Promise<void> {
-  await sql`delete from room_members where room_id = ${roomId}`;
-  for (const userId of userIds) {
-    await sql`
-      insert into room_members (room_id, user_id) values (${roomId}, ${userId})
-      on conflict do nothing`;
-  }
+  await sql.transaction([
+    sql`delete from room_members
+         where room_id = ${roomId} and user_id <> all(${userIds}::uuid[])`,
+    sql`insert into room_members (room_id, user_id)
+         select ${roomId}, u.id from unnest(${userIds}::uuid[]) as u(id)
+         on conflict do nothing`,
+  ]);
 }
 
 /* ---------- Lixeira (somente master) ---------- */
@@ -319,7 +325,14 @@ export async function purgeItem(kind: 'credential' | 'room', id: string): Promis
   if (kind === 'credential') {
     await sql`delete from credentials where id = ${id} and deleted_at is not null`;
   } else {
-    await sql`delete from credentials where room_id = ${id}`;
-    await sql`delete from rooms where id = ${id} and deleted_at is not null`;
+    // A sala só pode ser expurgada se já estiver na lixeira; a subconsulta reaplica
+    // essa mesma guarda ao delete de credenciais, para uma sala ativa jamais perder
+    // credenciais aqui (Server Action é endpoint HTTP, invocável com qualquer id).
+    // As duas instruções rodam numa única transação não-interativa do driver.
+    await sql.transaction([
+      sql`delete from credentials
+           where room_id = (select id from rooms where id = ${id} and deleted_at is not null)`,
+      sql`delete from rooms where id = ${id} and deleted_at is not null`,
+    ]);
   }
 }
