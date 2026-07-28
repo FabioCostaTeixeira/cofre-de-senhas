@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0b0f;
+  --surface: #14161d;
+  --surface-2: #1b1e27;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #e8eaf0;
+  --text-dim: #9aa1b1;
+  --accent: #6c8cff;
+  --danger: #ff6b6b;
+  --ok: #4ade80;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100dvh;
+}
+
+/* Gradiente discreto de fundo — base do efeito de vidro */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 40rem at 15% -10%, rgba(108, 140, 255, 0.14), transparent 60%),
+    radial-gradient(50rem 35rem at 95% 5%, rgba(180, 108, 255, 0.10), transparent 55%);
+  pointer-events: none;
+}
+
+/* Vidro: cards de sala, modais, painéis */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Superfície sólida: listas de senha, onde legibilidade vem antes do efeito */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+.input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  color: var(--text);
+  outline: none;
+}
+.input:focus { border-color: var(--accent); }
+
+.btn {
+  border-radius: 0.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn-primary { background: var(--accent); border-color: transparent; color: #0a0b0f; font-weight: 600; }
+.btn-danger { color: var(--danger); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
