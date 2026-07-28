@@ -1,0 +1,51 @@
+import { Nav } from '@/components/Nav';
+import { requireMaster } from '@/lib/auth/guards';
+import { listTrash } from '@/lib/db/queries';
+import { expurgar, restaurar } from './actions';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export default async function LixeiraPage() {
+  const actor = await requireMaster();
+  const itens = await listTrash();
+
+  return (
+    <>
+      <Nav actor={actor} />
+      <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
+        <h1 className="text-xl font-semibold">Lixeira</h1>
+
+        <div className="surface divide-y" style={{ borderColor: 'var(--border)' }}>
+          {itens.map((item) => (
+            <div key={`${item.kind}-${item.id}`} className="p-4 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <span className="font-medium">{item.title}</span>{' '}
+                <span className="badge">{item.kind === 'room' ? 'sala' : 'senha'}</span>
+                <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
+                  {item.room_name ? `${item.room_name} · ` : ''}
+                  apagado em {new Date(item.deleted_at).toLocaleString('pt-BR')}
+                </p>
+              </div>
+              <form action={restaurar}>
+                <input type="hidden" name="id" value={item.id} />
+                <input type="hidden" name="kind" value={item.kind} />
+                <button className="btn">Restaurar</button>
+              </form>
+              <form action={expurgar}>
+                <input type="hidden" name="id" value={item.id} />
+                <input type="hidden" name="kind" value={item.kind} />
+                <button className="btn btn-danger">Apagar de vez</button>
+              </form>
+            </div>
+          ))}
+          {itens.length === 0 && (
+            <p className="p-8 text-center text-sm" style={{ color: 'var(--text-dim)' }}>
+              A lixeira está vazia.
+            </p>
+          )}
+        </div>
+      </main>
+    </>
+  );
+}

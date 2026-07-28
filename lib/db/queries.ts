@@ -240,3 +240,86 @@ export async function softDeleteCredential(actor: Actor, id: string): Promise<vo
   if (!canDeleteCredential(actor, row, isMember)) throw new NotFoundError();
   await sql`update credentials set deleted_at = now() where id = ${id}`;
 }
+
+/* ---------- Salas (somente master; a checagem fica nas Server Actions) ---------- */
+
+export async function listAllRooms(): Promise<RoomCard[]> {
+  return (await sql`
+    select r.id, r.name, r.description, r.created_at,
+           (select count(*) from credentials c
+             where c.room_id = r.id and c.deleted_at is null)::int as credential_count,
+           (select count(*) from room_members m where m.room_id = r.id)::int as member_count
+      from rooms r where r.deleted_at is null order by r.name`) as RoomCard[];
+}
+
+export async function createRoom(
+  createdBy: string, name: string, description: string,
+): Promise<string> {
+  const rows = (await sql`
+    insert into rooms (name, description, created_by)
+    values (${name}, ${description || null}, ${createdBy}) returning id`) as { id: string }[];
+  return rows[0].id;
+}
+
+export async function updateRoom(id: string, name: string, description: string): Promise<void> {
+  await sql`
+    update rooms set name = ${name}, description = ${description || null}, updated_at = now()
+     where id = ${id}`;
+}
+
+export async function softDeleteRoom(id: string): Promise<void> {
+  await sql`update rooms set deleted_at = now() where id = ${id}`;
+}
+
+export async function listRoomMembers(roomId: string): Promise<string[]> {
+  const rows = (await sql`
+    select user_id from room_members where room_id = ${roomId}`) as { user_id: string }[];
+  return rows.map((r) => r.user_id);
+}
+
+export async function setRoomMembers(roomId: string, userIds: string[]): Promise<void> {
+  await sql`delete from room_members where room_id = ${roomId}`;
+  for (const userId of userIds) {
+    await sql`
+      insert into room_members (room_id, user_id) values (${roomId}, ${userId})
+      on conflict do nothing`;
+  }
+}
+
+/* ---------- Lixeira (somente master) ---------- */
+
+export type TrashItem = {
+  id: string;
+  kind: 'credential' | 'room';
+  title: string;
+  room_name: string | null;
+  deleted_at: string;
+};
+
+export async function listTrash(): Promise<TrashItem[]> {
+  return (await sql`
+    select c.id, 'credential' as kind, c.title, r.name as room_name, c.deleted_at
+      from credentials c join rooms r on r.id = c.room_id
+     where c.deleted_at is not null
+    union all
+    select r.id, 'room' as kind, r.name as title, null as room_name, r.deleted_at
+      from rooms r where r.deleted_at is not null
+     order by deleted_at desc`) as TrashItem[];
+}
+
+export async function restoreItem(kind: 'credential' | 'room', id: string): Promise<void> {
+  if (kind === 'credential') {
+    await sql`update credentials set deleted_at = null where id = ${id}`;
+  } else {
+    await sql`update rooms set deleted_at = null where id = ${id}`;
+  }
+}
+
+export async function purgeItem(kind: 'credential' | 'room', id: string): Promise<void> {
+  if (kind === 'credential') {
+    await sql`delete from credentials where id = ${id} and deleted_at is not null`;
+  } else {
+    await sql`delete from credentials where room_id = ${id}`;
+    await sql`delete from rooms where id = ${id} and deleted_at is not null`;
+  }
+}
