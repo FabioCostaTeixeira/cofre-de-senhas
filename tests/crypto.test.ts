@@ -40,4 +40,27 @@ describe('crypto', () => {
     const { generateKey } = await import('@/lib/crypto');
     expect(Buffer.from(generateKey(), 'base64')).toHaveLength(32);
   });
+
+  it('lança erro se VAULT_KEY não está configurada', async () => {
+    const { encrypt } = await import('@/lib/crypto');
+    const original = process.env.VAULT_KEY;
+    try {
+      delete process.env.VAULT_KEY;
+      expect(() => encrypt('segredo', 'aad')).toThrow('VAULT_KEY não configurada');
+    } finally {
+      process.env.VAULT_KEY = original;
+    }
+  });
+
+  it('lança erro se VAULT_KEY não tem 32 bytes após decodificar de base64', async () => {
+    const { encrypt } = await import('@/lib/crypto');
+    const original = process.env.VAULT_KEY;
+    try {
+      // 16 bytes em base64 (não 32)
+      process.env.VAULT_KEY = Buffer.alloc(16, 5).toString('base64');
+      expect(() => encrypt('segredo', 'aad')).toThrow('VAULT_KEY deve ter 32 bytes em base64');
+    } finally {
+      process.env.VAULT_KEY = original;
+    }
+  });
 });
