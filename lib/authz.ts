@@ -8,6 +8,13 @@ export type CredentialAcl = {
   deleted_at: string | null;
   /** `deleted_at` da sala dona da credencial — sala na lixeira corta o acesso direto. */
   room_deleted_at: string | null;
+  /**
+   * O ator está na lista de compartilhamento desta credencial (tabela
+   * `credential_shares`). Vale só para senha não-global: é como o dono libera
+   * a senha para algumas pessoas da sala, em vez de para todas.
+   * Dá direito a ver e copiar — nunca a editar ou apagar.
+   */
+  shared_with_actor?: boolean;
 };
 
 /** Recurso inexistente OU sem permissão. Rotas traduzem em 404, nunca 403. */
@@ -26,7 +33,8 @@ export function canReadCredential(actor: Actor, c: CredentialAcl, isMember: bool
   // Sala na lixeira corta o acesso direto de todo mundo, exceto o master (isenção acima).
   if (c.room_deleted_at) return false;
   if (!isMember) return false;
-  return c.is_global || c.owner_id === actor.id;
+  // Global: toda a sala. Não-global: o dono, mais quem ele escolheu compartilhar.
+  return c.is_global || c.owner_id === actor.id || c.shared_with_actor === true;
 }
 
 /**

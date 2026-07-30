@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireReadyUser } from '@/lib/auth/guards';
 import { NotFoundError } from '@/lib/authz';
+import { isUuid } from '@/lib/validation';
 import { audit } from '@/lib/db/audit';
 import {
   insertCredential, revealPassword, softDeleteCredential, updateCredential,
@@ -61,12 +62,17 @@ export async function saveCredential(
     password: String(formData.get('password') ?? ''),
     url: String(formData.get('url') ?? '').trim(),
     notes: String(formData.get('notes') ?? '').trim(),
-    // Ausência do checkbox no FormData significa desmarcado → senha pessoal.
+    // Ausência do checkbox no FormData significa desmarcado → senha restrita.
     isGlobal: formData.get('isGlobal') === 'on',
+    // Só quando não é global; o formulário nem envia a lista no caso global.
+    compartilharCom: formData.getAll('compartilhar').map(String),
   };
 
   if (!input.title) return { error: 'Informe um título.' };
   if (!input.roomId) return { error: 'Escolha uma sala.' };
+  if ((input.compartilharCom ?? []).some((u) => !isUuid(u))) {
+    return { error: 'Seleção de pessoas inválida.' };
+  }
   if (!id && !input.password) return { error: 'Informe a senha.' };
   if (input.url && !/^https?:\/\//i.test(input.url)) {
     return { error: 'O endereço deve começar com http:// ou https://' };
@@ -77,13 +83,19 @@ export async function saveCredential(
       const { roomChanged } = await updateCredential(actor, id, input);
       await audit({
         actorId: actor.id, action: 'update', entityType: 'credential', entityId: id,
-        metadata: { title: input.title, is_global: input.isGlobal, room_changed: roomChanged },
+        metadata: {
+          title: input.title, is_global: input.isGlobal, room_changed: roomChanged,
+          compartilhada_com: input.isGlobal ? 0 : (input.compartilharCom ?? []).length,
+        },
       });
     } else {
       const novoId = await insertCredential(actor, input);
       await audit({
         actorId: actor.id, action: 'create', entityType: 'credential', entityId: novoId,
-        metadata: { title: input.title, is_global: input.isGlobal },
+        metadata: {
+          title: input.title, is_global: input.isGlobal,
+          compartilhada_com: input.isGlobal ? 0 : (input.compartilharCom ?? []).length,
+        },
       });
     }
   } catch (err) {

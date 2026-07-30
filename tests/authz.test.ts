@@ -204,3 +204,33 @@ describe('administração', () => {
     expect(canViewAudit(dono)).toBe(false);
   });
 });
+
+describe('compartilhamento individual', () => {
+  const compartilhada: CredentialAcl = {
+    id: 'c9', room_id: 'r1', owner_id: 'u-dono', is_global: false,
+    deleted_at: null, room_deleted_at: null, shared_with_actor: true,
+  };
+  const naoCompartilhada: CredentialAcl = { ...compartilhada, shared_with_actor: false };
+
+  it('membro da sala lê a senha restrita compartilhada com ele', () => {
+    expect(canReadCredential(membro, compartilhada, true)).toBe(true);
+  });
+
+  it('membro NÃO lê a restrita que não foi compartilhada com ele', () => {
+    expect(canReadCredential(membro, naoCompartilhada, true)).toBe(false);
+  });
+
+  it('compartilhamento não vale fora da sala', () => {
+    expect(canReadCredential(membro, compartilhada, false)).toBe(false);
+  });
+
+  it('compartilhamento dá leitura, nunca edição ou remoção', () => {
+    expect(canEditCredential(membro, compartilhada, true)).toBe(false);
+    expect(canDeleteCredential(membro, compartilhada, true)).toBe(false);
+  });
+
+  it('sala na lixeira corta o acesso mesmo compartilhado', () => {
+    const emSalaApagada = { ...compartilhada, room_deleted_at: '2026-01-01T00:00:00Z' };
+    expect(canReadCredential(membro, emSalaApagada, true)).toBe(false);
+  });
+});

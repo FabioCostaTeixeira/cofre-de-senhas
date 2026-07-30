@@ -190,4 +190,61 @@ descreve('integração com o banco real', () => {
 
     expect(await q.listRoomsForActor(estranho)).toHaveLength(0);
   });
+
+  it('compartilha a senha restrita com quem o dono escolher', async () => {
+    // Um segundo membro comum na mesma sala, para receber o compartilhamento.
+    const linhas = (await sql`
+      insert into users (email, name, password_hash, role, must_change_password)
+      values (${`${marca}-colega`}, 'colega', 'nao-usado', 'user', false)
+      returning id`) as { id: string }[];
+    const colegaId = linhas[0].id;
+    const colega: Ator = {
+      id: colegaId, email: `${marca}-colega`, name: 'colega', role: 'user',
+      mustChangePassword: false,
+    };
+    await q.setUserRooms(colegaId, [salaId]);
+
+    const id = await q.insertCredential(comum, {
+      roomId: salaId, title: `${marca}-restrita`, username: 'u', password: 'segredo-restrito',
+      url: '', notes: '', isGlobal: false, compartilharCom: [colegaId],
+    });
+
+    try {
+      // Quem recebeu vê e revela.
+      expect((await q.listCredentials(colega, salaId, '')).map((c) => c.id)).toContain(id);
+      expect(await q.revealPassword(colega, id)).toBe('segredo-restrito');
+      expect((await q.searchAllCredentials(colega, marca)).map((c) => c.id)).toContain(id);
+
+      // Mas não pode editar nem apagar.
+      await expect(q.getCredentialForEdit(colega, id)).rejects.toThrow();
+      await expect(q.softDeleteCredential(colega, id)).rejects.toThrow();
+
+      // Quem não recebeu, mesmo sendo membro da sala, não vê.
+      await q.setUserRooms(estranhoId, [salaId]);
+      const estranhoNaSala: Ator = { ...estranho };
+      expect((await q.listCredentials(estranhoNaSala, salaId, '')).map((c) => c.id))
+        .not.toContain(id);
+      await expect(q.revealPassword(estranhoNaSala, id)).rejects.toThrow();
+      await q.setUserRooms(estranhoId, []);
+
+      // Tirar do compartilhamento revoga o acesso.
+      await q.updateCredential(comum, id, {
+        roomId: salaId, title: `${marca}-restrita`, username: 'u', password: '',
+        url: '', notes: '', isGlobal: false, compartilharCom: [],
+      });
+      await expect(q.revealPassword(colega, id)).rejects.toThrow();
+
+      // Virar global libera para a sala inteira e limpa a lista.
+      await q.updateCredential(comum, id, {
+        roomId: salaId, title: `${marca}-restrita`, username: 'u', password: '',
+        url: '', notes: '', isGlobal: true, compartilharCom: [colegaId],
+      });
+      expect(await q.listCredentialShares(id)).toHaveLength(0);
+      expect(await q.revealPassword(colega, id)).toBe('segredo-restrito');
+    } finally {
+      await sql`delete from credential_shares where user_id = ${colegaId}`;
+      await sql`delete from room_members where user_id = ${colegaId}`;
+      await sql`delete from users where id = ${colegaId}`;
+    }
+  });
 });

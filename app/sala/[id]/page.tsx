@@ -5,7 +5,8 @@ import { SearchBox } from '@/components/SearchBox';
 import { CredentialForm } from '@/components/CredentialForm';
 import { requireReadyUser } from '@/lib/auth/guards';
 import {
-  getCredentialForEdit, getRoomForActor, listCredentials, listPersonalCredentials, listRoomsForActor,
+  getCredentialForEdit, getRoomForActor, listCredentials, listPersonalCredentials,
+  listRoomMembersDetailed, listRoomsForActor,
 } from '@/lib/db/queries';
 
 export const runtime = 'nodejs';
@@ -38,6 +39,17 @@ export default async function SalaPage({
   const edicao = editar ? await getCredentialForEdit(actor, editar) : null;
   const emEdicao = edicao?.row ?? null;
   const notasAtuais = edicao?.notes ?? '';
+
+  // Membros de cada sala do usuário: o formulário troca a lista de pessoas quando
+  // a sala muda no dropdown, então precisa de todas de uma vez.
+  const precisaMembros = Boolean(nova || emEdicao);
+  const membrosPorSala = precisaMembros
+    ? Object.fromEntries(
+        await Promise.all(
+          salasDoUsuario.map(async (s) => [s.id, await listRoomMembersDetailed(s.id)] as const),
+        ),
+      )
+    : {};
 
   return (
     <>
@@ -73,6 +85,9 @@ export default async function SalaPage({
             credencial={emEdicao}
             notasAtuais={notasAtuais}
             globalPorPadrao={!pessoal}
+            membrosPorSala={membrosPorSala}
+            compartilhadaCom={edicao?.compartilhadaCom ?? []}
+            actorId={actor.id}
             voltarPara={`/sala/${id}`}
           />
         )}

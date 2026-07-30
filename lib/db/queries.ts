@@ -59,7 +59,9 @@ export async function listCredentials(
       join users u on u.id = c.owner_id
      where c.room_id = ${roomId}
        and c.deleted_at is null
-       and (${actor.role} = 'master' or c.is_global or c.owner_id = ${actor.id})
+       and (${actor.role} = 'master' or c.is_global or c.owner_id = ${actor.id}
+            or exists (select 1 from credential_shares s
+                        where s.credential_id = c.id and s.user_id = ${actor.id}))
        and (${termo.trim()} = '' or c.title ilike ${like}
             or c.username ilike ${like} or c.url ilike ${like})
      order by c.title`) as CredentialRow[];
@@ -82,7 +84,9 @@ export async function searchAllCredentials(
        and (${actor.role} = 'master'
             or (exists (select 1 from room_members m
                          where m.room_id = c.room_id and m.user_id = ${actor.id})
-                and (c.is_global or c.owner_id = ${actor.id})))
+                and (c.is_global or c.owner_id = ${actor.id}
+                     or exists (select 1 from credential_shares s
+                                 where s.credential_id = c.id and s.user_id = ${actor.id}))))
        and (c.title ilike ${like} or c.username ilike ${like} or c.url ilike ${like})
      order by c.title limit 50`) as CredentialRow[];
 }
@@ -115,6 +119,8 @@ async function loadForActor(
   assertUuid(id);
   const rows = (await sql`
     select c.id, c.room_id, c.owner_id, c.is_global, c.deleted_at, r.deleted_at as room_deleted_at,
+           exists (select 1 from credential_shares s
+                    where s.credential_id = c.id and s.user_id = ${actor.id}) as shared_with_actor,
            c.password_ct, c.password_iv, c.password_tag
       from credentials c
       join rooms r on r.id = c.room_id
@@ -138,7 +144,7 @@ type CredentialNotes = CredentialAcl & CredentialRow & {
  */
 export async function getCredentialForEdit(
   actor: Actor, id: string,
-): Promise<{ row: CredentialRow; notes: string }> {
+): Promise<{ row: CredentialRow; notes: string; compartilhadaCom: string[] }> {
   assertUuid(id);
   const rows = (await sql`
     select c.id, c.room_id, r.name as room_name, c.title, c.username, c.url,
@@ -161,7 +167,8 @@ export async function getCredentialForEdit(
     { ct: Buffer.from(notes_ct), iv: Buffer.from(notes_iv), tag: Buffer.from(notes_tag) },
     `${row.id}:notes`,
   );
-  return { row: credRow, notes };
+  const compartilhadaCom = await listCredentialShares(row.id);
+  return { row: credRow, notes, compartilhadaCom };
 }
 
 /** Único caminho pelo qual uma senha em claro sai do banco. */
@@ -182,7 +189,61 @@ export type CredentialInput = {
   url: string;
   notes: string;
   isGlobal: boolean;
+  /**
+   * Quem mais, entre os membros da sala, enxerga esta senha. Só vale quando
+   * `isGlobal` é falso — senha global já é de toda a sala, e manter uma lista
+   * pendurada nela deixaria acesso fantasma se ela voltasse a ser restrita.
+   */
+  compartilharCom?: string[];
 };
+
+/**
+ * Grava a lista de compartilhamento numa única transação.
+ *
+ * Só entra quem é membro da sala **no momento da gravação**: compartilhar com
+ * alguém de fora criaria uma linha que nenhuma listagem honraria, já que a
+ * autorização exige associação à sala antes de olhar para o compartilhamento.
+ * O dono nunca entra na lista — ele já enxerga por ser dono.
+ */
+async function definirCompartilhamento(
+  credentialId: string, roomId: string, ownerId: string,
+  isGlobal: boolean, userIds: string[],
+): Promise<void> {
+  const alvos = isGlobal ? [] : userIds.filter((u) => u !== ownerId);
+  alvos.forEach(assertUuid);
+
+  await sql.transaction([
+    sql`delete from credential_shares
+         where credential_id = ${credentialId} and user_id <> all(${alvos}::uuid[])`,
+    sql`insert into credential_shares (credential_id, user_id)
+         select ${credentialId}, m.user_id
+           from room_members m
+          where m.room_id = ${roomId} and m.user_id = any(${alvos}::uuid[])
+         on conflict do nothing`,
+  ]);
+}
+
+/** Os ids com quem a credencial está compartilhada hoje. */
+export async function listCredentialShares(credentialId: string): Promise<string[]> {
+  assertUuid(credentialId);
+  const rows = (await sql`
+    select user_id from credential_shares
+     where credential_id = ${credentialId}`) as { user_id: string }[];
+  return rows.map((r) => r.user_id);
+}
+
+/** Membros da sala, com nome — alimenta a escolha de quem enxerga a senha. */
+export async function listRoomMembersDetailed(
+  roomId: string,
+): Promise<{ id: string; name: string }[]> {
+  assertUuid(roomId);
+  return (await sql`
+    select u.id, u.name
+      from room_members m
+      join users u on u.id = m.user_id
+     where m.room_id = ${roomId} and u.is_active = true
+     order by u.name`) as { id: string; name: string }[];
+}
 
 export async function insertCredential(actor: Actor, input: CredentialInput): Promise<string> {
   // O roomId vem do formulário: sem isso, um id malformado derruba a query com erro do Postgres.
@@ -208,6 +269,10 @@ export async function insertCredential(actor: Actor, input: CredentialInput): Pr
       ${senha.ct}, ${senha.iv}, ${senha.tag},
       ${input.url || null}, ${notas?.ct ?? null}, ${notas?.iv ?? null}, ${notas?.tag ?? null},
       ${input.isGlobal}, ${actor.id})`;
+
+  await definirCompartilhamento(
+    id, input.roomId, actor.id, input.isGlobal, input.compartilharCom ?? [],
+  );
   return id;
 }
 
@@ -246,6 +311,9 @@ export async function updateCredential(
              notes_ct = ${notas?.ct ?? null}, notes_iv = ${notas?.iv ?? null},
              notes_tag = ${notas?.tag ?? null}, updated_at = now()
        where id = ${id}`;
+    await definirCompartilhamento(
+      id, input.roomId, row.owner_id, input.isGlobal, input.compartilharCom ?? [],
+    );
     return { roomChanged };
   }
 
@@ -256,6 +324,12 @@ export async function updateCredential(
            notes_ct = ${notas?.ct ?? null}, notes_iv = ${notas?.iv ?? null},
            notes_tag = ${notas?.tag ?? null}, updated_at = now()
      where id = ${id}`;
+
+  // Reavalia o compartilhamento depois do update: se a credencial mudou de sala,
+  // quem ficou para trás deixa de ser membro do destino e é removido aqui.
+  await definirCompartilhamento(
+    id, input.roomId, row.owner_id, input.isGlobal, input.compartilharCom ?? [],
+  );
   return { roomChanged };
 }
 
