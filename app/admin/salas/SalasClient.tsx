@@ -1,20 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
-import { deleteRoom, saveMembers, saveRoom, type SalaState } from './actions';
-import type { RoomCard, User } from '@/lib/types';
+import { deleteRoom, saveRoom, type SalaState } from './actions';
+import type { RoomCard } from '@/lib/types';
 
 const inicial: SalaState = {};
 
-function SalaRow({
-  sala, usuarios, membrosAtuais,
-}: {
-  sala: RoomCard;
-  usuarios: User[];
-  membrosAtuais: string[];
-}) {
+function SalaRow({ sala, membros }: { sala: RoomCard; membros: string[] }) {
   const [salaState, salaAction, salaPending] = useActionState(saveRoom, inicial);
-  const [memState, memAction] = useActionState(saveMembers, inicial);
   const [delState, delAction] = useActionState(deleteRoom, inicial);
 
   return (
@@ -35,21 +29,19 @@ function SalaRow({
         <p className="text-sm" style={{ color: 'var(--danger)' }}>{salaState.error}</p>
       )}
 
-      <form action={memAction} className="space-y-2">
-        <input type="hidden" name="roomId" value={sala.id} />
-        <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Membros</p>
-        <div className="flex flex-wrap gap-3">
-          {usuarios.map((u) => (
-            <label key={u.id} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="userIds" value={u.id}
-                     defaultChecked={membrosAtuais.includes(u.id)} />
-              {u.name}
-            </label>
-          ))}
-        </div>
-        <button className="btn">Salvar membros</button>
-      </form>
-      {memState.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{memState.ok}</p>}
+      {/* Somente leitura: o acesso é concedido na tela do usuário, de uma vez. */}
+      <div className="space-y-1">
+        <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
+          Com acesso ({membros.length})
+        </p>
+        <p className="text-sm">
+          {membros.length ? membros.join(', ') : 'Ninguém além do master.'}
+        </p>
+        <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          Para liberar ou remover acesso, use{' '}
+          <Link href="/admin/usuarios" className="underline">Usuários</Link>.
+        </p>
+      </div>
 
       <form action={delAction}>
         <input type="hidden" name="id" value={sala.id} />
@@ -61,10 +53,9 @@ function SalaRow({
 }
 
 export function SalasClient({
-  salas, usuarios, membros,
+  salas, membros,
 }: {
   salas: RoomCard[];
-  usuarios: User[];
   membros: Record<string, string[]>;
 }) {
   const [novaSalaState, novaSalaAction, novaSalaPending] = useActionState(saveRoom, inicial);
@@ -84,11 +75,14 @@ export function SalasClient({
         {novaSalaState.error && (
           <p className="text-sm" style={{ color: 'var(--danger)' }}>{novaSalaState.error}</p>
         )}
+        {novaSalaState.ok && (
+          <p className="text-sm" style={{ color: 'var(--ok)' }}>{novaSalaState.ok}</p>
+        )}
         <button className="btn btn-primary" disabled={novaSalaPending}>Criar sala</button>
       </form>
 
       {salas.map((sala) => (
-        <SalaRow key={sala.id} sala={sala} usuarios={usuarios} membrosAtuais={membros[sala.id] ?? []} />
+        <SalaRow key={sala.id} sala={sala} membros={membros[sala.id] ?? []} />
       ))}
     </div>
   );

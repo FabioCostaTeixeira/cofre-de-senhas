@@ -8,12 +8,14 @@ import type { CredentialRow } from '@/lib/types';
 const inicial: SaveState = {};
 
 export function CredentialForm({
-  salas, salaPadrao, credencial, notasAtuais = '', voltarPara,
+  salas, salaPadrao, credencial, notasAtuais = '', globalPorPadrao = true, voltarPara,
 }: {
   salas: { id: string; name: string }[];
   salaPadrao: string;
   credencial: CredentialRow | null;
   notasAtuais?: string;
+  /** Falso quando o cadastro parte de "Minhas senhas": ali a senha nasce pessoal. */
+  globalPorPadrao?: boolean;
   voltarPara: string;
 }) {
   const [state, action, pending] = useActionState(saveCredential, inicial);
@@ -67,7 +69,7 @@ export function CredentialForm({
 
       <label className="flex items-start gap-3">
         <input type="checkbox" name="isGlobal" className="mt-1"
-               defaultChecked={credencial ? credencial.is_global : true} />
+               defaultChecked={credencial ? credencial.is_global : globalPorPadrao} />
         <span className="text-sm">
           Senha global
           <span className="block text-xs" style={{ color: 'var(--text-dim)' }}>

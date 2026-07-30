@@ -48,7 +48,9 @@ export default async function SalaPage({
           <h1 className="text-xl font-semibold">
             {pessoal ? '👤 Minhas senhas' : sala!.name}
           </h1>
-          {!pessoal && (
+          {/* Também dá para cadastrar a partir de "Minhas senhas": ali a senha nasce
+              pessoal e o usuário escolhe em qual das suas salas ela fica. */}
+          {salasDoUsuario.length > 0 && (
             <Link href={`/sala/${id}?nova=1`} className="btn btn-primary ml-auto">
               + Nova senha
             </Link>
@@ -57,12 +59,20 @@ export default async function SalaPage({
 
         <SearchBox placeholder="Buscar nesta lista..." />
 
-        {(nova || emEdicao) && (
+        {nova && salasDoUsuario.length === 0 && (
+          <p className="surface p-4 text-sm" style={{ color: 'var(--text-dim)' }}>
+            Você ainda não tem acesso a nenhuma sala, e toda senha precisa ficar em uma.
+            Peça ao administrador para liberar seu acesso.
+          </p>
+        )}
+
+        {(nova || emEdicao) && salasDoUsuario.length > 0 && (
           <CredentialForm
             salas={salasDoUsuario.map((s) => ({ id: s.id, name: s.name }))}
             salaPadrao={pessoal ? salasDoUsuario[0]?.id ?? '' : id}
             credencial={emEdicao}
             notasAtuais={notasAtuais}
+            globalPorPadrao={!pessoal}
             voltarPara={`/sala/${id}`}
           />
         )}

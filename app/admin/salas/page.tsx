@@ -10,8 +10,17 @@ export const dynamic = 'force-dynamic';
 export default async function SalasAdminPage() {
   const actor = await requireMaster();
   const [salas, usuarios] = await Promise.all([listAllRooms(), listUsers()]);
+
+  // Aqui os membros são apenas exibidos. Conceder acesso acontece na tela do
+  // usuário, onde se resolve tudo de uma vez em vez de sala por sala.
+  const nomePorId = new Map(usuarios.map((u) => [u.id, u.name]));
   const membros = Object.fromEntries(
-    await Promise.all(salas.map(async (s) => [s.id, await listRoomMembers(s.id)] as const)),
+    await Promise.all(
+      salas.map(async (s) => {
+        const ids = await listRoomMembers(s.id);
+        return [s.id, ids.map((id) => nomePorId.get(id) ?? '—').sort()] as const;
+      }),
+    ),
   );
 
   return (
@@ -19,7 +28,7 @@ export default async function SalasAdminPage() {
       <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
         <h1 className="text-xl font-semibold">Salas</h1>
-        <SalasClient salas={salas} usuarios={usuarios} membros={membros} />
+        <SalasClient salas={salas} membros={membros} />
       </main>
     </>
   );

@@ -317,6 +317,36 @@ export async function setRoomMembers(roomId: string, userIds: string[]): Promise
   ]);
 }
 
+/** As salas de que um usuário é membro. Espelho de `listRoomMembers`, pelo outro lado. */
+export async function listRoomsOfUser(userId: string): Promise<string[]> {
+  const rows = (await sql`
+    select m.room_id
+      from room_members m
+      join rooms r on r.id = m.room_id
+     where m.user_id = ${userId} and r.deleted_at is null`) as { room_id: string }[];
+  return rows.map((r) => r.room_id);
+}
+
+/**
+ * Substitui as salas de um usuário numa única transação — o acesso passou a ser
+ * concedido na tela do usuário, porque salas costumam ser muito mais numerosas
+ * que pessoas. Remove só o que saiu e insere só o que entrou, para não haver
+ * instante em que o usuário fique sem nenhuma sala.
+ *
+ * Salas na lixeira são ignoradas no insert: conceder acesso a uma sala apagada
+ * criaria uma associação que nenhuma listagem mostraria.
+ */
+export async function setUserRooms(userId: string, roomIds: string[]): Promise<void> {
+  await sql.transaction([
+    sql`delete from room_members
+         where user_id = ${userId} and room_id <> all(${roomIds}::uuid[])`,
+    sql`insert into room_members (room_id, user_id)
+         select r.id, ${userId} from rooms r
+          where r.id = any(${roomIds}::uuid[]) and r.deleted_at is null
+         on conflict do nothing`,
+  ]);
+}
+
 /* ---------- Lixeira (somente master) ---------- */
 
 export type TrashItem = {
