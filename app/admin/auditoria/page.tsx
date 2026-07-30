@@ -1,23 +1,29 @@
+import Link from 'next/link';
 import { Nav } from '@/components/Nav';
 import { requireMaster } from '@/lib/auth/guards';
 import { listAudit } from '@/lib/db/audit';
+import { AUDIT_ACTIONS } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ACOES = [
-  '', 'login_ok', 'login_fail', 'view', 'copy', 'create', 'update', 'delete',
-  'restore', 'purge', 'room_create', 'member_add', 'user_create',
-];
+function paginaLink(acao: string, pagina: number): string {
+  const params = new URLSearchParams();
+  if (acao) params.set('acao', acao);
+  if (pagina > 1) params.set('pagina', String(pagina));
+  const query = params.toString();
+  return query ? `/admin/auditoria?${query}` : '/admin/auditoria';
+}
 
 export default async function AuditoriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ acao?: string }>;
+  searchParams: Promise<{ acao?: string; pagina?: string }>;
 }) {
   const actor = await requireMaster();
-  const { acao = '' } = await searchParams;
-  const linhas = await listAudit(200, acao || undefined);
+  const { acao = '', pagina: paginaParam } = await searchParams;
+  const pagina = Math.max(1, Number(paginaParam) || 1);
+  const { linhas, temProxima } = await listAudit(pagina, acao || undefined);
 
   return (
     <>
@@ -29,8 +35,9 @@ export default async function AuditoriaPage({
           <label className="space-y-1">
             <span className="text-sm">Ação</span>
             <select name="acao" className="input" defaultValue={acao}>
-              {ACOES.map((a) => (
-                <option key={a} value={a}>{a || 'todas'}</option>
+              <option value="">todas</option>
+              {AUDIT_ACTIONS.map((a) => (
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
           </label>
@@ -58,8 +65,29 @@ export default async function AuditoriaPage({
                   <td className="p-3 font-mono text-xs">{JSON.stringify(l.metadata)}</td>
                 </tr>
               ))}
+              {linhas.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center" style={{ color: 'var(--text-dim)' }}>
+                    Nenhum registro nesta página.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {pagina > 1 ? (
+            <Link href={paginaLink(acao, pagina - 1)} className="btn">← Anterior</Link>
+          ) : (
+            <button className="btn" disabled>← Anterior</button>
+          )}
+          <span className="text-sm" style={{ color: 'var(--text-dim)' }}>Página {pagina}</span>
+          {temProxima ? (
+            <Link href={paginaLink(acao, pagina + 1)} className="btn">Próxima →</Link>
+          ) : (
+            <button className="btn" disabled>Próxima →</button>
+          )}
         </div>
       </main>
     </>

@@ -37,7 +37,19 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
 
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    return { error: 'Conta temporariamente bloqueada. Tente novamente em 15 minutos.' };
+    // Mesma comparação descartável do ramo "e-mail inexistente" logo acima: gasta o
+    // tempo do bcrypt e devolve a mensagem genérica. Contar pro usuário que a conta
+    // está bloqueada (como a versão anterior fazia) entrega de graça, pelo texto e
+    // pelo tempo de resposta, quais e-mails existem no sistema — a mesma falha que o
+    // HASH_FANTASMA existe para evitar. Perder essa conveniência para o usuário
+    // legítimo (que não fica sabendo do motivo exato) vale menos que fechar a
+    // enumeração de contas para um atacante.
+    await verifyPassword(senha, HASH_FANTASMA);
+    await audit({
+      actorId: user.id, action: 'login_fail', entityType: 'user', entityId: user.id,
+      metadata: { bloqueada: true },
+    });
+    return { error: GENERICO };
   }
 
   if (!(await verifyPassword(senha, user.password_hash))) {

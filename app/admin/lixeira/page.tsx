@@ -1,8 +1,8 @@
 import { Nav } from '@/components/Nav';
 import { PurgeButton } from '@/components/PurgeButton';
+import { RestoreButton } from '@/components/RestoreButton';
 import { requireMaster } from '@/lib/auth/guards';
 import { listTrash } from '@/lib/db/queries';
-import { restaurar } from './actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,11 +34,7 @@ export default async function LixeiraPage() {
                   )}
                 </p>
               </div>
-              <form action={restaurar}>
-                <input type="hidden" name="id" value={item.id} />
-                <input type="hidden" name="kind" value={item.kind} />
-                <button className="btn">Restaurar</button>
-              </form>
+              <RestoreButton kind={item.kind} id={item.id} />
               <PurgeButton
                 kind={item.kind} id={item.id} title={item.title}
                 credentialCount={item.kind === 'room' ? item.credential_count : null}

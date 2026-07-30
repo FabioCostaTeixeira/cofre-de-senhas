@@ -70,4 +70,3 @@ export function canCreateCredential(actor: Actor, isMember: boolean): boolean {
 export const canManageRooms = (actor: Actor) => isMaster(actor);
 export const canManageUsers = (actor: Actor) => isMaster(actor);
 export const canViewAudit = (actor: Actor) => isMaster(actor);
-export const canUseTrash = (actor: Actor) => isMaster(actor);

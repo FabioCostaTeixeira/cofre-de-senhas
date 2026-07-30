@@ -5,29 +5,29 @@ import { requireMaster } from '@/lib/auth/guards';
 import { NotFoundError } from '@/lib/authz';
 import { isUuid } from '@/lib/validation';
 import { audit } from '@/lib/db/audit';
-import { purgeItem, restoreItem } from '@/lib/db/queries';
+import { purgeItem, restoreItem, RoomTrashedError } from '@/lib/db/queries';
 
-// `restaurar` é usada direto como `action` de um <form> (sem confirmação — reversível).
+export type RestoreResult = { error?: string };
 
-/** Valida em runtime; qualquer outro valor é ignorado (a requisição não faz nada). */
-function parseKind(value: FormDataEntryValue | null): 'credential' | 'room' | null {
-  return value === 'credential' || value === 'room' ? value : null;
-}
-
-export async function restaurar(formData: FormData): Promise<void> {
+/**
+ * Chamada diretamente pelo Client Component `RestoreButton` (não via `<form action>`),
+ * porque restaurar uma credencial pode falhar (sala ainda na lixeira) e precisa
+ * devolver uma mensagem — mesmo padrão de `expurgar` logo abaixo.
+ */
+export async function restaurar(kind: 'credential' | 'room', id: string): Promise<RestoreResult> {
   const actor = await requireMaster();
-  const id = String(formData.get('id') ?? '');
-  const kind = parseKind(formData.get('kind'));
-  if (!kind || !isUuid(id)) return;
+  if (!isUuid(id)) return { error: 'Item não encontrado.' };
   try {
     await restoreItem(kind, id);
   } catch (err) {
-    if (err instanceof NotFoundError) return;
+    if (err instanceof NotFoundError) return { error: 'Item não encontrado.' };
+    if (err instanceof RoomTrashedError) return { error: err.message };
     throw err;
   }
   await audit({ actorId: actor.id, action: 'restore', entityType: kind, entityId: id });
   revalidatePath('/admin/lixeira');
   revalidatePath('/');
+  return {};
 }
 
 export type ExpurgarResult = { error?: string };

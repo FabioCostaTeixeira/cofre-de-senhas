@@ -50,13 +50,21 @@ export async function saveUser(_prev: AdminState, formData: FormData): Promise<A
     return { error: 'A senha inicial precisa ter ao menos 10 caracteres.' };
   }
 
+  let novoId: string;
   try {
-    const novoId = await createUser(email, name, await hashPassword(senhaInicial), role);
-    await audit({ actorId: actor.id, action: 'user_create', entityType: 'user', entityId: novoId,
-                  metadata: { email, role } });
-  } catch {
-    return { error: 'Já existe um usuário com esse e-mail.' };
+    novoId = await createUser(email, name, await hashPassword(senhaInicial), role);
+  } catch (err) {
+    // Só a violação de unicidade do Postgres (e-mail duplicado) vira essa mensagem;
+    // qualquer outro erro (ex.: banco fora do ar) é relançado, senão uma falha real
+    // de conexão apareceria disfarçada de "e-mail duplicado" e mandaria o master
+    // caçar um duplicado que não existe.
+    if (err && typeof err === 'object' && 'code' in err && err.code === '23505') {
+      return { error: 'Já existe um usuário com esse e-mail.' };
+    }
+    throw err;
   }
+  await audit({ actorId: actor.id, action: 'user_create', entityType: 'user', entityId: novoId,
+                metadata: { email, role } });
 
   revalidatePath('/admin/usuarios');
   return { ok: 'Usuário criado. Ele trocará a senha no primeiro acesso.' };

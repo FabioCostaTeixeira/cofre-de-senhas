@@ -126,45 +126,43 @@ async function loadForActor(
   return { row, isMember };
 }
 
-type CredentialNotes = CredentialAcl & {
+type CredentialNotes = CredentialAcl & CredentialRow & {
   notes_ct: Buffer | null; notes_iv: Buffer | null; notes_tag: Buffer | null;
 };
 
 /**
- * Carrega as notas decifradas para preencher o formulário de edição.
- * Nunca devolve a senha — só as notas (string vazia quando não houver).
+ * Carrega a credencial (para preencher o formulário de edição) independentemente
+ * de qualquer termo de busca em vigor na tela — buscar por id direto no banco, em
+ * vez de procurar dentro da lista já filtrada, evita que um filtro ativo que não
+ * inclua a credencial em edição derrube o formulário sem explicação.
+ * Nunca devolve a senha — só as notas decifradas (string vazia quando não houver).
  */
 export async function getCredentialForEdit(
   actor: Actor, id: string,
-): Promise<{ notes: string }> {
+): Promise<{ row: CredentialRow; notes: string }> {
   assertUuid(id);
   const rows = (await sql`
-    select c.id, c.room_id, c.owner_id, c.is_global, c.deleted_at, r.deleted_at as room_deleted_at,
+    select c.id, c.room_id, r.name as room_name, c.title, c.username, c.url,
+           c.is_global, c.owner_id, u.name as owner_name, c.updated_at,
+           c.deleted_at, r.deleted_at as room_deleted_at,
            c.notes_ct, c.notes_iv, c.notes_tag
       from credentials c
       join rooms r on r.id = c.room_id
+      join users u on u.id = c.owner_id
      where c.id = ${id}`) as CredentialNotes[];
   const row = rows[0];
   if (!row) throw new NotFoundError('Credencial não encontrada');
   const isMember = await isRoomMember(actor.id, row.room_id);
   if (!canEditCredential(actor, row, isMember)) throw new NotFoundError();
 
-  if (!row.notes_ct || !row.notes_iv || !row.notes_tag) return { notes: '' };
-
-  const notes = decrypt(
-    { ct: Buffer.from(row.notes_ct), iv: Buffer.from(row.notes_iv), tag: Buffer.from(row.notes_tag) },
+  const {
+    notes_ct, notes_iv, notes_tag, deleted_at, room_deleted_at, ...credRow
+  } = row;
+  const notes = (!notes_ct || !notes_iv || !notes_tag) ? '' : decrypt(
+    { ct: Buffer.from(notes_ct), iv: Buffer.from(notes_iv), tag: Buffer.from(notes_tag) },
     `${row.id}:notes`,
   );
-  return { notes };
-}
-
-export async function getCredentialAcl(
-  actor: Actor, id: string,
-): Promise<{ acl: CredentialAcl; isMember: boolean }> {
-  const { row, isMember } = await loadForActor(actor, id);
-  if (!canReadCredential(actor, row, isMember)) throw new NotFoundError();
-  const { password_ct, password_iv, password_tag, ...acl } = row;
-  return { acl, isMember };
+  return { row: credRow, notes };
 }
 
 /** Único caminho pelo qual uma senha em claro sai do banco. */
@@ -348,9 +346,24 @@ export async function listTrash(): Promise<TrashItem[]> {
      order by deleted_at desc`) as TrashItem[];
 }
 
+/** Restaurar uma credencial cuja sala ainda está na lixeira devolveria um item que
+ *  não aparece em nenhuma listagem (a sala apagada corta o acesso a tudo dentro
+ *  dela). `restoreItem` recusa esse caso em vez de restaurar silenciosamente. */
+export class RoomTrashedError extends Error {
+  constructor() {
+    super('A sala desta senha ainda está na lixeira. Restaure a sala antes de restaurar a senha.');
+  }
+}
+
 export async function restoreItem(kind: 'credential' | 'room', id: string): Promise<void> {
   assertUuid(id);
   if (kind === 'credential') {
+    const rows = (await sql`
+      select r.deleted_at as room_deleted_at
+        from credentials c join rooms r on r.id = c.room_id
+       where c.id = ${id}`) as { room_deleted_at: string | null }[];
+    if (!rows[0]) throw new NotFoundError('Senha não encontrada');
+    if (rows[0].room_deleted_at) throw new RoomTrashedError();
     await sql`update credentials set deleted_at = null where id = ${id}`;
   } else {
     await sql`update rooms set deleted_at = null where id = ${id}`;

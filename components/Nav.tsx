@@ -19,6 +19,7 @@ export function Nav({ actor }: { actor: Actor }) {
       </nav>
       <div className="ml-auto flex items-center gap-3 text-sm">
         <span style={{ color: 'var(--text-dim)' }}>{actor.name}</span>
+        <Link href="/trocar-senha" style={{ color: 'var(--text-dim)' }}>Trocar senha</Link>
         <form action={logout}>
           <button className="btn" type="submit">Sair</button>
         </form>

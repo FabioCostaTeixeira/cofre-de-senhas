@@ -3,6 +3,8 @@ import pg from 'pg';
 import 'dotenv/config';
 
 async function main() {
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL não configurada');
+
   const { SEED_MASTER_EMAIL, SEED_MASTER_NAME, SEED_MASTER_PASSWORD } = process.env;
   if (!SEED_MASTER_EMAIL || !SEED_MASTER_NAME || !SEED_MASTER_PASSWORD) {
     throw new Error('Defina SEED_MASTER_EMAIL, SEED_MASTER_NAME e SEED_MASTER_PASSWORD');
@@ -10,7 +12,10 @@ async function main() {
 
   const client = new pg.Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    // O Neon exige TLS e emite certificado válido; validar o certificado (em vez de
+    // desligar `rejectUnauthorized`) impede um ataque man-in-the-middle na conexão
+    // que carrega o hash bcrypt do master.
+    ssl: { rejectUnauthorized: true },
   });
   await client.connect();
 

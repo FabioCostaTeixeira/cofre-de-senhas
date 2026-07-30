@@ -9,7 +9,10 @@ async function main() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL não configurada');
   const client = new pg.Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    // O Neon exige TLS e emite certificado válido; validar o certificado (em vez de
+    // desligar `rejectUnauthorized`) impede um ataque man-in-the-middle na conexão
+    // que carrega o schema do cofre e o hash bcrypt do master.
+    ssl: { rejectUnauthorized: true },
   });
   await client.connect();
 

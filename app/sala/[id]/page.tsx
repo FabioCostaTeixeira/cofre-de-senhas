@@ -32,8 +32,12 @@ export default async function SalaPage({
     : todas;
 
   const salasDoUsuario = await listRoomsForActor(actor);
-  const emEdicao = editar ? creds.find((c) => c.id === editar) ?? null : null;
-  const notasAtuais = emEdicao ? (await getCredentialForEdit(actor, emEdicao.id)).notes : '';
+  // Busca a credencial em edição direto no banco (não em `creds`, já filtrada pelo
+  // termo de busca `q`): assim um filtro ativo que não a inclua não faz o
+  // formulário desaparecer sem explicação.
+  const edicao = editar ? await getCredentialForEdit(actor, editar) : null;
+  const emEdicao = edicao?.row ?? null;
+  const notasAtuais = edicao?.notes ?? '';
 
   return (
     <>

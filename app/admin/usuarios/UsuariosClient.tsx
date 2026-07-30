@@ -6,10 +6,61 @@ import type { User } from '@/lib/types';
 
 const inicial: AdminState = {};
 
+function UsuarioRow({ usuario }: { usuario: User }) {
+  const [state, action, pending] = useActionState(saveUser, inicial);
+  const [resetState, resetAction, resetPending] = useActionState(resetUserPassword, inicial);
+  const [resetando, setResetando] = useState(false);
+
+  return (
+    <div className="p-4 space-y-3">
+      <form action={action} className="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="id" value={usuario.id} />
+        <label className="space-y-1">
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Nome</span>
+          <input name="name" className="input" defaultValue={usuario.name} />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Papel</span>
+          <select name="role" className="input" defaultValue={usuario.role}>
+            <option value="user">Usuário</option>
+            <option value="master">Master</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="isActive" defaultChecked={usuario.is_active} />
+          Ativo
+        </label>
+        <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{usuario.email}</span>
+        <button className="btn ml-auto" disabled={pending}>Salvar</button>
+        <button type="button" className="btn" onClick={() => setResetando(!resetando)}>
+          Resetar senha
+        </button>
+      </form>
+
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+      {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
+
+      {resetando && (
+        <form action={resetAction} className="flex items-end gap-3">
+          <input type="hidden" name="id" value={usuario.id} />
+          <label className="space-y-1 flex-1">
+            <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Nova senha</span>
+            <input name="novaSenha" type="password" autoComplete="new-password"
+                   className="input" minLength={10} required />
+          </label>
+          <button className="btn btn-primary" disabled={resetPending}>Redefinir</button>
+        </form>
+      )}
+      {resetState.error && (
+        <p className="text-sm" style={{ color: 'var(--danger)' }}>{resetState.error}</p>
+      )}
+      {resetState.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{resetState.ok}</p>}
+    </div>
+  );
+}
+
 export function UsuariosClient({ usuarios }: { usuarios: User[] }) {
   const [novoState, novoAction, novoPending] = useActionState(saveUser, inicial);
-  const [resetState, resetAction, resetPending] = useActionState(resetUserPassword, inicial);
-  const [resetandoId, setResetandoId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -26,7 +77,8 @@ export function UsuariosClient({ usuarios }: { usuarios: User[] }) {
           </label>
           <label className="block space-y-1">
             <span className="text-sm">Senha inicial</span>
-            <input name="senhaInicial" className="input" minLength={10} required />
+            <input name="senhaInicial" type="password" autoComplete="new-password"
+                   className="input" minLength={10} required />
           </label>
           <label className="block space-y-1">
             <span className="text-sm">Papel</span>
@@ -45,49 +97,9 @@ export function UsuariosClient({ usuarios }: { usuarios: User[] }) {
 
       <div className="surface divide-y" style={{ borderColor: 'var(--border)' }}>
         {usuarios.map((u) => (
-          <div key={u.id} className="p-4 space-y-3">
-            <form action={novoAction} className="flex flex-wrap items-end gap-3">
-              <input type="hidden" name="id" value={u.id} />
-              <label className="space-y-1">
-                <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Nome</span>
-                <input name="name" className="input" defaultValue={u.name} />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Papel</span>
-                <select name="role" className="input" defaultValue={u.role}>
-                  <option value="user">Usuário</option>
-                  <option value="master">Master</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="isActive" defaultChecked={u.is_active} />
-                Ativo
-              </label>
-              <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{u.email}</span>
-              <button className="btn ml-auto">Salvar</button>
-              <button type="button" className="btn"
-                      onClick={() => setResetandoId(resetandoId === u.id ? null : u.id)}>
-                Resetar senha
-              </button>
-            </form>
-
-            {resetandoId === u.id && (
-              <form action={resetAction} className="flex items-end gap-3">
-                <input type="hidden" name="id" value={u.id} />
-                <label className="space-y-1 flex-1">
-                  <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Nova senha</span>
-                  <input name="novaSenha" className="input" minLength={10} required />
-                </label>
-                <button className="btn btn-primary" disabled={resetPending}>Redefinir</button>
-              </form>
-            )}
-          </div>
+          <UsuarioRow key={u.id} usuario={u} />
         ))}
       </div>
-      {resetState.error && (
-        <p className="text-sm" style={{ color: 'var(--danger)' }}>{resetState.error}</p>
-      )}
-      {resetState.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{resetState.ok}</p>}
     </div>
   );
 }
