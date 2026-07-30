@@ -3,6 +3,7 @@ import { PurgeButton } from '@/components/PurgeButton';
 import { RestoreButton } from '@/components/RestoreButton';
 import { requireMaster } from '@/lib/auth/guards';
 import { listTrash } from '@/lib/db/queries';
+import { formatarDataHora } from '@/lib/formato';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,7 @@ export default async function LixeiraPage() {
                 <span className="badge">{item.kind === 'room' ? 'sala' : 'senha'}</span>
                 <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
                   {item.room_name ? `${item.room_name} · ` : ''}
-                  apagado em {new Date(item.deleted_at).toLocaleString('pt-BR')}
+                  apagado em {formatarDataHora(item.deleted_at)}
                   {item.kind === 'room' && item.credential_count !== null && (
                     <>
                       {' · '}

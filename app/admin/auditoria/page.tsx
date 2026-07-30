@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Nav } from '@/components/Nav';
 import { requireMaster } from '@/lib/auth/guards';
 import { listAudit } from '@/lib/db/audit';
+import { formatarDataHora } from '@/lib/formato';
 import { AUDIT_ACTIONS } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -57,7 +58,7 @@ export default async function AuditoriaPage({
               {linhas.map((l) => (
                 <tr key={l.id} className="border-t" style={{ borderColor: 'var(--border)' }}>
                   <td className="p-3 whitespace-nowrap">
-                    {new Date(l.created_at).toLocaleString('pt-BR')}
+                    {formatarDataHora(l.created_at)}
                   </td>
                   <td className="p-3">{l.actor_name ?? '—'}</td>
                   <td className="p-3">{l.action}</td>
