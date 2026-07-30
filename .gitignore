@@ -7,3 +7,5 @@ out
 *.log
 .vercel
 .superpowers
+tsconfig.tsbuildinfo
+*.tsbuildinfo
