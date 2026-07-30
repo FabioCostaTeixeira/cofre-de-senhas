@@ -1,7 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
-import 'dotenv/config';
+import { config } from 'dotenv';
+
+// Mesma precedência do Next: `.env.local` primeiro, `.env` como base.
+config({ path: '.env.local' });
+config();
 
 const dir = path.join(process.cwd(), 'db', 'migrations');
 
