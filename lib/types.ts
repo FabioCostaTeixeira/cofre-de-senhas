@@ -27,7 +27,6 @@ export type Room = {
 
 export type RoomCard = Room & {
   credential_count: number;
-  member_count: number;
 };
 
 /** Nunca carrega senha em claro. */

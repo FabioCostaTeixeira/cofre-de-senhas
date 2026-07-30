@@ -16,8 +16,7 @@ export async function listRoomsForActor(actor: Actor): Promise<RoomCard[]> {
            (select count(*) from credentials c
              where c.room_id = r.id and c.deleted_at is null
                and (${actor.role} = 'master' or c.is_global or c.owner_id = ${actor.id})
-           )::int as credential_count,
-           (select count(*) from room_members m where m.room_id = r.id)::int as member_count
+           )::int as credential_count
       from rooms r
      where r.deleted_at is null
        and (${visibilidade}::uuid is null
@@ -272,8 +271,7 @@ export async function listAllRooms(): Promise<RoomCard[]> {
   return (await sql`
     select r.id, r.name, r.description, r.created_at,
            (select count(*) from credentials c
-             where c.room_id = r.id and c.deleted_at is null)::int as credential_count,
-           (select count(*) from room_members m where m.room_id = r.id)::int as member_count
+             where c.room_id = r.id and c.deleted_at is null)::int as credential_count
       from rooms r where r.deleted_at is null order by r.name`) as RoomCard[];
 }
 

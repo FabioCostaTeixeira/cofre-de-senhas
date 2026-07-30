@@ -10,9 +10,10 @@ export function RoomCard({ room }: { room: RoomCardData }) {
           {room.description}
         </p>
       )}
+      {/* Quantidade de membros é informação de administração: quem só usa o cofre
+          não precisa saber quantas pessoas enxergam a sala. Fica em /admin/salas. */}
       <p className="text-xs mt-4" style={{ color: 'var(--text-dim)' }}>
-        {room.credential_count} senha{room.credential_count === 1 ? '' : 's'} ·{' '}
-        {room.member_count} membro{room.member_count === 1 ? '' : 's'}
+        {room.credential_count} senha{room.credential_count === 1 ? '' : 's'}
       </p>
     </Link>
   );
