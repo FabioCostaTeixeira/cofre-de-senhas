@@ -1,6 +1,6 @@
 import { Nav } from '@/components/Nav';
 import { requireMaster } from '@/lib/auth/guards';
-import { listAllRooms, listRoomsOfUser } from '@/lib/db/queries';
+import { listAllRooms, listModulesOfUser, listRoomsOfUser } from '@/lib/db/queries';
 import { listUsers } from '@/lib/db/users';
 import { UsuariosClient } from './UsuariosClient';
 
@@ -19,6 +19,12 @@ export default async function UsuariosPage() {
     ),
   );
 
+  const modulosPorUsuario = Object.fromEntries(
+    await Promise.all(
+      usuarios.map(async (u) => [u.id, await listModulesOfUser(u.id)] as const),
+    ),
+  );
+
   return (
     <>
       <Nav actor={actor} />
@@ -28,6 +34,7 @@ export default async function UsuariosPage() {
           usuarios={usuarios}
           salas={salas.map((s) => ({ id: s.id, name: s.name }))}
           membros={membros}
+          modulosPorUsuario={modulosPorUsuario}
         />
       </main>
     </>
