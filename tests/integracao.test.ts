@@ -247,4 +247,21 @@ descreve('integração com o banco real', () => {
       await sql`delete from users where id = ${colegaId}`;
     }
   });
+
+  describe('module_access', () => {
+    it('concede e lista módulos de um usuário', async () => {
+      await q.setUserModules(comumId, masterId, ['gestao']);
+      expect(await q.listModulesOfUser(comumId)).toEqual(['gestao']);
+    });
+
+    it('substitui o conjunto: remove o que saiu, mantém o que ficou', async () => {
+      await q.setUserModules(comumId, masterId, ['gestao']);
+      await q.setUserModules(comumId, masterId, []);
+      expect(await q.listModulesOfUser(comumId)).toEqual([]);
+    });
+
+    it('usuário sem módulo concedido não vê nenhum', async () => {
+      expect(await q.listModulesOfUser(estranhoId)).toEqual([]);
+    });
+  });
 });
