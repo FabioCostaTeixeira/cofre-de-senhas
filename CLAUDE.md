@@ -9,8 +9,13 @@ Cliente contratou módulos adicionais além do Cofre de Senhas. Decisão: o Cofr
 Resumo:
 - **Gestor de Projetos** (`C:\Users\2P CONNECT\Desktop\gestor projetos 1`, Vite/React, Vercel
   Functions) já está pronto → integra por **SSO**, mantém-se app separado, exposto em
-  `/projetos` via rewrite no mesmo domínio. Passa a validar o cookie `cofre_session` do Cofre em
-  vez do próprio login/tabela de usuário (que serão desligados, sem migração de dado).
+  `/gestao` via rewrite no mesmo domínio. Passa a validar o cookie `cofre_session` do Cofre em
+  vez do próprio login/tabela de usuário (que serão desligados, sem migração de dado). A regra
+  de rewrite vive em `vercel.json`; o destino está hardcoded pra
+  `https://projectmanager01.vercel.app` (URL padrão do Gestor de Projetos na Vercel) e vai
+  precisar ser atualizado se/quando um domínio próprio for configurado pra esse projeto. Em
+  `npm run dev` local, `/gestao` dá 404 — os rewrites do `vercel.json` não se aplicam ao dev
+  server local; isso é esperado, não é bug.
 - **Módulos novos** (ainda não escritos) nascem **dentro** do Cofre de Senhas, reusando
   `lib/auth/session.ts` / `lib/auth/guards.ts`.
 - Permissão por módulo: tabela nova `module_access` (`user_id`, `module_key`), checkbox por

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireMaster } from '@/lib/auth/guards';
 import { hashPassword } from '@/lib/auth/password';
+import { MODULES } from '@/lib/modules';
 import { isUuid } from '@/lib/validation';
 import { audit } from '@/lib/db/audit';
 import { listModulesOfUser, listRoomsOfUser, setUserModules, setUserRooms } from '@/lib/db/queries';
@@ -72,6 +73,9 @@ export async function saveUser(_prev: AdminState, formData: FormData): Promise<A
   if (role !== 'master' && role !== 'user') return { error: 'Papel inválido.' };
   if (id && !isUuid(id)) return { error: 'Usuário não encontrado.' };
   if (salas.some((s) => !isUuid(s))) return { error: 'Sala inválida na seleção.' };
+  if (modulos.some((m) => !MODULES.some((x) => x.key === m))) {
+    return { error: 'Módulo inválido na seleção.' };
+  }
 
   if (id) {
     // O próprio master não pode mudar seu papel nem se desativar: `requireMaster()`

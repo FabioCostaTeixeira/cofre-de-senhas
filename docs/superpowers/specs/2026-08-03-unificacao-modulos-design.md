@@ -20,7 +20,7 @@ Primeiro módulo a integrar: **Gestor de Projetos**, já pronto, em Vite/React +
 |---|---|---|
 | Módulo já pronto (Gestor de Projetos) | Mantém-se como app separado, integra via SSO | Stack diferente (Vite vs Next.js), 30+ telas — reescrever dentro do Cofre não compensa. |
 | Módulos novos (futuros) | Nascem dentro do Cofre de Senhas (Next.js) | Reaproveita auth/sessão/UI já prontos, sem repetir trabalho de login por módulo. |
-| Domínio | Mesmo domínio, sub-rota (`/projetos` → Gestor de Projetos via rewrite) | Cliente vê 1 site só; cookie de sessão funciona sem configurar `Domain=` cross-subdomínio. |
+| Domínio | Mesmo domínio, sub-rota (`/gestao` → Gestor de Projetos via rewrite) | Cliente vê 1 site só; cookie de sessão funciona sem configurar `Domain=` cross-subdomínio. |
 | Fonte de usuário | Só a tabela `users` do Cofre. Login/tabela de usuário próprios do Gestor de Projetos são desligados, sem migração de dado. | Decisão explícita do cliente: usuários do Gestor de Projetos não serão reaproveitados. |
 | Sessão | Gestor de Projetos passa a validar o cookie `cofre_session` (JWT `jose`, mesma `SESSION_SECRET`) em vez do HMAC próprio em `api/_lib/auth.ts`. | Único login, sem tela de login duplicada. |
 | Permissão por módulo | Tabela nova `module_access` (`user_id`, `module_key`), checkbox por módulo na tela de usuário existente (`app/admin/usuarios/UsuariosClient.tsx`). | Padrão já usado hoje pra acesso de sala; extensível a qualquer módulo futuro sem mudar schema. |
@@ -30,7 +30,7 @@ Primeiro módulo a integrar: **Gestor de Projetos**, já pronto, em Vite/React +
 ```sql
 module_access
   user_id     uuid not null references users(id) on delete cascade
-  module_key  text not null              -- 'cofre' | 'projetos' | ...
+  module_key  text not null              -- 'cofre' | 'gestao' | ...
   granted_by  uuid not null references users(id)
   created_at  timestamptz not null default now()
   primary key (user_id, module_key)
@@ -39,10 +39,10 @@ module_access
 ## 4. Fluxo de sessão entre apps
 
 1. Usuário loga no Cofre (`/login`) → cookie `cofre_session` (httpOnly, mesmo domínio).
-2. Usuário navega pra `/projetos` → rewrite do Vercel entrega a resposta do deploy do Gestor de
+2. Usuário navega pra `/gestao` → rewrite do Vercel entrega a resposta do deploy do Gestor de
    Projetos, cookie vai junto (mesmo domínio).
 3. Cada função em `api/` do Gestor de Projetos valida o cookie com `jwtVerify` (mesma
-   `SESSION_SECRET` do Cofre) e confere `module_access` pra `module_key = 'projetos'`.
+   `SESSION_SECRET` do Cofre) e confere `module_access` pra `module_key = 'gestao'`.
 4. Sem sessão válida ou sem permissão → 401/redirect pra `/login` do Cofre.
 5. Logout só existe no Cofre; derruba o cookie pros dois apps.
 
