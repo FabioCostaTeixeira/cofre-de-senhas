@@ -53,6 +53,7 @@ export const AUDIT_ACTIONS = [
   'view', 'copy', 'create', 'update', 'delete', 'restore', 'purge',
   'room_create', 'room_update', 'room_delete',
   'member_add', 'member_remove',
+  'module_grant', 'module_revoke',
   'user_create', 'user_update', 'user_reset_password',
 ] as const;
 
