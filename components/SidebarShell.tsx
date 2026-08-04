@@ -12,10 +12,11 @@ export type SidebarGroup = { label: string; items: SidebarLink[] };
 const STORAGE_KEY = 'sidebar-colapsado';
 
 function NavGroups({
-  groups, colapsado, onNavigate,
+  groups, colapsado, pathname, onNavigate,
 }: {
   groups: SidebarGroup[];
   colapsado: boolean;
+  pathname: string;
   onNavigate?: () => void;
 }) {
   return (
@@ -32,13 +33,17 @@ function NavGroups({
           )}
           {grupo.items.map((item) => {
             const Icon = item.icon;
+            const ativo = item.href === '/'
+              ? pathname === '/'
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 title={item.label}
                 onClick={onNavigate}
-                className="sidebar-link"
+                className={ativo ? 'sidebar-link sidebar-link-ativo' : 'sidebar-link'}
+                aria-current={ativo ? 'page' : undefined}
                 style={{ justifyContent: colapsado ? 'center' : 'flex-start' }}
               >
                 <Icon size={18} className="shrink-0" />
@@ -132,7 +137,7 @@ export function SidebarShell({
             {colapsado ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
         </div>
-        <NavGroups groups={groups} colapsado={colapsado} />
+        <NavGroups groups={groups} colapsado={colapsado} pathname={pathname} />
         <Rodape actorName={actorName} colapsado={colapsado} logoutAction={logoutAction} />
       </aside>
 
@@ -162,7 +167,7 @@ export function SidebarShell({
             <X size={16} />
           </button>
         </div>
-        <NavGroups groups={groups} colapsado={false} onNavigate={() => setGavetaAberta(false)} />
+        <NavGroups groups={groups} colapsado={false} pathname={pathname} onNavigate={() => setGavetaAberta(false)} />
         <Rodape
           actorName={actorName} colapsado={false} logoutAction={logoutAction}
           onNavigate={() => setGavetaAberta(false)}
