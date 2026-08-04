@@ -173,3 +173,20 @@ body::after {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-dim);
 }
+
+/* Item de navegação do sidebar: mesmo vocabulário visual dos outros elementos
+   interativos (.btn, .input), só que sem borda — o hover é que dá o contorno. */
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  transition: background 140ms ease, color 140ms ease;
+}
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
