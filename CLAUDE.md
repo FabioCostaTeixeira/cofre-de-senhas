@@ -29,7 +29,36 @@ Resumo:
   acesso a sala.
 - Trabalho começou na branch `dev` (criada a partir de `main`, já no remoto).
 
-Próximo passo: plano de implementação (`docs/superpowers/plans/`) a partir do spec acima.
+Status (2026-08-04): as 13 tasks do plano foram implementadas e revisadas nas branches `dev` dos
+dois repos (Cofre: commit `8c7d640`; Gestor de Projetos: commit `f0e8181`), ambas pushadas, nenhuma
+mergeada em `main` ainda. Testado local de ponta a ponta (login no Cofre, `/gestao/api/me` e
+`/gestao/api/projects` respondendo certo com o usuário master).
+
+Pendências antes de ir pra produção:
+1. Cadastrar `COFRE_DATABASE_URL` e `SESSION_SECRET` nas env vars do projeto `projectmanager01`
+   na Vercel (hoje só existem no `.env` local do Gestor de Projetos).
+2. Validar o rewrite `/gestao` batendo em produção de verdade (só dá pra testar depois do deploy).
+3. `/api/me` do Gestor devolve `profileId: null` sempre — usuário não-master do SSO fica sem
+   acesso a nenhum módulo interno lá (deny-by-default, decisão consciente). Mapear perfil real é
+   trabalho futuro, ainda não iniciado.
+4. Decidir se/quando fazer o merge `dev` → `main` nos dois repos.
+
+Como rodar local: ver [[unificacao-modulos-hub]] na memória, ou a seção "Rodando local" logo
+abaixo.
+
+## Rodando local (Cofre + Gestor de Projetos)
+
+1. Cofre: `npm run dev` (porta 3000), precisa de `.env.local` com `DATABASE_URL`, `VAULT_KEY`,
+   `SESSION_SECRET`.
+2. Gestor de Projetos (`C:\Users\2P CONNECT\Desktop\gestor projetos 1\app`): `npm run dev`
+   (porta 5173), precisa de `.env` com `DATABASE_URL` (banco próprio), `COFRE_DATABASE_URL`
+   (banco do Cofre), `SESSION_SECRET` (idêntico ao do Cofre) e `VITE_LOGIN_URL` (só em dev, ex.
+   `http://localhost:3000/login`).
+3. Loga em `http://localhost:3000/login`.
+4. Acessa `http://localhost:5173/gestao/` (com a barra final) — cookie compartilhado via
+   `localhost`, entra sem pedir login de novo.
+5. O link "Gestão de Projetos" no menu do Cofre **não funciona local** (usa `vercel.json`, só
+   existe no deploy real) — sempre entra direto pela porta 5173.
 
 ## Stack
 
