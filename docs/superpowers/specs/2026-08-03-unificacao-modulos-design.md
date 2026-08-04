@@ -25,6 +25,13 @@ Primeiro módulo a integrar: **Gestor de Projetos**, já pronto, em Vite/React +
 | Sessão | Gestor de Projetos passa a validar o cookie `cofre_session` (JWT `jose`, mesma `SESSION_SECRET`) em vez do HMAC próprio em `api/_lib/auth.ts`. | Único login, sem tela de login duplicada. |
 | Permissão por módulo | Tabela nova `module_access` (`user_id`, `module_key`), checkbox por módulo na tela de usuário existente (`app/admin/usuarios/UsuariosClient.tsx`). | Padrão já usado hoje pra acesso de sala; extensível a qualquer módulo futuro sem mudar schema. |
 
+> **Correção pós-implementação (2026-08-04):** este desenho supunha que os dois apps
+> compartilhavam um banco Postgres. Não compartilham — são bancos Neon distintos, e o Gestor de
+> Projetos já tinha 39 tabelas de dados em produção no dele. A implementação final dá ao Gestor
+> uma **segunda conexão** (`COFRE_DATABASE_URL`), usada só pelas consultas de identidade e
+> permissão; o `DATABASE_URL` dele segue servindo os próprios dados. Unificar os bancos foi
+> avaliado e adiado.
+
 ## 3. Modelo de dados (Postgres / Neon — banco do Cofre)
 
 ```sql

@@ -16,6 +16,12 @@ Resumo:
   precisar ser atualizado se/quando um domínio próprio for configurado pra esse projeto. Em
   `npm run dev` local, `/gestao` dá 404 — os rewrites do `vercel.json` não se aplicam ao dev
   server local; isso é esperado, não é bug.
+- **Bancos são separados.** Cofre e Gestor de Projetos vivem em bancos Neon distintos
+  (`ep-dark-pond…` e `ep-autumn-union…`) — o desenho original supunha um banco só, e não é o
+  caso. O Gestor mantém o `DATABASE_URL` dele para os próprios dados (schema
+  `gestor_projetos`, 39 tabelas) e usa uma segunda conexão, `COFRE_DATABASE_URL`, só para ler
+  `public.users` / `public.module_access` do Cofre. Migrar tudo para um banco só foi
+  considerado e adiado (exigiria migrar dados de produção).
 - **Módulos novos** (ainda não escritos) nascem **dentro** do Cofre de Senhas, reusando
   `lib/auth/session.ts` / `lib/auth/guards.ts`.
 - Permissão por módulo: tabela nova `module_access` (`user_id`, `module_key`), checkbox por
