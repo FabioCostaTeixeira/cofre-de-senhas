@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { expurgar } from '@/app/admin/lixeira/actions';
+import { expurgar } from '@/app/(app)/admin/lixeira/actions';
 
 export function PurgeButton({
   kind, id, title, credentialCount,

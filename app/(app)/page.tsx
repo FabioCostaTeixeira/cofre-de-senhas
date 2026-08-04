@@ -1,4 +1,3 @@
-import { Nav } from '@/components/Nav';
 import { PersonalCard, RoomCard } from '@/components/RoomCard';
 import { SearchBox } from '@/components/SearchBox';
 import { CredentialRowItem } from '@/components/CredentialRow';
@@ -25,8 +24,6 @@ export default async function Home({
   ]);
 
   return (
-    <>
-      <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
         <SearchBox placeholder="Buscar em todas as senhas..." />
 
@@ -60,6 +57,5 @@ export default async function Home({
           </section>
         )}
       </main>
-    </>
   );
 }

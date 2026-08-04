@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Nav } from '@/components/Nav';
 import { requireMaster } from '@/lib/auth/guards';
 import { listAudit } from '@/lib/db/audit';
 import { formatarDataHora } from '@/lib/formato';
@@ -27,8 +26,6 @@ export default async function AuditoriaPage({
   const { linhas, temProxima } = await listAudit(pagina, acao || undefined);
 
   return (
-    <>
-      <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
         <h1 className="text-xl font-semibold">Auditoria</h1>
 
@@ -91,6 +88,5 @@ export default async function AuditoriaPage({
           )}
         </div>
       </main>
-    </>
   );
 }

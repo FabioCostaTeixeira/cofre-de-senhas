@@ -1,4 +1,3 @@
-import { Nav } from '@/components/Nav';
 import { requireMaster } from '@/lib/auth/guards';
 import { listAllRooms, listModulesOfUser, listRoomsOfUser } from '@/lib/db/queries';
 import { listUsers } from '@/lib/db/users';
@@ -26,8 +25,6 @@ export default async function UsuariosPage() {
   );
 
   return (
-    <>
-      <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
         <h1 className="text-xl font-semibold">Usuários</h1>
         <UsuariosClient
@@ -37,6 +34,5 @@ export default async function UsuariosPage() {
           modulosPorUsuario={modulosPorUsuario}
         />
       </main>
-    </>
   );
 }

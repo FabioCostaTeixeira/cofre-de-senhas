@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Nav } from '@/components/Nav';
 import { CredentialRowItem } from '@/components/CredentialRow';
 import { SearchBox } from '@/components/SearchBox';
 import { CredentialForm } from '@/components/CredentialForm';
@@ -52,8 +51,6 @@ export default async function SalaPage({
     : {};
 
   return (
-    <>
-      <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
         <div className="flex items-center gap-3 flex-wrap">
           <Link href="/" className="btn">←</Link>
@@ -106,6 +103,5 @@ export default async function SalaPage({
           )}
         </div>
       </main>
-    </>
   );
 }

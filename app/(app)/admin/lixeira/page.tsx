@@ -1,4 +1,3 @@
-import { Nav } from '@/components/Nav';
 import { PurgeButton } from '@/components/PurgeButton';
 import { RestoreButton } from '@/components/RestoreButton';
 import { requireMaster } from '@/lib/auth/guards';
@@ -13,8 +12,6 @@ export default async function LixeiraPage() {
   const itens = await listTrash();
 
   return (
-    <>
-      <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-4">
         <h1 className="text-xl font-semibold">Lixeira</h1>
 
@@ -49,6 +46,5 @@ export default async function LixeiraPage() {
           )}
         </div>
       </main>
-    </>
   );
 }

@@ -1,4 +1,3 @@
-import { Nav } from '@/components/Nav';
 import { requireMaster } from '@/lib/auth/guards';
 import { listAllRooms, listRoomMembers } from '@/lib/db/queries';
 import { listUsers } from '@/lib/db/users';
@@ -24,12 +23,9 @@ export default async function SalasAdminPage() {
   );
 
   return (
-    <>
-      <Nav actor={actor} />
       <main className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
         <h1 className="text-xl font-semibold">Salas</h1>
         <SalasClient salas={salas} membros={membros} />
       </main>
-    </>
   );
 }
