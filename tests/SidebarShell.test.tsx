@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { LayoutGrid, Lock as LockIcon, Users } from 'lucide-react';
 import { SidebarShell, type SidebarGroup } from '@/components/SidebarShell';
@@ -42,9 +42,12 @@ describe('SidebarShell', () => {
 
   it('C3: botao Sair tem nome acessivel quando colapsado', async () => {
     window.localStorage.setItem('sidebar-colapsado', '1');
-    renderShell();
-    const botoesSair = await screen.findAllByRole('button', { name: 'Sair' });
-    expect(botoesSair.length).toBeGreaterThan(0);
+    const { container } = renderShell();
+    const asideDesktop = container.querySelectorAll('aside')[0] as HTMLElement;
+
+    const botaoSair = await within(asideDesktop).findByRole('button', { name: 'Sair' });
+    expect(botaoSair).toBeInTheDocument();
+    expect(within(asideDesktop).queryByText('Sair')).not.toBeInTheDocument();
   });
 
   it('C4: pathname /admin/salas marca "Salas (admin)" como ativo e "Salas" nao', () => {
