@@ -76,7 +76,11 @@ function Rodape({
         {!colapsado && <span>Trocar senha</span>}
       </Link>
       <form action={logoutAction}>
-        <button className="btn w-full flex items-center justify-center gap-2" type="submit">
+        <button
+          className="btn w-full flex items-center justify-center gap-2"
+          type="submit"
+          aria-label="Sair"
+        >
           <LogOut size={16} />
           {!colapsado && <span>Sair</span>}
         </button>
@@ -106,17 +110,15 @@ export function SidebarShell({
   }, [pathname]);
 
   function alternarColapso() {
-    setColapsado((atual) => {
-      const novo = !atual;
-      localStorage.setItem(STORAGE_KEY, novo ? '1' : '0');
-      return novo;
-    });
+    const novo = !colapsado;
+    setColapsado(novo);
+    localStorage.setItem(STORAGE_KEY, novo ? '1' : '0');
   }
 
   return (
     <div className="flex min-h-dvh">
       <aside
-        className={`glass hidden md:flex md:flex-col m-4 mr-0 shrink-0 transition-all duration-200 ${
+        className={`glass hidden md:flex md:flex-col m-4 mr-0 shrink-0 md:sticky md:top-4 md:self-start md:h-[calc(100dvh-2rem)] transition-all duration-200 ${
           colapsado ? 'md:w-16' : 'md:w-60'
         }`}
       >
@@ -149,6 +151,7 @@ export function SidebarShell({
       )}
 
       <aside
+        inert={!gavetaAberta}
         className={`glass fixed inset-y-4 left-4 z-50 flex w-60 flex-col transition-transform duration-200 md:hidden ${
           gavetaAberta ? 'translate-x-0' : '-translate-x-[120%]'
         }`}
