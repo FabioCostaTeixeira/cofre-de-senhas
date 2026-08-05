@@ -488,3 +488,29 @@ export async function purgeItem(kind: 'credential' | 'room', id: string): Promis
     ]);
   }
 }
+
+/* ---------- Módulos externos (permissão por usuário) ---------- */
+
+/** Os módulos a que um usuário tem acesso explícito. Master não entra aqui — bypassa em código. */
+export async function listModulesOfUser(userId: string): Promise<string[]> {
+  const rows = (await sql`
+    select module_key from module_access where user_id = ${userId}`) as { module_key: string }[];
+  return rows.map((r) => r.module_key);
+}
+
+/**
+ * Substitui o conjunto de módulos de um usuário numa única transação, espelhando
+ * `setUserRooms`: remove só o que saiu, insere só o que entrou. `grantedBy` é o id
+ * do master que fez a alteração (vai pra `module_access.granted_by`).
+ */
+export async function setUserModules(
+  userId: string, grantedBy: string, moduleKeys: string[],
+): Promise<void> {
+  await sql.transaction([
+    sql`delete from module_access
+         where user_id = ${userId} and module_key <> all(${moduleKeys}::text[])`,
+    sql`insert into module_access (user_id, module_key, granted_by)
+         select ${userId}, m, ${grantedBy} from unnest(${moduleKeys}::text[]) as m
+         on conflict do nothing`,
+  ]);
+}

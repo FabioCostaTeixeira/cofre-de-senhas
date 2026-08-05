@@ -2,19 +2,22 @@
 
 import { useActionState, useState } from 'react';
 import { SeletorSalas, type SalaOpcao } from '@/components/SeletorSalas';
+import { SeletorModulos } from '@/components/SeletorModulos';
 import { resetUserPassword, saveUser, type AdminState } from './actions';
 import type { Role, User } from '@/lib/types';
+import { MODULES } from '@/lib/modules';
 
 const inicial: AdminState = {};
 
 const DICA_MASTER = 'O master enxerga todas as salas por definição; a seleção fica travada.';
 
 function UsuarioRow({
-  usuario, salas, salasDoUsuario,
+  usuario, salas, salasDoUsuario, modulosDoUsuario,
 }: {
   usuario: User;
   salas: SalaOpcao[];
   salasDoUsuario: string[];
+  modulosDoUsuario: string[];
 }) {
   const [state, action, pending] = useActionState(saveUser, inicial);
   const [resetState, resetAction, resetPending] = useActionState(resetUserPassword, inicial);
@@ -23,11 +26,15 @@ function UsuarioRow({
   const [selecionadas, setSelecionadas] = useState<string[]>(
     usuario.role === 'master' ? salas.map((s) => s.id) : salasDoUsuario,
   );
+  const [modulosSel, setModulosSel] = useState<string[]>(
+    usuario.role === 'master' ? MODULES.map((m) => m.key) : modulosDoUsuario,
+  );
 
   // Trocar o papel redefine a seleção: master começa com tudo, usuário comum com nada.
   function trocarPapel(novo: Role) {
     setPapel(novo);
     setSelecionadas(novo === 'master' ? salas.map((s) => s.id) : salasDoUsuario);
+    setModulosSel(novo === 'master' ? MODULES.map((m) => m.key) : modulosDoUsuario);
   }
 
   return (
@@ -65,6 +72,14 @@ function UsuarioRow({
           desabilitado={papel === 'master'}
           dica={papel === 'master' ? DICA_MASTER : undefined}
         />
+
+        <SeletorModulos
+          modulos={MODULES}
+          selecionados={modulosSel}
+          onChange={setModulosSel}
+          desabilitado={papel === 'master'}
+          dica={papel === 'master' ? DICA_MASTER : undefined}
+        />
       </form>
 
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
@@ -90,19 +105,22 @@ function UsuarioRow({
 }
 
 export function UsuariosClient({
-  usuarios, salas, membros,
+  usuarios, salas, membros, modulosPorUsuario,
 }: {
   usuarios: User[];
   salas: SalaOpcao[];
   membros: Record<string, string[]>;
+  modulosPorUsuario: Record<string, string[]>;
 }) {
   const [novoState, novoAction, novoPending] = useActionState(saveUser, inicial);
   const [papel, setPapel] = useState<Role>('user');
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
+  const [modulosNovo, setModulosNovo] = useState<string[]>([]);
 
   function trocarPapel(novo: Role) {
     setPapel(novo);
     setSelecionadas(novo === 'master' ? salas.map((s) => s.id) : []);
+    setModulosNovo(novo === 'master' ? MODULES.map((m) => m.key) : []);
   }
 
   return (
@@ -141,6 +159,14 @@ export function UsuariosClient({
           dica={papel === 'master' ? DICA_MASTER : undefined}
         />
 
+        <SeletorModulos
+          modulos={MODULES}
+          selecionados={modulosNovo}
+          onChange={setModulosNovo}
+          desabilitado={papel === 'master'}
+          dica={papel === 'master' ? DICA_MASTER : undefined}
+        />
+
         {novoState.error && (
           <p className="text-sm" style={{ color: 'var(--danger)' }}>{novoState.error}</p>
         )}
@@ -152,6 +178,7 @@ export function UsuariosClient({
         {usuarios.map((u) => (
           <UsuarioRow
             key={u.id} usuario={u} salas={salas} salasDoUsuario={membros[u.id] ?? []}
+            modulosDoUsuario={modulosPorUsuario[u.id] ?? []}
           />
         ))}
       </div>
