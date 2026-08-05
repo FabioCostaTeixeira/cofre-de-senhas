@@ -11,11 +11,18 @@ Resumo:
   Functions) já está pronto → integra por **SSO**, mantém-se app separado, exposto em
   `/gestao` via rewrite no mesmo domínio. Passa a validar o cookie `cofre_session` do Cofre em
   vez do próprio login/tabela de usuário (que serão desligados, sem migração de dado). A regra
-  de rewrite vive em `vercel.json`; o destino está hardcoded pra
-  `https://projectmanager01.vercel.app` (URL padrão do Gestor de Projetos na Vercel) e vai
-  precisar ser atualizado se/quando um domínio próprio for configurado pra esse projeto. Em
-  `npm run dev` local, `/gestao` dá 404 — os rewrites do `vercel.json` não se aplicam ao dev
+  de rewrite vive em `vercel.json`; o destino é `https://projectmanager01-lovat.vercel.app`
+  (domínio real do projeto na Vercel — `projectmanager01.vercel.app`, usado antes, não existe;
+  achado em 2026-08-05 quando o link quebrou em produção com `DEPLOYMENT_NOT_FOUND`). Vai
+  precisar ser atualizado de novo se/quando um domínio próprio for configurado pra esse projeto.
+  Em `npm run dev` local, `/gestao` dá 404 — os rewrites do `vercel.json` não se aplicam ao dev
   server local; isso é esperado, não é bug.
+  **Pendência crítica (2026-08-05):** mesmo com o domínio certo, `/gestao` continua quebrado —
+  a produção do Gestor de Projetos ainda serve o deploy antigo (`target: production` da branch
+  `main`, de antes do SSO). A branch `dev` de lá (commit `f0e8181`, com `/gestao` basePath e
+  validação de `cofre_session`) nunca foi promovida a produção. Falta: cadastrar
+  `COFRE_DATABASE_URL`/`SESSION_SECRET` nas env vars do projeto `projectmanager01` na Vercel,
+  mergear `dev` → `main` nesse repo e promover o deploy a produção.
 - **Bancos são separados.** Cofre e Gestor de Projetos vivem em bancos Neon distintos
   (`ep-dark-pond…` e `ep-autumn-union…`) — o desenho original supunha um banco só, e não é o
   caso. O Gestor mantém o `DATABASE_URL` dele para os próprios dados (schema

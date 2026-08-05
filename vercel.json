@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/gestao", "destination": "https://projectmanager01.vercel.app/gestao" },
-    { "source": "/gestao/:path*", "destination": "https://projectmanager01.vercel.app/gestao/:path*" }
+    { "source": "/gestao", "destination": "https://projectmanager01-lovat.vercel.app/gestao" },
+    { "source": "/gestao/:path*", "destination": "https://projectmanager01-lovat.vercel.app/gestao/:path*" }
   ]
 }
