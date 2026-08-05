@@ -10,17 +10,30 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
     actor.role === 'master' ? MODULES.map((m) => m.key) : await listModulesOfUser(actor.id);
   const modulosVisiveis = MODULES.filter((m) => modulosLiberados.includes(m.key));
 
+  const iconClass = 'shrink-0';
   const groups: SidebarGroup[] = [
     {
       label: 'Cofre de Senhas',
       items: [
-        { href: '/', label: 'Salas', icon: Home },
+        { href: '/', label: 'Salas', icon: <Home size={18} className={iconClass} /> },
         ...(actor.role === 'master'
           ? [
-              { href: '/admin/usuarios', label: 'Usuários', icon: Users },
-              { href: '/admin/salas', label: 'Salas (admin)', icon: FolderKanban },
-              { href: '/admin/auditoria', label: 'Auditoria', icon: ScrollText },
-              { href: '/admin/lixeira', label: 'Lixeira', icon: Trash2 },
+              {
+                href: '/admin/usuarios', label: 'Usuários',
+                icon: <Users size={18} className={iconClass} />,
+              },
+              {
+                href: '/admin/salas', label: 'Salas (admin)',
+                icon: <FolderKanban size={18} className={iconClass} />,
+              },
+              {
+                href: '/admin/auditoria', label: 'Auditoria',
+                icon: <ScrollText size={18} className={iconClass} />,
+              },
+              {
+                href: '/admin/lixeira', label: 'Lixeira',
+                icon: <Trash2 size={18} className={iconClass} />,
+              },
             ]
           : []),
       ],
@@ -28,7 +41,10 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
     ...(modulosVisiveis.length > 0
       ? [{
           label: 'Módulos',
-          items: modulosVisiveis.map((m) => ({ href: m.href, label: m.label, icon: m.icon })),
+          items: modulosVisiveis.map((m) => {
+            const Icon = m.icon;
+            return { href: m.href, label: m.label, icon: <Icon size={18} className={iconClass} /> };
+          }),
         }]
       : []),
   ];

@@ -13,9 +13,9 @@ const groups: SidebarGroup[] = [
   {
     label: 'Geral',
     items: [
-      { href: '/', label: 'Salas', icon: LayoutGrid },
-      { href: '/admin/salas', label: 'Salas (admin)', icon: Users },
-      { href: '/admin/usuarios', label: 'Usuarios', icon: LockIcon },
+      { href: '/', label: 'Salas', icon: <LayoutGrid size={18} /> },
+      { href: '/admin/salas', label: 'Salas (admin)', icon: <Users size={18} /> },
+      { href: '/admin/usuarios', label: 'Usuarios', icon: <LockIcon size={18} /> },
     ],
   },
 ];

@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Lock, LogOut, Menu, X } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 
-export type SidebarLink = { href: string; label: string; icon: LucideIcon };
+export type SidebarLink = { href: string; label: string; icon: React.ReactNode };
 export type SidebarGroup = { label: string; items: SidebarLink[] };
 
 const STORAGE_KEY = 'sidebar-colapsado';
@@ -32,7 +31,6 @@ function NavGroups({
             </p>
           )}
           {grupo.items.map((item) => {
-            const Icon = item.icon;
             const ativo = item.href === '/'
               ? pathname === '/'
               : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -46,7 +44,7 @@ function NavGroups({
                 aria-current={ativo ? 'page' : undefined}
                 style={{ justifyContent: colapsado ? 'center' : 'flex-start' }}
               >
-                <Icon size={18} className="shrink-0" />
+                {item.icon}
                 {!colapsado && <span className="truncate">{item.label}</span>}
               </Link>
             );
