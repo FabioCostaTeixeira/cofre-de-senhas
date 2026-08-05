@@ -195,3 +195,12 @@ body::after {
   color: var(--text);
   font-weight: 500;
 }
+/*
+ * Botão só-ícone do sidebar retraído. O `.btn` normal tem 1rem de padding
+ * lateral: com a rail de 4rem sobra menos que a largura do botão e ele vaza
+ * para fora do painel.
+ */
+.btn-icone {
+  padding: 0.4rem;
+  line-height: 0;
+}

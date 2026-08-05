@@ -64,7 +64,10 @@ function Rodape({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="p-3 space-y-2 border-t" style={{ borderColor: 'var(--border)' }}>
+    <div
+      className={`space-y-2 border-t ${colapsado ? 'p-2' : 'p-3'}`}
+      style={{ borderColor: 'var(--border)' }}
+    >
       {!colapsado && (
         <p className="px-1 text-sm truncate" style={{ color: 'var(--text-dim)' }}>{actorName}</p>
       )}
@@ -80,11 +83,13 @@ function Rodape({
       </Link>
       <form action={logoutAction}>
         <button
-          className="btn w-full flex items-center justify-center gap-2"
+          className={`btn w-full flex items-center justify-center gap-2 ${
+            colapsado ? 'btn-icone' : ''
+          }`}
           type="submit"
           aria-label="Sair"
         >
-          <LogOut size={16} />
+          <LogOut size={16} className="shrink-0" />
           {!colapsado && <span>Sair</span>}
         </button>
       </form>
@@ -125,10 +130,10 @@ export function SidebarShell({
           colapsado ? 'md:w-16' : 'md:w-60'
         }`}
       >
-        <div className="flex items-center gap-2 p-4">
+        <div className={`flex items-center gap-2 ${colapsado ? 'p-2 justify-center' : 'p-4'}`}>
           {!colapsado && <span className="font-semibold flex-1 truncate">4NEXUS</span>}
           <button
-            className="btn"
+            className={colapsado ? 'btn btn-icone' : 'btn'}
             onClick={alternarColapso}
             aria-label={colapsado ? 'Expandir menu' : 'Retrair menu'}
           >
