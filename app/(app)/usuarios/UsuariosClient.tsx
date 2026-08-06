@@ -6,7 +6,7 @@ import { SeletorModulos } from '@/components/SeletorModulos';
 import { MODULES } from '@/lib/modules';
 import { mascararCep, mascararCpf, mascararTelefone } from '@/lib/documentos';
 import {
-  buscarCep, revelarDocumentosAction, salvarCadastro,
+  buscarCep, criarUsuario, resetUserPassword, revelarDocumentosAction, salvarCadastro,
   type CadastroState,
 } from './actions';
 import type { EscopoCampos } from '@/lib/authz';
@@ -41,6 +41,7 @@ export function UsuariosClient({
 
   return (
     <div className="space-y-4">
+      <NovoUsuarioForm salas={salas} />
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>
@@ -69,6 +70,78 @@ export function UsuariosClient({
   );
 }
 
+function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
+  const [state, action, pending] = useActionState(criarUsuario, inicial);
+  const [papel, setPapel] = useState<Role>('user');
+  const [salasSel, setSalasSel] = useState<string[]>([]);
+  const [modulosSel, setModulosSel] = useState<string[]>([]);
+
+  function trocarPapel(novo: Role) {
+    setPapel(novo);
+    setSalasSel(novo === 'master' ? salas.map((s) => s.id) : []);
+    setModulosSel(novo === 'master' ? MODULES.map((m) => m.key) : []);
+  }
+
+  return (
+    <details className="glass p-5">
+      <summary className="cursor-pointer font-semibold">Novo usuário</summary>
+      <form action={action} className="space-y-4 mt-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-sm">Nome</span>
+            <input name="name" className="input" required />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm">E-mail</span>
+            <input name="email" type="email" className="input" required />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm">Senha inicial</span>
+            <input name="senhaInicial" type="password" autoComplete="new-password"
+                   className="input" minLength={10} required />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm">Papel</span>
+            <select name="role" className="input" value={papel}
+                    onChange={(e) => trocarPapel(e.target.value as Role)}>
+              <option value="user">Usuário</option>
+              <option value="master">Master</option>
+            </select>
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm">CPF (opcional)</span>
+            <input name="cpf" className="input" placeholder="529.982.247-25" />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm">Data de contratação</span>
+            <input name="dataContratacao" type="date" className="input" />
+          </label>
+        </div>
+
+        <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          Se o CPF já pertencer a uma pessoa cadastrada, o vínculo é criado para ela
+          (readmissão) — salas e módulos não são herdados do vínculo anterior.
+        </p>
+
+        <SeletorSalas
+          salas={salas} selecionadas={salasSel} onChange={setSalasSel}
+          desabilitado={papel === 'master'}
+          dica={papel === 'master' ? DICA_MASTER : undefined}
+        />
+        <SeletorModulos
+          modulos={MODULES} selecionados={modulosSel} onChange={setModulosSel}
+          desabilitado={papel === 'master'}
+          dica={papel === 'master' ? DICA_MASTER : undefined}
+        />
+
+        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+        {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
+        <button className="btn btn-primary" disabled={pending}>Criar usuário</button>
+      </form>
+    </details>
+  );
+}
+
 function Modal({
   usuario, pessoa, escopo, salas, salasDoUsuario, modulosDoUsuario, vinculos, onFechar,
 }: {
@@ -93,7 +166,9 @@ function Modal({
   const [salasSel, setSalasSel] = useState<string[]>(salasDoUsuario);
   const [modulosSel, setModulosSel] = useState<string[]>(modulosDoUsuario);
   const [papel, setPapel] = useState<Role>(usuario.role);
-  const soMaster = escopo !== 'todos';
+  const escopoLimitado = escopo !== 'todos';
+  const [resetando, setResetando] = useState(false);
+  const [resetState, resetAction, resetPending] = useActionState(resetUserPassword, inicial);
 
   // Master enxerga tudo por definição: trocar o papel redefine a seleção inteira.
   function trocarPapel(novo: Role) {
@@ -126,7 +201,7 @@ function Modal({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-1">
             <span className="text-sm">Nome</span>
-            <input name="name" className="input" defaultValue={usuario.name} disabled={soMaster} />
+            <input name="name" className="input" defaultValue={usuario.name} disabled={escopoLimitado} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm">E-mail</span>
@@ -140,7 +215,7 @@ function Modal({
           <label className="block space-y-1">
             <span className="text-sm">Data de nascimento</span>
             <input name="dataNascimento" type="date" className="input"
-                   defaultValue={pessoa.data_nascimento ?? ''} disabled={soMaster} />
+                   defaultValue={pessoa.data_nascimento ?? ''} disabled={escopoLimitado} />
           </label>
         </div>
 
@@ -194,30 +269,30 @@ function Modal({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block space-y-1">
               <span className="text-sm">CPF</span>
-              <input name="cpf" className="input" disabled={soMaster}
+              <input name="cpf" className="input" disabled={escopoLimitado}
                      defaultValue={docs?.cpf ? mascararCpf(docs.cpf) : ''}
                      placeholder={pessoa.tem_cpf ? '•••.•••.•••-••' : ''} />
             </label>
             <label className="block space-y-1">
               <span className="text-sm">Identidade (RG)</span>
-              <input name="rg" className="input" disabled={soMaster}
+              <input name="rg" className="input" disabled={escopoLimitado}
                      defaultValue={docs?.rg ?? ''}
                      placeholder={pessoa.tem_rg ? '••••••••' : ''} />
             </label>
             <label className="block space-y-1">
               <span className="text-sm">Órgão expedidor</span>
-              <input name="rgOrgao" className="input" disabled={soMaster}
+              <input name="rgOrgao" className="input" disabled={escopoLimitado}
                      defaultValue={pessoa.rg_orgao_expedidor ?? ''} placeholder="SSP/SP" />
             </label>
             <label className="block space-y-1">
               <span className="text-sm">CNPJ</span>
-              <input name="cnpj" className="input" disabled={soMaster}
+              <input name="cnpj" className="input" disabled={escopoLimitado}
                      defaultValue={pessoa.cnpj ?? ''} />
             </label>
           </div>
         </fieldset>
 
-        {!soMaster && (
+        {!escopoLimitado && (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block space-y-1">
@@ -265,6 +340,27 @@ function Modal({
         {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
         <button className="btn btn-primary" disabled={pending}>Salvar</button>
       </form>
+
+      {!escopoLimitado && (
+        <div className="space-y-2">
+          <button type="button" className="btn" onClick={() => setResetando(!resetando)}>
+            {resetando ? 'Cancelar' : 'Resetar senha'}
+          </button>
+          {resetando && (
+            <form action={resetAction} className="flex items-end gap-3">
+              <input type="hidden" name="id" value={usuario.id} />
+              <label className="space-y-1 flex-1">
+                <span className="text-xs" style={{ color: 'var(--text-dim)' }}>Nova senha</span>
+                <input name="novaSenha" type="password" autoComplete="new-password"
+                       className="input" minLength={10} required />
+              </label>
+              <button className="btn btn-primary" disabled={resetPending}>Redefinir</button>
+            </form>
+          )}
+          {resetState.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{resetState.error}</p>}
+          {resetState.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{resetState.ok}</p>}
+        </div>
+      )}
 
       {vinculos.length > 1 && (
         <section className="space-y-1">
