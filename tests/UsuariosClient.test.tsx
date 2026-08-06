@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { UsuariosClient } from '@/app/(app)/usuarios/UsuariosClient';
+import { buscarDadosUsuario } from '@/app/(app)/usuarios/actions';
 import type { Pessoa, UserComContato } from '@/lib/types';
 
 vi.mock('@/app/(app)/usuarios/actions', () => ({
@@ -10,6 +11,7 @@ vi.mock('@/app/(app)/usuarios/actions', () => ({
   revelarDocumentosAction: vi.fn(),
   buscarCep: vi.fn(),
   resetUserPassword: vi.fn(),
+  buscarDadosUsuario: vi.fn(),
 }));
 
 const usuario: UserComContato = {
@@ -26,6 +28,23 @@ const pessoa: Pessoa = {
   bairro: null, cidade: null, uf: null, data_nascimento: null,
   rg_orgao_expedidor: null, cnpj: null, tem_cpf: false, tem_rg: false,
 };
+
+// Pessoa A: o master logado (ator). Pessoa B: linha clicada na grid.
+const usuarioA: UserComContato = {
+  ...usuario,
+  id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  pessoa_id: 'aaaaaaaa-bbbb-aaaa-aaaa-aaaaaaaaaaaa',
+  name: 'Master A', email: 'a@x.com',
+};
+const pessoaA: Pessoa = { ...pessoa, id: usuarioA.pessoa_id };
+
+const usuarioB: UserComContato = {
+  ...usuario,
+  id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+  pessoa_id: 'bbbbbbbb-cccc-bbbb-bbbb-bbbbbbbbbbbb',
+  name: 'Pessoa B', email: 'b@x.com',
+};
+const pessoaB: Pessoa = { ...pessoa, id: usuarioB.pessoa_id, cidade: 'Cidade de B' };
 
 afterEach(() => cleanup());
 
@@ -60,5 +79,27 @@ describe('UsuariosClient', () => {
     );
     expect(screen.getByLabelText('Telefone')).toBeEnabled();
     expect(screen.getByLabelText('Nome')).toBeDisabled();
+  });
+
+  it('ao clicar na linha de B, o modal mostra os dados de B, não os do ator A', async () => {
+    vi.mocked(buscarDadosUsuario).mockResolvedValue({
+      usuario: usuarioB, pessoa: pessoaB,
+      salasDoUsuario: [], modulosDoUsuario: [], vinculos: [],
+    });
+
+    render(
+      <UsuariosClient
+        escopo="todos" usuarios={[usuarioB]} eu={usuarioA} pessoa={pessoaA}
+        salas={[]} salasDoUsuario={[]} modulosDoUsuario={[]} vinculos={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Pessoa B'));
+
+    expect(await screen.findByRole('heading', { name: 'Pessoa B' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('b@x.com')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('a@x.com')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Master A' })).not.toBeInTheDocument();
+    expect(buscarDadosUsuario).toHaveBeenCalledWith(usuarioB.id);
   });
 });

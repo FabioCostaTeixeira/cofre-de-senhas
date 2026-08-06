@@ -6,8 +6,8 @@ import { SeletorModulos } from '@/components/SeletorModulos';
 import { MODULES } from '@/lib/modules';
 import { mascararCep, mascararCpf, mascararTelefone } from '@/lib/documentos';
 import {
-  buscarCep, criarUsuario, resetUserPassword, revelarDocumentosAction, salvarCadastro,
-  type CadastroState,
+  buscarCep, buscarDadosUsuario, criarUsuario, resetUserPassword, revelarDocumentosAction,
+  salvarCadastro, type CadastroState, type DadosUsuarioAlvo,
 } from './actions';
 import type { EscopoCampos } from '@/lib/authz';
 import type { Pessoa, Role, UserComContato } from '@/lib/types';
@@ -29,7 +29,10 @@ export function UsuariosClient({
   modulosDoUsuario: string[];
   vinculos: VinculoResumo[];
 }) {
-  const [aberto, setAberto] = useState<UserComContato | null>(eu);
+  const [aberto, setAberto] = useState<DadosUsuarioAlvo | null>(
+    eu && pessoa ? { usuario: eu, pessoa, salasDoUsuario, modulosDoUsuario, vinculos } : null,
+  );
+  const [carregando, setCarregando] = useState(false);
 
   if (escopo !== 'todos') {
     return eu && pessoa
@@ -37,6 +40,14 @@ export function UsuariosClient({
                salasDoUsuario={salasDoUsuario} modulosDoUsuario={modulosDoUsuario}
                vinculos={vinculos} onFechar={null} />
       : <p>Cadastro não encontrado.</p>;
+  }
+
+  async function abrir(usuario: UserComContato) {
+    setCarregando(true);
+    const r = await buscarDadosUsuario(usuario.id);
+    setCarregando(false);
+    if ('error' in r) return; // mensagem de erro pode ser acrescentada depois; não é o foco desta task
+    setAberto(r);
   }
 
   return (
@@ -52,7 +63,7 @@ export function UsuariosClient({
         </thead>
         <tbody>
           {usuarios.map((u) => (
-            <tr key={u.id} className="cursor-pointer" onClick={() => setAberto(u)}>
+            <tr key={u.id} className="cursor-pointer" onClick={() => void abrir(u)}>
               <td className="p-2">{u.name}</td>
               <td className="p-2">{u.telefone ? mascararTelefone(u.telefone) : '—'}</td>
               <td className="p-2">{u.email}</td>
@@ -61,11 +72,13 @@ export function UsuariosClient({
         </tbody>
       </table>
 
-      {aberto && pessoa && (
-        <Modal usuario={aberto} pessoa={pessoa} escopo={escopo} salas={salas}
-               salasDoUsuario={salasDoUsuario} modulosDoUsuario={modulosDoUsuario}
-               vinculos={vinculos} onFechar={() => setAberto(null)} />
+      {aberto && (
+        <Modal key={aberto.usuario.id} usuario={aberto.usuario} pessoa={aberto.pessoa}
+               escopo={escopo} salas={salas}
+               salasDoUsuario={aberto.salasDoUsuario} modulosDoUsuario={aberto.modulosDoUsuario}
+               vinculos={aberto.vinculos} onFechar={() => setAberto(null)} />
       )}
+      {carregando && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Carregando…</p>}
     </div>
   );
 }

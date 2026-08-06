@@ -8,17 +8,57 @@ import { camposEditaveis, podeRevelarDados } from '@/lib/authz';
 import { audit } from '@/lib/db/audit';
 import { listModulesOfUser, listRoomsOfUser, setUserModules, setUserRooms } from '@/lib/db/queries';
 import {
-  findPessoaIdByCpf, revelarDocumentos, updateContato, updatePessoa,
+  findPessoaIdByCpf, getPessoa, revelarDocumentos, updateContato, updatePessoa,
 } from '@/lib/db/pessoas';
 import {
-  createUserComPessoa, getUserComContato, setPassword, updateVinculo,
+  createUserComPessoa, getUserComContato, listVinculosDaPessoa, setPassword, updateVinculo,
+  type VinculoResumo,
 } from '@/lib/db/users';
 import { soDigitos, validarCnpj, validarCpf } from '@/lib/documentos';
 import { MODULES } from '@/lib/modules';
 import { isUuid } from '@/lib/validation';
-import type { Role } from '@/lib/types';
+import type { Pessoa, Role, UserComContato } from '@/lib/types';
 
 export type CadastroState = { error?: string; ok?: string; pessoaExistenteId?: string };
+
+export type DadosUsuarioAlvo = {
+  usuario: UserComContato;
+  pessoa: Pessoa;
+  salasDoUsuario: string[];
+  modulosDoUsuario: string[];
+  vinculos: VinculoResumo[];
+};
+
+/**
+ * Busca os dados do usuário clicado sob demanda. Sem isso, a grid teria que carregar o
+ * cadastro completo de todo mundo na página inicial só para o master poder abrir qualquer
+ * um — caro, e pior: um bug anterior aqui carregava os dados do PRÓPRIO ator uma vez e
+ * reusava para qualquer linha clicada, fazendo o master editar o alvo com o endereço e
+ * conceder ao alvo as salas/módulos de si mesmo.
+ */
+export async function buscarDadosUsuario(
+  userId: string,
+): Promise<DadosUsuarioAlvo | { error: string }> {
+  const actor = await requireReadyUser();
+  if (!isUuid(userId)) return { error: 'Usuário não encontrado.' };
+
+  const escopo = camposEditaveis(actor, userId);
+  if (escopo === 'nenhum') return { error: 'Sem permissão.' };
+
+  const usuario = await getUserComContato(userId);
+  if (!usuario) return { error: 'Usuário não encontrado.' };
+
+  const pessoa = await getPessoa(usuario.pessoa_id);
+  if (!pessoa) return { error: 'Cadastro não encontrado.' };
+
+  const [salasDoUsuario, modulosDoUsuario, vinculos] = await Promise.all([
+    listRoomsOfUser(usuario.id),
+    listModulesOfUser(usuario.id),
+    listVinculosDaPessoa(usuario.pessoa_id),
+  ]);
+
+  return { usuario, pessoa, salasDoUsuario, modulosDoUsuario, vinculos };
+}
 
 /** `''` vira `null`: campo em branco é ausência de dado, não string vazia no banco. */
 function ouNulo(fd: FormData, campo: string): string | null {
