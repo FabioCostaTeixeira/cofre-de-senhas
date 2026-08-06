@@ -363,3 +363,36 @@ Também fora desta rodada:
 - reativação automática ao limpar a data de demissão;
 - validação de CEP contra o endereço digitado (a busca preenche, mas não impede divergência);
 - unificar duas pessoas cadastradas em duplicidade antes deste desenho existir.
+
+## 13. Pendências conhecidas na implementação (não bloqueiam o merge)
+
+A revisão final de branch achou quatro pontos onde a implementação diverge do que este
+documento pede, mas nenhum deles concede acesso indevido nem corrompe dado — por isso a
+decisão foi registrar como dívida técnica em vez de atrasar o merge por eles. Ficam aqui,
+versionados, porque o rascunho anterior os deixou só em `.superpowers/sdd/` (gitignored) e
+teria virado dívida invisível.
+
+1. **Master não edita e-mail pela UI.** O campo chega `disabled` incondicional no modal
+   (`app/(app)/usuarios/UsuariosClient.tsx`). A seção 6 deste documento pedia que o master
+   pudesse editar. Corrigir exige decidir o que fazer com sessões abertas sob o e-mail
+   antigo — não é só destravar o campo.
+
+2. **`salvarCadastro` não usa `sql.transaction` entre a gravação em `users` e em
+   `pessoas`.** São chamadas separadas (`updateVinculo`, depois `updatePessoa`, que por
+   sua vez é internamente 3–4 `update`s). A seção 7 pedia atomicidade. O caso mais grave
+   citado ali — demissão sem `is_active = false` — está coberto porque `updateVinculo`
+   continua sendo uma única instrução, mas uma falha no meio pode deixar `pessoas`
+   parcialmente atualizada.
+
+3. **Vínculo por CPF em `criarUsuario` reaproveita a pessoa automaticamente, sem
+   confirmação.** A seção 8 pedia oferecer a escolha ao master ("já existe pessoa com este
+   CPF, vincular?") em vez de decidir sozinho. `CadastroState.pessoaExistenteId` existe no
+   tipo e nunca é usado — o resto do fluxo de confirmação nunca foi implementado. Risco
+   prático: CPF digitado errado que colide com outra pessoa anexa o vínculo novo a ela sem
+   aviso.
+
+4. **`criarUsuario` lê campos de contato/documento que o formulário de criação
+   (`NovoUsuarioForm`) nunca envia** (`telefone`, `cep`, `rg`, `rgOrgao`, `cnpj`,
+   `dataNascimento`), e só grava algo nesses campos se houver CPF preenchido. Não é bug —
+   é código morto que confunde quem ler `app/(app)/usuarios/actions.ts` depois. Ou o
+   formulário ganha esses campos, ou a action para de tentar lê-los.
