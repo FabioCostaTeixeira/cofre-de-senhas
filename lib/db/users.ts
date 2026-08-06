@@ -64,24 +64,6 @@ export async function setPassword(id: string, hash: string, mustChange: boolean)
      where id = ${id}`;
 }
 
-export async function createUser(
-  email: string, name: string, hash: string, role: Role,
-): Promise<string> {
-  const rows = (await sql`
-    insert into users (email, name, password_hash, role, must_change_password)
-    values (${email.toLowerCase()}, ${name}, ${hash}, ${role}, true)
-    returning id`) as { id: string }[];
-  return rows[0].id;
-}
-
-export async function updateUser(
-  id: string, name: string, role: Role, isActive: boolean,
-): Promise<void> {
-  await sql`
-    update users set name = ${name}, role = ${role}, is_active = ${isActive}, updated_at = now()
-     where id = ${id}`;
-}
-
 /** Linha da grid. Não traz nenhum blob cifrado — documento só sai pela action de revelar. */
 export async function listUsersComContato(
   incluirDesligados: boolean,
