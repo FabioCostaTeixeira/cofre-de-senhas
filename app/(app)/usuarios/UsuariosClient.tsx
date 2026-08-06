@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { SeletorSalas, type SalaOpcao } from '@/components/SeletorSalas';
 import { SeletorModulos } from '@/components/SeletorModulos';
 import { MODULES } from '@/lib/modules';
-import { mascararCep, mascararCpf, mascararTelefone } from '@/lib/documentos';
+import { mascararCep, mascararCpf, mascararTelefone, soDigitos } from '@/lib/documentos';
 import {
   buscarCep, buscarDadosUsuario, criarUsuario, resetUserPassword, revelarDocumentosAction,
   salvarCadastro, type CadastroState, type DadosUsuarioAlvo,
@@ -89,6 +89,7 @@ function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
   const [papel, setPapel] = useState<Role>('user');
   const [salasSel, setSalasSel] = useState<string[]>([]);
   const [modulosSel, setModulosSel] = useState<string[]>([]);
+  const [cpfDigitos, setCpfDigitos] = useState('');
 
   function trocarPapel(novo: Role) {
     setPapel(novo);
@@ -124,11 +125,14 @@ function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
           </label>
           <label className="block space-y-1">
             <span className="text-sm">CPF (opcional)</span>
-            <input name="cpf" className="input" placeholder="529.982.247-25" />
+            <input name="cpf" className="input" inputMode="numeric" maxLength={14}
+                   value={mascararCpf(cpfDigitos)}
+                   onChange={(e) => setCpfDigitos(soDigitos(e.target.value))}
+                   placeholder="529.982.247-25" />
           </label>
           <label className="block space-y-1">
             <span className="text-sm">Data de contratação</span>
-            <input name="dataContratacao" type="date" className="input" />
+            <input name="dataContratacao" type="date" lang="pt-BR" className="input" />
           </label>
         </div>
 
@@ -174,6 +178,12 @@ function Modal({
     logradouro: pessoa.logradouro ?? '', bairro: pessoa.bairro ?? '',
     cidade: pessoa.cidade ?? '', uf: pessoa.uf ?? '',
   });
+  // Guardam só os dígitos; a máscara é aplicada no `value` na hora de renderizar, não no
+  // estado — assim o servidor sempre recebe o de-para certo (`soDigitos` de novo lá, mas
+  // já vem limpo) e a máscara nunca fica "presa" atrás de um valor antigo formatado.
+  const [telefoneDigitos, setTelefoneDigitos] = useState(pessoa.telefone ?? '');
+  const [cepDigitos, setCepDigitos] = useState(pessoa.cep ?? '');
+  const [cpfDigitos, setCpfDigitos] = useState(docs?.cpf ?? '');
   // `SeletorSalas` e `SeletorModulos` são controlados e geram os
   // `<input type="hidden" name="salas">` a partir da seleção. Sem estado real aqui, a
   // caixa marcaria na tela e nada chegaria na Server Action.
@@ -196,10 +206,20 @@ function Modal({
     if (achado) setEndereco(achado);
   }
 
+  // Dispara assim que o CEP completa 8 dígitos, sem esperar o campo perder o foco —
+  // antes só rodava no blur, e quem não clicava fora do campo (ex.: ia direto pro
+  // próximo campo com Tab rápido, ou colava e clicava em Salvar) nunca via a busca rodar.
+  function digitarCep(valor: string) {
+    const digitos = soDigitos(valor);
+    setCepDigitos(digitos);
+    if (digitos.length === 8) void preencherPorCep(digitos);
+  }
+
   async function revelar() {
     const r = await revelarDocumentosAction(usuario.id);
     if ('error' in r) return;
     setDocs(r);
+    setCpfDigitos(r.cpf ?? '');
   }
 
   return (
@@ -223,12 +243,13 @@ function Modal({
           </label>
           <label className="block space-y-1">
             <span className="text-sm">Telefone</span>
-            <input name="telefone" className="input"
-                   defaultValue={usuario.telefone ? mascararTelefone(usuario.telefone) : ''} />
+            <input name="telefone" className="input" inputMode="numeric" maxLength={15}
+                   value={mascararTelefone(telefoneDigitos)}
+                   onChange={(e) => setTelefoneDigitos(soDigitos(e.target.value))} />
           </label>
           <label className="block space-y-1">
             <span className="text-sm">Data de nascimento</span>
-            <input name="dataNascimento" type="date" className="input"
+            <input name="dataNascimento" type="date" lang="pt-BR" className="input"
                    defaultValue={pessoa.data_nascimento ?? ''} disabled={escopoLimitado} />
           </label>
         </div>
@@ -238,9 +259,9 @@ function Modal({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block space-y-1">
               <span className="text-sm">CEP</span>
-              <input name="cep" className="input"
-                     defaultValue={pessoa.cep ? mascararCep(pessoa.cep) : ''}
-                     onBlur={(e) => void preencherPorCep(e.target.value)} />
+              <input name="cep" className="input" inputMode="numeric" maxLength={9}
+                     value={mascararCep(cepDigitos)}
+                     onChange={(e) => digitarCep(e.target.value)} />
             </label>
             <label className="block space-y-1">
               <span className="text-sm">Logradouro</span>
@@ -283,8 +304,9 @@ function Modal({
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block space-y-1">
               <span className="text-sm">CPF</span>
-              <input name="cpf" className="input" disabled={escopoLimitado}
-                     defaultValue={docs?.cpf ? mascararCpf(docs.cpf) : ''}
+              <input name="cpf" className="input" inputMode="numeric" maxLength={14}
+                     disabled={escopoLimitado} value={mascararCpf(cpfDigitos)}
+                     onChange={(e) => setCpfDigitos(soDigitos(e.target.value))}
                      placeholder={pessoa.tem_cpf ? '•••.•••.•••-••' : ''} />
             </label>
             <label className="block space-y-1">
@@ -311,12 +333,12 @@ function Modal({
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block space-y-1">
                 <span className="text-sm">Data de contratação</span>
-                <input name="dataContratacao" type="date" className="input"
+                <input name="dataContratacao" type="date" lang="pt-BR" className="input"
                        defaultValue={usuario.data_contratacao ?? ''} />
               </label>
               <label className="block space-y-1">
                 <span className="text-sm">Data de demissão</span>
-                <input name="dataDemissao" type="date" className="input"
+                <input name="dataDemissao" type="date" lang="pt-BR" className="input"
                        defaultValue={usuario.data_demissao ?? ''} />
               </label>
               <label className="block space-y-1">
