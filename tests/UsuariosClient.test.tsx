@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { UsuariosClient } from '@/app/(app)/usuarios/UsuariosClient';
 import { buscarDadosUsuario } from '@/app/(app)/usuarios/actions';
@@ -82,24 +82,43 @@ describe('UsuariosClient', () => {
   });
 
   it('ao clicar na linha de B, o modal mostra os dados de B, não os do ator A', async () => {
+    // Regressão do vazamento achado na revisão final: o bug original mostrava/gravava
+    // endereço, salas e módulos DO ATOR (A) no cadastro da linha clicada (B) — nome e
+    // e-mail já vinham certos mesmo na versão com bug, então só asserta-los não prova
+    // nada. As linhas abaixo checam exatamente o dado que vazava.
+    const salas = [
+      { id: 'sala-a', name: 'Sala do Master A' },
+      { id: 'sala-b', name: 'Sala da Pessoa B' },
+    ];
     vi.mocked(buscarDadosUsuario).mockResolvedValue({
       usuario: usuarioB, pessoa: pessoaB,
-      salasDoUsuario: [], modulosDoUsuario: [], vinculos: [],
+      salasDoUsuario: ['sala-b'], modulosDoUsuario: [], vinculos: [],
     });
 
     render(
       <UsuariosClient
         escopo="todos" usuarios={[usuarioB]} eu={usuarioA} pessoa={pessoaA}
-        salas={[]} salasDoUsuario={[]} modulosDoUsuario={[]} vinculos={[]}
+        salas={salas} salasDoUsuario={['sala-a']} modulosDoUsuario={[]} vinculos={[]}
       />,
     );
 
     fireEvent.click(screen.getByText('Pessoa B'));
 
-    expect(await screen.findByRole('heading', { name: 'Pessoa B' })).toBeInTheDocument();
+    const titulo = await screen.findByRole('heading', { name: 'Pessoa B' });
+    expect(titulo).toBeInTheDocument();
     expect(screen.getByDisplayValue('b@x.com')).toBeInTheDocument();
     expect(screen.queryByDisplayValue('a@x.com')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Master A' })).not.toBeInTheDocument();
     expect(buscarDadosUsuario).toHaveBeenCalledWith(usuarioB.id);
+
+    // Endereço: precisa vir de pessoaB (cidade preenchida), não de pessoaA (cidade null).
+    expect(screen.getByDisplayValue('Cidade de B')).toBeInTheDocument();
+
+    // Salas: a caixa de B tem que estar marcada e a de A desmarcada — o bug original
+    // fazia o oposto (concedia ao alvo as salas do ator). Escopado ao modal porque o
+    // NovoUsuarioForm (master) também renderiza um SeletorSalas com o mesmo rótulo.
+    const modal = titulo.parentElement?.parentElement as HTMLElement;
+    expect(within(modal).getByLabelText('Sala da Pessoa B')).toBeChecked();
+    expect(within(modal).getByLabelText('Sala do Master A')).not.toBeChecked();
   });
 });
