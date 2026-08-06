@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canCreateCredential, canDeleteCredential, canEditCredential, canManageRooms, canManageUsers,
-  canReadCredential, canViewAudit, type CredentialAcl,
+  canReadCredential, canViewAudit, camposEditaveis, podeRevelarDados, type CredentialAcl,
 } from '@/lib/authz';
 import type { Actor } from '@/lib/types';
 
@@ -232,5 +232,55 @@ describe('compartilhamento individual', () => {
   it('sala na lixeira corta o acesso mesmo compartilhado', () => {
     const emSalaApagada = { ...compartilhada, room_deleted_at: '2026-01-01T00:00:00Z' };
     expect(canReadCredential(membro, emSalaApagada, true)).toBe(false);
+  });
+});
+
+describe('camposEditaveis', () => {
+  const master: Actor = {
+    id: 'm1', email: 'm@x.com', name: 'Master', role: 'master', mustChangePassword: false,
+  };
+  const comum: Actor = {
+    id: 'u1', email: 'u@x.com', name: 'Comum', role: 'user', mustChangePassword: false,
+  };
+
+  it('master edita tudo de qualquer pessoa', () => {
+    expect(camposEditaveis(master, 'u1')).toBe('todos');
+  });
+
+  it('master edita tudo de si mesmo', () => {
+    expect(camposEditaveis(master, 'm1')).toBe('todos');
+  });
+
+  it('comum edita só o contato do próprio cadastro', () => {
+    expect(camposEditaveis(comum, 'u1')).toBe('contato');
+  });
+
+  it('comum não edita nada de outra pessoa', () => {
+    expect(camposEditaveis(comum, 'u2')).toBe('nenhum');
+  });
+});
+
+describe('podeRevelarDados', () => {
+  const master: Actor = {
+    id: 'm1', email: 'm@x.com', name: 'Master', role: 'master', mustChangePassword: false,
+  };
+  const comum: Actor = {
+    id: 'u1', email: 'u@x.com', name: 'Comum', role: 'user', mustChangePassword: false,
+  };
+
+  it('master revela documento de qualquer pessoa', () => {
+    expect(podeRevelarDados(master, 'u1')).toBe(true);
+  });
+
+  it('dono revela o próprio documento', () => {
+    expect(podeRevelarDados(comum, 'u1')).toBe(true);
+  });
+
+  it('comum não revela documento de outra pessoa', () => {
+    expect(podeRevelarDados(comum, 'u2')).toBe(false);
+  });
+
+  it('master revela o próprio documento', () => {
+    expect(podeRevelarDados(master, 'm1')).toBe(true);
   });
 });

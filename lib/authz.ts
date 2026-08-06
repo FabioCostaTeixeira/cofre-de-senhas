@@ -78,3 +78,29 @@ export function canCreateCredential(actor: Actor, isMember: boolean): boolean {
 export const canManageRooms = (actor: Actor) => isMaster(actor);
 export const canManageUsers = (actor: Actor) => isMaster(actor);
 export const canViewAudit = (actor: Actor) => isMaster(actor);
+
+/**
+ * O que o ator pode escrever no cadastro de `alvoUserId`.
+ *
+ * `'contato'` cobre telefone e os sete campos de endereço. Fora disso é `'todos'`
+ * (master) ou `'nenhum'`.
+ *
+ * O terceiro valor existe porque `'todos' | 'contato'` deixaria um usuário comum
+ * apontando para outra pessoa cair em `'contato'` — ou seja, alterando telefone e
+ * endereço alheios.
+ */
+export type EscopoCampos = 'todos' | 'contato' | 'nenhum';
+
+export function camposEditaveis(actor: Actor, alvoUserId: string): EscopoCampos {
+  if (isMaster(actor)) return 'todos';
+  if (actor.id === alvoUserId) return 'contato';
+  return 'nenhum';
+}
+
+/**
+ * Revelar CPF e RG é restrito ao dono do dado e ao master. Toda revelação é
+ * auditada por quem chama (`action: 'view'`, `entityType: 'user'`).
+ */
+export function podeRevelarDados(actor: Actor, alvoUserId: string): boolean {
+  return isMaster(actor) || actor.id === alvoUserId;
+}
