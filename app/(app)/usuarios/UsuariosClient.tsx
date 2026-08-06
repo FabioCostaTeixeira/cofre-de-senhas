@@ -29,9 +29,10 @@ export function UsuariosClient({
   modulosDoUsuario: string[];
   vinculos: VinculoResumo[];
 }) {
-  const [aberto, setAberto] = useState<DadosUsuarioAlvo | null>(
-    eu && pessoa ? { usuario: eu, pessoa, salasDoUsuario, modulosDoUsuario, vinculos } : null,
-  );
+  // Fechado por padrão: o master vê a grid primeiro, o modal só abre ao clicar numa
+  // linha. (O ramo `escopo !== 'todos'`, abaixo, não usa este estado — ele nunca tem
+  // grid, então renderiza o próprio modal direto.)
+  const [aberto, setAberto] = useState<DadosUsuarioAlvo | null>(null);
   const [carregando, setCarregando] = useState(false);
 
   if (escopo !== 'todos') {
