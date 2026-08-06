@@ -16,39 +16,79 @@ manter os próprios dados de contato.
 
 **Escopo desta rodada:** campos cadastrais e a tela nova. Controle de permissão por rota dentro
 dos módulos (ex.: quais páginas do Gestor de Projetos cada pessoa acessa) é assunto de um segundo
-spec — ver seção 10.
+spec — ver seção 12.
 
-## 2. Campos
+## 2. Pessoa e vínculo são coisas diferentes
 
-| Campo | Tipo | Cifrado | Obrigatório |
+A decisão estrutural deste desenho: **separar a pessoa da conta de acesso**.
+
+O gatilho foi a readmissão. Um funcionário demitido pode voltar, e nesse caso o cadastro antigo
+deve virar histórico enquanto o novo nasce limpo — não reativar o anterior. Com tudo numa tabela
+só, isso é impossível: `cpf` único global barra o segundo cadastro, e `email` único global barra
+junto, porque a pessoa costuma receber de volta o mesmo e-mail corporativo.
+
+```
+pessoas                          users
+  quem a pessoa é                  um vínculo/conta de acesso
+  CPF, RG, nascimento              e-mail, senha, papel, ativo
+  telefone, endereço, CNPJ         contratação, demissão
+  1 linha por pessoa               N linhas por pessoa (uma por passagem)
+```
+
+João é contratado, demitido e readmitido: **uma** linha em `pessoas`, **duas** em `users`. O CPF
+segue único de verdade — uma pessoa, um CPF — sem índice condicional nem gambiarra.
+
+Acesso a salas (`room_members`) e a módulos (`module_access`) aponta para `users`, não para
+`pessoas`. Então readmitido **começa sem acesso nenhum** e precisa ser liberado de novo. Isso é
+proposital: quem voltou não deve herdar automaticamente as permissões de anos atrás.
+
+### Onde fica o nome
+
+`users.name` continua onde está; `pessoas` **não** tem coluna de nome.
+
+Dois campos de nome confundiriam quem opera a tela ("qual eu edito?"), e mover o nome para
+`pessoas` obrigaria o caminho de autenticação a fazer join com a tabela de documentos — o oposto
+do que a separação busca (ver seção 4). Como toda pessoa tem pelo menos uma linha em `users`, o
+nome está sempre acessível.
+
+Efeito colateral desejável: cada vínculo guarda o nome vigente na época, que é o correto para um
+registro histórico.
+
+## 3. Campos
+
+| Campo | Onde | Cifrado | Obrigatório |
 |---|---|---|---|
-| nome | text | não | sim (já é hoje) |
-| e-mail | text | não | sim (já é hoje) |
-| telefone | text | não | não |
-| endereço: CEP, logradouro, número, complemento, bairro, cidade, UF | text (7 colunas) | não | não |
-| data de nascimento | date | não | não |
-| CPF | bytea (ct/iv/tag) + `cpf_hmac` | **sim** | não |
-| identidade (RG) | bytea (ct/iv/tag) | **sim** | não |
-| órgão expedidor do RG | text | não | não |
-| CNPJ | text | não | não |
-| data de contratação | date | não | não |
-| data de demissão | date | não | não |
+| nome | `users.name` | não | sim (já é hoje) |
+| e-mail | `users.email` | não | sim (já é hoje) |
+| papel, ativo, senha | `users` | — | já existem |
+| data de contratação | `users` | não | não |
+| data de demissão | `users` | não | não |
+| telefone | `pessoas` | não | não |
+| endereço: CEP, logradouro, número, complemento, bairro, cidade, UF | `pessoas` (7 colunas) | não | não |
+| data de nascimento | `pessoas` | não | não |
+| CPF | `pessoas` (ct/iv/tag + `cpf_hmac`) | **sim** | não |
+| identidade (RG) | `pessoas` (ct/iv/tag) | **sim** | não |
+| órgão expedidor do RG | `pessoas` | não | não |
+| CNPJ | `pessoas` | não | não |
 
 Nome e e-mail seguem sendo os únicos obrigatórios. Exigir mais travaria a edição dos usuários que
 já existem em produção, que não têm nenhum desses dados preenchidos.
+
+As datas de contratação e demissão ficam em `users`, não em `pessoas`: são propriedades do
+vínculo, e é isso que permite duas passagens da mesma pessoa com datas diferentes.
 
 RG aceita letras: várias UFs emitem documento alfanumérico, e alguns terminam em `X`. Validar
 formato de RG não é possível de forma confiável — cada estado tem o seu — então o campo é texto
 livre, e o órgão expedidor (ex.: `SSP/SP`) fica ao lado, em claro, porque não identifica ninguém
 sozinho.
 
-## 3. Schema
+## 4. Schema
 
-Migration nova: `db/migrations/004_user_details.sql`.
+Migration nova: `db/migrations/004_pessoas.sql`.
 
 ```sql
-create table user_details (
-  user_id            uuid primary key references users(id) on delete cascade,
+create table pessoas (
+  id                 uuid primary key default gen_random_uuid(),
   telefone           text,
   cep                text,
   logradouro         text,
@@ -67,43 +107,61 @@ create table user_details (
   rg_tag             bytea,
   rg_orgao_expedidor text,
   cnpj               text,
-  data_contratacao   date,
-  data_demissao      date,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now()
 );
+
+alter table users
+  add column pessoa_id        uuid references pessoas(id),
+  add column data_contratacao date,
+  add column data_demissao    date;
 ```
 
-**Por que tabela separada, e não colunas em `users`.** `lib/db/users.ts` faz
-`select * from users where id = ...` dentro de `findUserById`, que roda em **todo request
-autenticado** via `requireUser()`. Colocar ~20 colunas ali — incluindo os blobs cifrados de CPF e
-RG — faria cada request arrastar documento pessoal pela memória só para validar sessão. Com
-`user_details` à parte, `users` continua sendo identidade e autenticação, e nenhuma consulta
-existente muda.
-
-A linha de `user_details` é criada junto com o usuário, vazia. Assim o resto do código nunca
-precisa tratar "existe usuário sem detalhes"; leitura e atualização assumem a linha presente.
-
-Para essa premissa valer desde o primeiro deploy, a própria migration preenche os usuários que já
-existem em produção:
+**Backfill dos usuários existentes.** Cada usuário em produção ganha sua pessoa, reaproveitando o
+próprio id — é uma migração única, e ids coincidentes nas linhas antigas são inofensivos e fáceis
+de conferir depois:
 
 ```sql
-insert into user_details (user_id) select id from users;
+insert into pessoas (id) select id from users;
+update users set pessoa_id = id;
+alter table users alter column pessoa_id set not null;
 ```
 
-Sem esse backfill, os usuários atuais abririam o modal sem linha correspondente e todo leitor
-precisaria de um caminho alternativo — exatamente o caso que a premissa quer eliminar.
+O `set not null` vem **depois** do backfill. Assim a coluna nasce obrigatória sem quebrar as
+linhas que já existiam, e o resto do código nunca precisa tratar "usuário sem pessoa".
 
-## 4. Criptografia dos documentos
+**E-mail passa a ser único entre vínculos não encerrados:**
+
+```sql
+alter table users drop constraint users_email_key;
+create unique index users_email_ativo_idx on users (email) where data_demissao is null;
+```
+
+Sem isso, o readmitido não conseguiria reusar o e-mail corporativo enquanto a linha antiga
+existisse. O recorte é `data_demissao is null`, e não `is_active` — suspensão temporária não pode
+liberar o e-mail de alguém para outra pessoa; só o desligamento libera.
+
+> O nome `users_email_key` é o padrão do Postgres para `email text not null unique`. A
+> implementação deve confirmá-lo com `\d users` antes de rodar o `drop constraint`.
+
+**Por que `pessoas` separada, e não colunas em `users`.** Além da readmissão (seção 2),
+`lib/db/users.ts` faz `select * from users where id = ...` dentro de `findUserById`, que roda em
+**todo request autenticado** via `requireUser()`. Colocar os blobs cifrados de CPF e RG ali faria
+cada request arrastar documento pessoal pela memória só para validar sessão.
+
+## 5. Criptografia dos documentos
 
 CPF e RG usam `lib/crypto.ts` (AES-256-GCM), o mesmo das senhas do cofre, com AAD prendendo o
-valor à linha **e** ao campo: `${user_id}:cpf` e `${user_id}:rg`. Sem o campo no AAD, quem tiver
-escrita no banco copiaria `rg_ct/iv/tag` para `cpf_ct/iv/tag` e leria um pelo outro — é a mesma
-razão documentada em `lib/crypto.ts`.
+valor à linha **e** ao campo: `${pessoa_id}:cpf` e `${pessoa_id}:rg`. Sem o campo no AAD, quem
+tiver escrita no banco copiaria `rg_ct/iv/tag` para `cpf_ct/iv/tag` e leria um pelo outro — é a
+mesma razão documentada em `lib/crypto.ts`.
 
-Como o AAD depende do `user_id`, o id precisa existir antes de cifrar. O projeto já resolve isso
-em `insertCredential`, gerando o uuid na aplicação com `randomUUID()` antes do insert; a criação
-de usuário passa a fazer o mesmo.
+O AAD usa `pessoa_id`, não `user_id`: o documento pertence à pessoa e sobrevive a ela trocar de
+vínculo. Amarrar ao usuário quebraria a leitura do CPF numa readmissão.
+
+Como o AAD depende do id, ele precisa existir antes de cifrar. O projeto já resolve isso em
+`insertCredential`, gerando o uuid na aplicação com `randomUUID()` antes do insert; a criação de
+pessoa passa a fazer o mesmo.
 
 ### Unicidade de CPF
 
@@ -122,11 +180,13 @@ Derivar em vez de usar `VAULT_KEY` diretamente evita empregar a mesma chave para
 indexar. Não entra variável de ambiente nova — uma a mais seria mais uma coisa para esquecer de
 cadastrar na Vercel, que já foi causa de incidente neste projeto.
 
-O HMAC é determinístico por construção: dois cadastros com o mesmo CPF colidem no índice e o
-segundo falha com `23505`, tratado como "CPF já cadastrado" — mesmo padrão que `saveUser` já usa
-para e-mail duplicado.
+Como o `unique` está em `pessoas` e não em `users`, ele é global e definitivo: **um CPF, uma
+pessoa**, independentemente de quantos vínculos ela tenha. Tentar cadastrar pessoa nova com CPF
+existente falha com `23505` e vira a mensagem "Já existe uma pessoa com esse CPF" — mesmo padrão
+que `saveUser` já usa para e-mail duplicado. A tela oferece então vincular o novo acesso à pessoa
+existente (seção 8).
 
-## 5. Telas
+## 6. Telas
 
 ### Rota
 
@@ -150,21 +210,23 @@ A mesma página resolve os dois casos: o server component decide, pelo papel, se
 inteira ou só o próprio usuário, e passa isso ao client. Não há rota separada para o usuário
 comum — seriam duas páginas com o mesmo modal dentro.
 
-A grid mostra telefone, que vive em `user_details`. Entra uma consulta nova em `lib/db/users.ts`
-— `listUsersComContato()`, com `left join user_details` — em vez de alterar `listUsers()`, que é
-usada em `/admin/salas` e não precisa desse dado. `left join`, e não `join`: um usuário criado por
-caminho que não passe pela aplicação continuaria aparecendo na lista em vez de sumir dela.
+A grid mostra telefone, que vive em `pessoas`. Entra uma consulta nova em `lib/db/users.ts` —
+`listUsersComContato()`, com `join pessoas` — em vez de alterar `listUsers()`, que é usada em
+`/admin/salas` e não precisa desse dado.
 
 A consulta da grid **não** traz `cpf_ct` nem `rg_ct`: documento cifrado só é lido pela action de
 revelar, para um usuário por vez. Trazer os blobs de todo mundo para desenhar a lista seria expor
 na memória do servidor o que a tela nem mostra.
+
+Por padrão a grid lista só vínculos ativos (`data_demissao is null`). Um filtro "incluir
+desligados" mostra o histórico, com a linha marcada e somente leitura.
 
 ### Revelar CPF e RG
 
 Documentos aparecem mascarados por padrão. Revelar é uma server action explícita, autorizada a
 **apenas duas pessoas**: o dono do dado e o master.
 
-A regra é função pura em `lib/authz.ts`, ao lado de `camposEditaveis` (seção 6) e no mesmo padrão
+A regra é função pura em `lib/authz.ts`, ao lado de `camposEditaveis` (seção 7) e no mesmo padrão
 das regras de credencial que já vivem ali:
 
 ```ts
@@ -177,7 +239,7 @@ Cada revelação grava auditoria com `action: 'view'`, `entityType: 'user'`, `en
 ação e tipo que já existem em `AUDIT_ACTIONS`, sem precisar ampliar a união. `entityType`
 distingue revelar documento de pessoa (`user`) de revelar senha do cofre (`credential`).
 
-## 6. Permissão de escrita
+## 7. Permissão de escrita
 
 | Campo | master | dono |
 |---|---|---|
@@ -203,27 +265,76 @@ A server action **reaplica** essa regra no servidor e ignora silenciosamente qua
 do permitido — nunca confia no que o formulário enviou. Esconder campo na tela é cosmético; a
 barreira é a action, exatamente como `lib/auth/guards.ts` já documenta para o menu.
 
-Um salvamento do master atravessa duas tabelas: nome, e-mail, papel e estado em `users`; o resto
-em `user_details`. As duas gravações vão num `sql.transaction`, senão uma falha no meio deixaria o
-cadastro pela metade — com o caso pior sendo `data_demissao` gravada sem o `is_active = false` que
-deveria acompanhá-la (seção 7).
+Um salvamento do master atravessa duas tabelas: nome, e-mail, papel, estado e datas de vínculo em
+`users`; contato, endereço e documentos em `pessoas`. As duas gravações vão num `sql.transaction`,
+senão uma falha no meio deixaria o cadastro pela metade — com o caso pior sendo `data_demissao`
+gravada sem o `is_active = false` que deve acompanhá-la (seção 9).
 
-## 7. Regras de negócio
+## 8. Fluxos de vínculo
+
+**Criar usuário novo.** O master informa e-mail, nome, senha inicial e, opcionalmente, o CPF. Se
+o CPF já existir em `pessoas`, a action não falha com erro cru: devolve "Já existe cadastro para
+este CPF" e oferece **vincular o novo acesso à pessoa existente**, criando só a linha de `users`
+com `pessoa_id` apontando para ela. É esse o caminho da readmissão.
+
+Sem CPF informado, cria pessoa nova vazia — o documento pode ser preenchido depois.
+
+**Demitir.** Preencher `data_demissao` desativa o acesso na mesma transação (seção 9). A linha
+permanece para histórico e continua aparecendo no filtro "incluir desligados".
+
+**Readmitir.** É criar usuário novo com o CPF de alguém já cadastrado, aceitando o vínculo à
+pessoa existente. O acesso a salas e módulos **não** é herdado: precisa ser concedido de novo.
+
+**Histórico da pessoa.** No modal, uma seção lista os vínculos anteriores daquela pessoa (datas de
+contratação e demissão, e o nome usado à época), em somente leitura.
+
+## 9. Regras de negócio
 
 **Demissão desliga o acesso.** Gravar `data_demissao` põe `is_active = false` no mesmo
-`sql.transaction`, e registra auditoria `user_update` com o motivo. O risco concreto é alguém sair
-da empresa e continuar com acesso ao cofre de senhas porque ninguém lembrou de desmarcar outra
-caixa. Limpar a data de demissão **não** reativa sozinho — reativar é decisão consciente do
-master, feita na caixa "ativo".
+`sql.transaction`, e registra auditoria `user_update`. O risco concreto é alguém sair da empresa e
+continuar com acesso ao cofre de senhas porque ninguém lembrou de desmarcar outra caixa. Limpar a
+data de demissão **não** reativa sozinho — reativar é decisão consciente do master, na caixa
+"ativo".
 
-**CPF e CNPJ validam dígito verificador** antes de gravar, em `lib/documentos.ts`. Rejeitam
-também as sequências repetidas (`111.111.111-11` e afins), que passam no cálculo de dígito mas
-nunca são documentos reais. Campo vazio é válido: os dois são opcionais.
+**CPF e CNPJ validam dígito verificador** antes de gravar, em `lib/documentos.ts`. Rejeitam também
+as sequências repetidas (`111.111.111-11` e afins), que passam no cálculo de dígito mas nunca são
+documentos reais. Campo vazio é válido: os dois são opcionais.
 
 **Máscaras** na exibição e na digitação: CPF `000.000.000-00`, CNPJ `00.000.000/0000-00`,
 CEP `00000-000`, telefone `(00) 00000-0000`. O banco guarda só dígitos; máscara é apresentação.
 
-## 8. Busca de CEP
+**Login ignora vínculos encerrados.** `findUserByEmail` ganha `and data_demissao is null`. Depois
+de uma readmissão existem duas linhas com o mesmo e-mail, e hoje a função faz
+`select * ... where email = X` e devolve `rows[0]` — sem o filtro, poderia devolver a conta antiga
+e quebrar o login da atual, de forma silenciosa e difícil de diagnosticar.
+
+## 10. Testes
+
+**Puros, sem banco** (`tests/`, ambiente `node`):
+- `lib/documentos.ts`: CPF e CNPJ válidos, dígito verificador errado, sequência repetida, string
+  vazia, tamanho errado, entrada com máscara e sem máscara.
+- `camposEditaveis`: master sobre outro, master sobre si, comum sobre si, comum sobre outro.
+- `podeRevelarDados`: as mesmas quatro combinações.
+- `cpfHmac`: determinístico (mesma entrada → mesma saída) e sensível (CPFs diferentes → HMACs
+  diferentes).
+
+**Integração, contra o banco real** (`tests/integracao.test.ts`, padrão já existente):
+- gravar `data_demissao` desativa o usuário na mesma transação;
+- CPF duplicado em `pessoas` viola `cpf_hmac` e vira erro tratado;
+- readmissão: segundo vínculo com o mesmo e-mail é aceito depois do primeiro ser encerrado, e
+  `findUserByEmail` devolve o vínculo **atual**, não o antigo;
+- e-mail duplicado entre dois vínculos **ativos** continua sendo rejeitado;
+- ida e volta de cifragem: gravar CPF, ler, decifrar, comparar;
+- AAD trocado (usar `:rg` para ler `cpf`) falha.
+
+**Componente, jsdom** (`tests/*.test.tsx`, infra já montada):
+- master vê grid; usuário comum não vê grid, vê o modal;
+- campo fora do escopo do dono chega desabilitado no modal do usuário comum.
+
+Não escrever teste para máscara de digitação nem para o layout do modal — jsdom não computa
+layout, e a spec anterior do sidebar já fixou essa regra.
+
+## 11. Busca de CEP
 
 Preencher o CEP dispara busca que autocompleta logradouro, bairro, cidade e UF.
 
@@ -236,30 +347,7 @@ digita à mão. Busca de CEP nunca pode impedir salvar um cadastro.
 
 O CEP digitado é gravado mesmo que a busca falhe.
 
-## 9. Testes
-
-**Puros, sem banco** (`tests/`, ambiente `node`):
-- `lib/documentos.ts`: CPF e CNPJ válidos, dígito verificador errado, sequência repetida, string
-  vazia, tamanho errado, entrada com máscara e sem máscara.
-- `camposEditaveis`: master sobre outro, master sobre si, comum sobre si, comum sobre outro.
-- `podeRevelarDados`: as mesmas quatro combinações.
-- `cpfHmac`: determinístico (mesma entrada → mesma saída) e sensível (CPFs diferentes → HMACs
-  diferentes).
-
-**Integração, contra o banco real** (`tests/integracao.test.ts`, padrão já existente):
-- gravar `data_demissao` desativa o usuário na mesma transação;
-- CPF duplicado viola `cpf_hmac` e vira erro tratado;
-- ida e volta de cifragem: gravar CPF, ler, decifrar, comparar;
-- AAD trocado (usar `:rg` para ler `cpf`) falha.
-
-**Componente, jsdom** (`tests/*.test.tsx`, infra já montada):
-- master vê grid; usuário comum não vê grid, vê o modal;
-- campo fora do escopo do dono chega desabilitado no modal do usuário comum.
-
-Não escrever teste para máscara de digitação nem para o layout do modal — jsdom não computa
-layout, e a spec anterior do sidebar já fixou essa regra.
-
-## 10. Fora de escopo (spec 2)
+## 12. Fora de escopo (spec 2)
 
 **Permissão por rota dentro dos módulos.** O Gestor de Projetos já tem catálogo de permissão por
 página (`src/lib/permissions.ts`: `PERMISSIONS_CATALOG`, chaves `page:/rota`, `ALL_ACCESS`), mas
@@ -270,7 +358,8 @@ própria.
 
 Também fora desta rodada:
 - foto ou avatar de usuário;
-- histórico de alterações campo a campo (a auditoria atual registra o evento, não o diff);
+- histórico de alterações campo a campo (a auditoria registra o evento, não o diff);
 - exportação do cadastro;
 - reativação automática ao limpar a data de demissão;
-- validação de CEP contra o endereço digitado (a busca preenche, mas não impede divergência).
+- validação de CEP contra o endereço digitado (a busca preenche, mas não impede divergência);
+- unificar duas pessoas cadastradas em duplicidade antes deste desenho existir.
