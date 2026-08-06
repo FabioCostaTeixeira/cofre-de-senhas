@@ -39,7 +39,7 @@ function SalaRow({ sala, membros }: { sala: RoomCard; membros: string[] }) {
         </p>
         <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
           Para liberar ou remover acesso, use{' '}
-          <Link href="/admin/usuarios" className="underline">Usuários</Link>.
+          <Link href="/usuarios" className="underline">Usuários</Link>.
         </p>
       </div>
 

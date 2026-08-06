@@ -29,12 +29,9 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
       icon: <Vault size={18} className={iconClass} />,
       items: [
         { href: '/', label: 'Salas', icon: <Home size={18} className={iconClass} /> },
+        { href: '/usuarios', label: 'Usuários', icon: <Users size={18} className={iconClass} /> },
         ...(actor.role === 'master'
           ? [
-              {
-                href: '/admin/usuarios', label: 'Usuários',
-                icon: <Users size={18} className={iconClass} />,
-              },
               {
                 href: '/admin/salas', label: 'Salas (admin)',
                 icon: <FolderKanban size={18} className={iconClass} />,
