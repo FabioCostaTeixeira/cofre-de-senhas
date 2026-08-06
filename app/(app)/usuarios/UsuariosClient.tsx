@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { Calendar } from 'lucide-react';
 import { SeletorSalas, type SalaOpcao } from '@/components/SeletorSalas';
 import { SeletorModulos } from '@/components/SeletorModulos';
@@ -161,6 +161,7 @@ function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
   const [salasSel, setSalasSel] = useState<string[]>([]);
   const [modulosSel, setModulosSel] = useState<string[]>([]);
   const [cpfDigitos, setCpfDigitos] = useState('');
+  const detalhesRef = useRef<HTMLDetailsElement>(null);
 
   function trocarPapel(novo: Role) {
     setPapel(novo);
@@ -168,8 +169,14 @@ function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
     setModulosSel(novo === 'master' ? MODULES.map((m) => m.key) : []);
   }
 
+  // Cadastro criado: recolhe o "Novo usuário" — quem salvou já viu a mensagem de
+  // sucesso, não precisa continuar olhando o formulário vazio até fechar na mão.
+  useEffect(() => {
+    if (state.ok && detalhesRef.current) detalhesRef.current.open = false;
+  }, [state.ok]);
+
   return (
-    <details className="glass p-5">
+    <details ref={detalhesRef} className="glass p-5">
       <summary className="cursor-pointer font-semibold">Novo usuário</summary>
       <form action={action} className="space-y-4 mt-4">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -241,6 +248,13 @@ function Modal({
   onFechar: (() => void) | null;
 }) {
   const [state, action, pending] = useActionState(salvarCadastro, inicial);
+
+  // Salvou com sucesso: fecha o modal sozinho. `onFechar` é `null` só na visão "Meus
+  // dados" do usuário comum (sem grid por trás, não tem pra onde fechar).
+  useEffect(() => {
+    if (state.ok && onFechar) onFechar();
+  }, [state.ok, onFechar]);
+
   const [docs, setDocs] = useState<{ cpf: string | null; rg: string | null } | null>(null);
   const [endereco, setEndereco] = useState({
     logradouro: pessoa.logradouro ?? '', bairro: pessoa.bairro ?? '',
