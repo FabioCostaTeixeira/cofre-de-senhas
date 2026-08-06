@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState } from 'react';
+import { Calendar } from 'lucide-react';
 import { SeletorSalas, type SalaOpcao } from '@/components/SeletorSalas';
 import { SeletorModulos } from '@/components/SeletorModulos';
 import { MODULES } from '@/lib/modules';
@@ -19,13 +20,18 @@ const DICA_MASTER = 'O master enxerga todas as salas por definição; a seleçã
 
 /**
  * `<input type="date">` nativo formata mm/dd/yyyy ou dd/mm/yyyy conforme o IDIOMA DO
- * NAVEGADOR, não o `lang` da página — não dá pra forçar dd/mm/yyyy nele diretamente
- * (mesma armadilha já resolvida assim no Gestor de Projetos, componente `DateInput`).
+ * NAVEGADOR, não o `lang` da página — e o destaque azul do segmento em edição
+ * (`mm`/`dd`/`aaaa`) é chrome do próprio navegador, não texto: `color: transparent`
+ * não esconde, só o texto some, a caixinha de seleção do segmento continua visível.
+ * Não dá pra forçar dd/mm/aaaa digitando direto num `type="date"`.
  *
- * Solução: o input real fica com o texto transparente (`color: transparent`) — segue
- * funcionando por baixo para teclado, tab e o ícone/calendário nativos — e um `<span>`
- * por cima, com o mesmo padding do `.input`, mostra o valor formatado em dd/mm/yyyy.
- * `pointer-events: none` no overlay deixa clique e digitação passarem direto pro input.
+ * Solução: quem recebe a digitação é um `<input type="text">` comum, com a mesma
+ * máscara ao vivo dos outros campos (CPF, telefone, CEP) — nunca mostra segmento do
+ * navegador. Um `<input type="date">` fica escondido (0×0, fora do fluxo, sem tab),
+ * só existe para acionar `.showPicker()` no botão de calendário; ao escolher uma data
+ * nele, sincroniza de volta pro campo de texto. O valor que vai pro formulário é um
+ * `<input type="hidden">` controlado pelo mesmo estado ISO dos dois — nenhum dos dois
+ * inputs visíveis carrega o `name`.
  */
 function CampoData({
   name, label, defaultValue, disabled,
@@ -35,28 +41,48 @@ function CampoData({
   defaultValue?: string;
   disabled?: boolean;
 }) {
-  const [valor, setValor] = useState(defaultValue ?? '');
-  const formatado = valor ? formatarDataBR(valor) : '';
+  const [iso, setIso] = useState(defaultValue ?? '');
+  const [texto, setTexto] = useState(defaultValue ? formatarDataBR(defaultValue) : '');
+  const dateRef = useRef<HTMLInputElement>(null);
+
+  function digitar(valorDigitado: string) {
+    const digitos = soDigitos(valorDigitado).slice(0, 8);
+    let formatado = digitos;
+    if (digitos.length > 4) formatado = `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
+    else if (digitos.length > 2) formatado = `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
+    setTexto(formatado);
+    setIso(digitos.length === 8 ? `${digitos.slice(4, 8)}-${digitos.slice(2, 4)}-${digitos.slice(0, 2)}` : '');
+  }
+
+  function escolherPeloCalendario(valorIso: string) {
+    setIso(valorIso);
+    setTexto(valorIso ? formatarDataBR(valorIso) : '');
+  }
 
   return (
     <label className="block space-y-1">
       <span className="text-sm">{label}</span>
       <div className="relative">
+        <input type="hidden" name={name} value={iso} disabled={disabled} />
         <input
-          type="date"
-          name={name}
-          className="input"
-          style={{ color: 'transparent' }}
-          value={valor}
-          disabled={disabled}
-          onChange={(e) => setValor(e.target.value)}
+          type="text" inputMode="numeric" placeholder="dd/mm/aaaa" maxLength={10}
+          className="input pr-9" value={texto} disabled={disabled}
+          onChange={(e) => digitar(e.target.value)}
         />
-        <span
-          className="pointer-events-none absolute inset-0 flex items-center px-[0.8rem] text-sm"
-          style={{ color: disabled ? 'var(--text-dim)' : 'var(--text)' }}
+        <input
+          ref={dateRef} type="date" value={iso} disabled={disabled} tabIndex={-1} aria-hidden="true"
+          className="absolute h-0 w-0 opacity-0"
+          onChange={(e) => escolherPeloCalendario(e.target.value)}
+        />
+        <button
+          type="button" disabled={disabled}
+          className="absolute inset-y-0 right-0 flex items-center px-3"
+          style={{ color: 'var(--text-dim)' }}
+          onClick={() => dateRef.current?.showPicker?.()}
+          aria-label={`Abrir calendário: ${label}`}
         >
-          {formatado || <span style={{ color: 'rgba(232, 234, 240, 0.35)' }}>dd/mm/aaaa</span>}
-        </span>
+          <Calendar size={16} />
+        </button>
       </div>
     </label>
   );
