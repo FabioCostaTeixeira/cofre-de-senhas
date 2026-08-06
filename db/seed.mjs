@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
+import { randomUUID } from 'node:crypto';
 import { config } from 'dotenv';
 
 // Mesma precedência do Next: `.env.local` primeiro, `.env` como base.
@@ -24,15 +25,39 @@ async function main() {
   await client.connect();
 
   const hash = await bcrypt.hash(SEED_MASTER_PASSWORD, 12);
-  const res = await client.query(
-    `insert into users (email, name, password_hash, role, must_change_password)
-     values ($1, $2, $3, 'master', true)
-     on conflict (email) do nothing
-     returning id`,
-    [SEED_MASTER_EMAIL.toLowerCase(), SEED_MASTER_NAME, hash],
+  const email = SEED_MASTER_EMAIL.toLowerCase();
+
+  // Não dá mais pra confiar em `ON CONFLICT (email)`: o índice novo
+  // (users_email_ativo_idx) é parcial (`where data_demissao is null`), e o Postgres só
+  // infere conflito a partir de constraint/índice não-parcial. Verifica na mão se já
+  // existe vínculo ativo com esse e-mail antes de inserir.
+  const existente = await client.query(
+    `select id from users where email = $1 and data_demissao is null`,
+    [email],
   );
 
-  console.log(res.rowCount ? `master criado: ${SEED_MASTER_EMAIL}` : 'master já existia');
+  if (existente.rowCount) {
+    console.log('master já existia');
+  } else {
+    // pessoa_id é NOT NULL: cria a pessoa antes do vínculo, mesmo padrão de
+    // lib/db/users.ts:createUserComPessoa (id gerado fora de transação interativa).
+    const pessoaId = randomUUID();
+    await client.query('begin');
+    try {
+      await client.query(`insert into pessoas (id) values ($1)`, [pessoaId]);
+      await client.query(
+        `insert into users (email, name, password_hash, role, must_change_password, pessoa_id)
+         values ($1, $2, $3, 'master', true, $4)`,
+        [email, SEED_MASTER_NAME, hash, pessoaId],
+      );
+      await client.query('commit');
+      console.log(`master criado: ${SEED_MASTER_EMAIL}`);
+    } catch (err) {
+      await client.query('rollback');
+      throw err;
+    }
+  }
+
   await client.end();
 }
 

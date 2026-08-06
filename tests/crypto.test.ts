@@ -5,6 +5,9 @@ beforeAll(() => {
   process.env.VAULT_KEY = Buffer.alloc(32, 7).toString('base64');
 });
 
+// Import para os novos testes
+import { cpfHmac } from '@/lib/crypto';
+
 describe('crypto', () => {
   it('faz ida e volta preservando o texto', async () => {
     const { encrypt, decrypt } = await import('@/lib/crypto');
@@ -62,5 +65,31 @@ describe('crypto', () => {
     } finally {
       process.env.VAULT_KEY = original;
     }
+  });
+});
+
+describe('cpfHmac', () => {
+  it('é determinístico: mesma entrada, mesmo HMAC', () => {
+    const a = cpfHmac('52998224725');
+    const b = cpfHmac('52998224725');
+    expect(a.equals(b)).toBe(true);
+  });
+
+  it('ignora máscara, porque o índice é sobre os dígitos', () => {
+    expect(cpfHmac('529.982.247-25').equals(cpfHmac('52998224725'))).toBe(true);
+  });
+
+  it('CPFs diferentes produzem HMACs diferentes', () => {
+    expect(cpfHmac('52998224725').equals(cpfHmac('11144477735'))).toBe(false);
+  });
+
+  it('devolve 32 bytes (SHA-256)', () => {
+    expect(cpfHmac('52998224725')).toHaveLength(32);
+  });
+
+  it('não é o CPF em claro nem contém o CPF', () => {
+    const hmac = cpfHmac('52998224725');
+    expect(hmac.toString('hex')).not.toContain('52998224725');
+    expect(hmac.toString('utf8')).not.toContain('52998224725');
   });
 });

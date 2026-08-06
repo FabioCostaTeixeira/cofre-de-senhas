@@ -8,6 +8,7 @@
  * Ele cria os próprios dados com um prefixo único e apaga tudo ao final, para poder
  * rodar repetidamente contra o mesmo banco sem sujar o cofre.
  */
+import { randomUUID } from 'node:crypto';
 import { config } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -26,6 +27,7 @@ descreve('integração com o banco real', () => {
   let comumId: string;
   let estranhoId: string;
   let salaId: string;
+  const pessoaIds: string[] = [];
 
   type Ator = import('@/lib/types').Actor;
   let master: Ator;
@@ -37,9 +39,12 @@ descreve('integração com o banco real', () => {
     q = await import('@/lib/db/queries');
 
     const cria = async (email: string, role: 'master' | 'user') => {
+      const pessoaId = randomUUID();
+      await sql`insert into pessoas (id) values (${pessoaId})`;
+      pessoaIds.push(pessoaId);
       const linhas = (await sql`
-        insert into users (email, name, password_hash, role, must_change_password)
-        values (${`${marca}-${email}`}, ${email}, 'nao-usado', ${role}, false)
+        insert into users (email, name, password_hash, role, must_change_password, pessoa_id)
+        values (${`${marca}-${email}`}, ${email}, 'nao-usado', ${role}, false, ${pessoaId})
         returning id`) as { id: string }[];
       return linhas[0].id;
     };
@@ -66,6 +71,7 @@ descreve('integração com o banco real', () => {
     await sql`delete from rooms where id = ${salaId}`;
     await sql`delete from audit_log where actor_id in (${masterId}, ${comumId}, ${estranhoId})`;
     await sql`delete from users where id in (${masterId}, ${comumId}, ${estranhoId})`;
+    await sql`delete from pessoas where id = any(${pessoaIds})`;
   });
 
   it('cifra e devolve a senha em claro só para quem pode ver', async () => {
@@ -193,9 +199,11 @@ descreve('integração com o banco real', () => {
 
   it('compartilha a senha restrita com quem o dono escolher', async () => {
     // Um segundo membro comum na mesma sala, para receber o compartilhamento.
+    const colegaPessoaId = randomUUID();
+    await sql`insert into pessoas (id) values (${colegaPessoaId})`;
     const linhas = (await sql`
-      insert into users (email, name, password_hash, role, must_change_password)
-      values (${`${marca}-colega`}, 'colega', 'nao-usado', 'user', false)
+      insert into users (email, name, password_hash, role, must_change_password, pessoa_id)
+      values (${`${marca}-colega`}, 'colega', 'nao-usado', 'user', false, ${colegaPessoaId})
       returning id`) as { id: string }[];
     const colegaId = linhas[0].id;
     const colega: Ator = {
@@ -245,6 +253,7 @@ descreve('integração com o banco real', () => {
       await sql`delete from credential_shares where user_id = ${colegaId}`;
       await sql`delete from room_members where user_id = ${colegaId}`;
       await sql`delete from users where id = ${colegaId}`;
+      await sql`delete from pessoas where id = ${colegaPessoaId}`;
     }
   });
 
@@ -262,6 +271,157 @@ descreve('integração com o banco real', () => {
 
     it('usuário sem módulo concedido não vê nenhum', async () => {
       expect(await q.listModulesOfUser(estranhoId)).toEqual([]);
+    });
+  });
+
+  describe('cadastro de pessoa e vínculo', () => {
+    const usersCriados: string[] = [];
+    const pessoasCriadas: string[] = [];
+
+    afterAll(async () => {
+      if (!temBanco) return;
+      if (usersCriados.length > 0) {
+        await sql`delete from users where id = any(${usersCriados})`;
+      }
+      if (pessoasCriadas.length > 0) {
+        await sql`delete from pessoas where id = any(${pessoasCriadas})`;
+      }
+    });
+
+    it('gravar data de demissão desativa o acesso na mesma transação', async () => {
+      const u = await import('@/lib/db/users');
+      const id = randomUUID();
+      const pessoaId = randomUUID();
+      usersCriados.push(id);
+      pessoasCriadas.push(pessoaId);
+      await u.createUserComPessoa({
+        userId: id, pessoaId, pessoaJaExiste: false,
+        email: `${marca}-dem@x.com`, name: 'Demitido',
+        hash: 'x', role: 'user', dataContratacao: '2020-01-01',
+      });
+
+      await u.updateVinculo({
+        id, name: 'Demitido', role: 'user', isActive: true,
+        dataContratacao: '2020-01-01', dataDemissao: '2026-08-06',
+      });
+
+      const linha = (await sql`select is_active from users where id = ${id}`) as
+        { is_active: boolean }[];
+      expect(linha[0].is_active).toBe(false);
+    });
+
+    it('CPF duplicado em pessoas é rejeitado pelo índice único', async () => {
+      const p = await import('@/lib/db/pessoas');
+      const a = randomUUID();
+      const b = randomUUID();
+      pessoasCriadas.push(a, b);
+      await sql`insert into pessoas (id) values (${a})`;
+      await sql`insert into pessoas (id) values (${b})`;
+
+      await p.updatePessoa(a, {
+        telefone: null, cep: null, logradouro: null, numero: null, complemento: null,
+        bairro: null, cidade: null, uf: null, data_nascimento: null,
+        cpf: '529.982.247-25', rg: null, rg_orgao_expedidor: null, cnpj: null,
+      });
+
+      await expect(p.updatePessoa(b, {
+        telefone: null, cep: null, logradouro: null, numero: null, complemento: null,
+        bairro: null, cidade: null, uf: null, data_nascimento: null,
+        cpf: '52998224725', rg: null, rg_orgao_expedidor: null, cnpj: null,
+      })).rejects.toMatchObject({ code: '23505' });
+    });
+
+    it('ida e volta do CPF cifrado devolve o valor original', async () => {
+      const p = await import('@/lib/db/pessoas');
+      const id = randomUUID();
+      pessoasCriadas.push(id);
+      await sql`insert into pessoas (id) values (${id})`;
+      await p.updatePessoa(id, {
+        telefone: null, cep: null, logradouro: null, numero: null, complemento: null,
+        bairro: null, cidade: null, uf: null, data_nascimento: null,
+        cpf: '111.444.777-35', rg: 'MG-12.345.678', rg_orgao_expedidor: 'SSP/MG', cnpj: null,
+      });
+
+      const docs = await p.revelarDocumentos(id);
+      expect(docs.cpf).toBe('11144477735');
+      expect(docs.rg).toBe('MG-12.345.678');
+    });
+
+    it('AAD trocado impede ler o CPF como se fosse RG', async () => {
+      const { decrypt } = await import('@/lib/crypto');
+      const id = randomUUID();
+      pessoasCriadas.push(id);
+      await sql`insert into pessoas (id) values (${id})`;
+      const p = await import('@/lib/db/pessoas');
+      // CPF diferente do usado no teste de ida-e-volta: mesmo hmac colidiria com o
+      // índice único de `pessoas.cpf_hmac` porque a limpeza só roda no `afterAll`.
+      await p.updatePessoa(id, {
+        telefone: null, cep: null, logradouro: null, numero: null, complemento: null,
+        bairro: null, cidade: null, uf: null, data_nascimento: null,
+        cpf: '123.456.789-09', rg: null, rg_orgao_expedidor: null, cnpj: null,
+      });
+
+      const linha = (await sql`
+        select cpf_ct, cpf_iv, cpf_tag from pessoas where id = ${id}`) as
+        { cpf_ct: Buffer; cpf_iv: Buffer; cpf_tag: Buffer }[];
+
+      expect(() => decrypt(
+        { ct: linha[0].cpf_ct, iv: linha[0].cpf_iv, tag: linha[0].cpf_tag },
+        `${id}:rg`,
+      )).toThrow();
+    });
+
+    it('readmissão: reusa o e-mail e findUserByEmail devolve o vínculo atual', async () => {
+      const u = await import('@/lib/db/users');
+      const email = `${marca}-readmitido@x.com`;
+      const pessoaId = randomUUID();
+      const antigo = randomUUID();
+      const novo = randomUUID();
+      pessoasCriadas.push(pessoaId);
+      usersCriados.push(antigo, novo);
+
+      await u.createUserComPessoa({
+        userId: antigo, pessoaId, pessoaJaExiste: false,
+        email, name: 'Primeira passagem', hash: 'x', role: 'user',
+        dataContratacao: '2020-01-01',
+      });
+      await u.updateVinculo({
+        id: antigo, name: 'Primeira passagem', role: 'user', isActive: true,
+        dataContratacao: '2020-01-01', dataDemissao: '2022-06-30',
+      });
+
+      // Só é possível porque o unique de e-mail é parcial (`where data_demissao is null`).
+      await u.createUserComPessoa({
+        userId: novo, pessoaId, pessoaJaExiste: true,
+        email, name: 'Segunda passagem', hash: 'x', role: 'user',
+        dataContratacao: '2026-08-06',
+      });
+
+      const achado = await u.findUserByEmail(email);
+      expect(achado?.id).toBe(novo);
+
+      const vinculos = await u.listVinculosDaPessoa(pessoaId);
+      expect(vinculos).toHaveLength(2);
+    });
+
+    it('dois vínculos ativos com o mesmo e-mail continuam sendo rejeitados', async () => {
+      const u = await import('@/lib/db/users');
+      const email = `${marca}-dup@x.com`;
+      const idA = randomUUID();
+      const pessoaIdA = randomUUID();
+      const idB = randomUUID();
+      const pessoaIdB = randomUUID();
+      usersCriados.push(idA);
+      pessoasCriadas.push(pessoaIdA, pessoaIdB);
+      await u.createUserComPessoa({
+        userId: idA, pessoaId: pessoaIdA, pessoaJaExiste: false,
+        email, name: 'A', hash: 'x', role: 'user', dataContratacao: null,
+      });
+
+      await expect(u.createUserComPessoa({
+        userId: idB, pessoaId: pessoaIdB, pessoaJaExiste: false,
+        email, name: 'B', hash: 'x', role: 'user', dataContratacao: null,
+      })).rejects.toMatchObject({ code: '23505' });
     });
   });
 });

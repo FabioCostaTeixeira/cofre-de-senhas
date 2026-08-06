@@ -18,6 +18,36 @@ export type User = {
   created_at: string;
 };
 
+/**
+ * Dados da pessoa sem os blobs cifrados. `tem_cpf` e `tem_rg` são derivados no SQL
+ * (`cpf_ct is not null`) para a tela saber se deve oferecer o botão de revelar sem
+ * carregar o documento cifrado só para desenhar o formulário.
+ */
+export type Pessoa = {
+  id: string;
+  telefone: string | null;
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  data_nascimento: string | null;
+  rg_orgao_expedidor: string | null;
+  cnpj: string | null;
+  tem_cpf: boolean;
+  tem_rg: boolean;
+};
+
+/** Linha da grid de usuários: o vínculo mais o telefone, que vive em `pessoas`. */
+export type UserComContato = User & {
+  pessoa_id: string;
+  telefone: string | null;
+  data_contratacao: string | null;
+  data_demissao: string | null;
+};
+
 export type Room = {
   id: string;
   name: string;
