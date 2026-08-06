@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  mascararCep, mascararCnpj, mascararCpf, mascararTelefone,
+  formatarDataBR, mascararCep, mascararCnpj, mascararCpf, mascararTelefone,
   soDigitos, validarCnpj, validarCpf,
 } from '@/lib/documentos';
 
@@ -72,5 +72,24 @@ describe('máscaras', () => {
     expect(mascararCnpj('112')).toBe('112');
     expect(mascararCep('013')).toBe('013');
     expect(mascararTelefone('119')).toBe('119');
+  });
+});
+
+describe('formatarDataBR', () => {
+  it('converte yyyy-mm-dd para dd/mm/yyyy por manipulação de string', () => {
+    expect(formatarDataBR('2026-08-06')).toBe('06/08/2026');
+    expect(formatarDataBR('2000-01-31')).toBe('31/01/2000');
+  });
+
+  it('não desloca o dia por fuso horário — 1º de um mês continua 1º', () => {
+    // Regressão do motivo de não usar Date/Intl aqui: new Date('2026-01-01') é
+    // meia-noite UTC, que em America/Sao_Paulo (UTC-3) é 31/12/2025 21:00 — um
+    // formatador baseado em Date devolveria "31/12/2025" para esta entrada.
+    expect(formatarDataBR('2026-01-01')).toBe('01/01/2026');
+  });
+
+  it('devolve a entrada intacta se não tiver o formato esperado', () => {
+    expect(formatarDataBR('')).toBe('');
+    expect(formatarDataBR('data-invalida')).toBe('data-invalida');
   });
 });

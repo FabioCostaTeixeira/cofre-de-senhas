@@ -64,3 +64,15 @@ export function mascararTelefone(digitos: string): string {
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return digitos;
 }
+
+/**
+ * `yyyy-mm-dd` (valor de `<input type="date">`) para `dd/mm/yyyy`. Manipulação de
+ * string, sem `Date`/fuso horário: um `new Date('2026-08-06')` é meia-noite UTC, e
+ * formatar isso de volta em America/Sao_Paulo pode devolver o dia anterior — errado
+ * para um campo que é só data (nascimento, contratação), sem componente de hora.
+ */
+export function formatarDataBR(iso: string): string {
+  const [ano, mes, dia] = iso.split('-');
+  if (!ano || !mes || !dia) return iso;
+  return `${dia}/${mes}/${ano}`;
+}

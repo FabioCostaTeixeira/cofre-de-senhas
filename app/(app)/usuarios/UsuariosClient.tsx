@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { SeletorSalas, type SalaOpcao } from '@/components/SeletorSalas';
 import { SeletorModulos } from '@/components/SeletorModulos';
 import { MODULES } from '@/lib/modules';
-import { mascararCep, mascararCpf, mascararTelefone, soDigitos } from '@/lib/documentos';
+import { formatarDataBR, mascararCep, mascararCpf, mascararTelefone, soDigitos } from '@/lib/documentos';
 import {
   buscarCep, buscarDadosUsuario, criarUsuario, resetUserPassword, revelarDocumentosAction,
   salvarCadastro, type CadastroState, type DadosUsuarioAlvo,
@@ -16,6 +16,51 @@ import type { VinculoResumo } from '@/lib/db/users';
 const inicial: CadastroState = {};
 
 const DICA_MASTER = 'O master enxerga todas as salas por definição; a seleção fica travada.';
+
+/**
+ * `<input type="date">` nativo formata mm/dd/yyyy ou dd/mm/yyyy conforme o IDIOMA DO
+ * NAVEGADOR, não o `lang` da página — não dá pra forçar dd/mm/yyyy nele diretamente
+ * (mesma armadilha já resolvida assim no Gestor de Projetos, componente `DateInput`).
+ *
+ * Solução: o input real fica com o texto transparente (`color: transparent`) — segue
+ * funcionando por baixo para teclado, tab e o ícone/calendário nativos — e um `<span>`
+ * por cima, com o mesmo padding do `.input`, mostra o valor formatado em dd/mm/yyyy.
+ * `pointer-events: none` no overlay deixa clique e digitação passarem direto pro input.
+ */
+function CampoData({
+  name, label, defaultValue, disabled,
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string;
+  disabled?: boolean;
+}) {
+  const [valor, setValor] = useState(defaultValue ?? '');
+  const formatado = valor ? formatarDataBR(valor) : '';
+
+  return (
+    <label className="block space-y-1">
+      <span className="text-sm">{label}</span>
+      <div className="relative">
+        <input
+          type="date"
+          name={name}
+          className="input"
+          style={{ color: 'transparent' }}
+          value={valor}
+          disabled={disabled}
+          onChange={(e) => setValor(e.target.value)}
+        />
+        <span
+          className="pointer-events-none absolute inset-0 flex items-center px-[0.8rem] text-sm"
+          style={{ color: disabled ? 'var(--text-dim)' : 'var(--text)' }}
+        >
+          {formatado || <span style={{ color: 'rgba(232, 234, 240, 0.35)' }}>dd/mm/aaaa</span>}
+        </span>
+      </div>
+    </label>
+  );
+}
 
 export function UsuariosClient({
   escopo, usuarios, eu, pessoa, salas, salasDoUsuario, modulosDoUsuario, vinculos,
@@ -130,10 +175,7 @@ function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
                    onChange={(e) => setCpfDigitos(soDigitos(e.target.value))}
                    placeholder="529.982.247-25" />
           </label>
-          <label className="block space-y-1">
-            <span className="text-sm">Data de contratação</span>
-            <input name="dataContratacao" type="date" lang="pt-BR" className="input" />
-          </label>
+          <CampoData name="dataContratacao" label="Data de contratação" />
         </div>
 
         <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
@@ -247,11 +289,8 @@ function Modal({
                    value={mascararTelefone(telefoneDigitos)}
                    onChange={(e) => setTelefoneDigitos(soDigitos(e.target.value))} />
           </label>
-          <label className="block space-y-1">
-            <span className="text-sm">Data de nascimento</span>
-            <input name="dataNascimento" type="date" lang="pt-BR" className="input"
-                   defaultValue={pessoa.data_nascimento ?? ''} disabled={escopoLimitado} />
-          </label>
+          <CampoData name="dataNascimento" label="Data de nascimento"
+                     defaultValue={pessoa.data_nascimento ?? ''} disabled={escopoLimitado} />
         </div>
 
         <fieldset className="space-y-3">
@@ -331,16 +370,10 @@ function Modal({
         {!escopoLimitado && (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block space-y-1">
-                <span className="text-sm">Data de contratação</span>
-                <input name="dataContratacao" type="date" lang="pt-BR" className="input"
-                       defaultValue={usuario.data_contratacao ?? ''} />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm">Data de demissão</span>
-                <input name="dataDemissao" type="date" lang="pt-BR" className="input"
-                       defaultValue={usuario.data_demissao ?? ''} />
-              </label>
+              <CampoData name="dataContratacao" label="Data de contratação"
+                         defaultValue={usuario.data_contratacao ?? ''} />
+              <CampoData name="dataDemissao" label="Data de demissão"
+                         defaultValue={usuario.data_demissao ?? ''} />
               <label className="block space-y-1">
                 <span className="text-sm">Papel</span>
                 <select name="role" className="input" value={papel}
