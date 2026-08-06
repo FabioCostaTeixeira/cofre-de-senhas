@@ -1,4 +1,5 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes } from 'node:crypto';
+import { soDigitos } from '@/lib/documentos';
 
 const ALGO = 'aes-256-gcm';
 const IV_BYTES = 12;
@@ -38,4 +39,22 @@ export function decrypt(field: EncryptedField, aad: string): string {
 /** Gera uma VAULT_KEY nova. Usado só no setup, fora do runtime. */
 export function generateKey(): string {
   return randomBytes(32).toString('base64');
+}
+
+/**
+ * HMAC determinístico do CPF, usado só como índice de unicidade — coluna cifrada
+ * não aceita `UNIQUE`, porque cada cifragem gera IV novo e o mesmo CPF vira bytes
+ * diferentes a cada gravação.
+ *
+ * A chave é derivada da `VAULT_KEY` por HKDF em vez de ser a própria: a mesma chave
+ * não deve servir para cifrar e para indexar. Derivar também evita criar variável de
+ * ambiente nova — uma a mais seria mais uma para esquecer de cadastrar na Vercel.
+ *
+ * Aceita entrada com ou sem máscara; o índice é sempre sobre os dígitos.
+ */
+export function cpfHmac(cpfDigitos: string): Buffer {
+  const subchave = Buffer.from(
+    hkdfSync('sha256', key(), Buffer.alloc(0), 'cpf-index', 32),
+  );
+  return createHmac('sha256', subchave).update(soDigitos(cpfDigitos)).digest();
 }
