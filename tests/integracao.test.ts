@@ -8,6 +8,7 @@
  * Ele cria os próprios dados com um prefixo único e apaga tudo ao final, para poder
  * rodar repetidamente contra o mesmo banco sem sujar o cofre.
  */
+import { randomUUID } from 'node:crypto';
 import { config } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -26,6 +27,7 @@ descreve('integração com o banco real', () => {
   let comumId: string;
   let estranhoId: string;
   let salaId: string;
+  const pessoaIds: string[] = [];
 
   type Ator = import('@/lib/types').Actor;
   let master: Ator;
@@ -37,9 +39,12 @@ descreve('integração com o banco real', () => {
     q = await import('@/lib/db/queries');
 
     const cria = async (email: string, role: 'master' | 'user') => {
+      const pessoaId = randomUUID();
+      await sql`insert into pessoas (id) values (${pessoaId})`;
+      pessoaIds.push(pessoaId);
       const linhas = (await sql`
-        insert into users (email, name, password_hash, role, must_change_password)
-        values (${`${marca}-${email}`}, ${email}, 'nao-usado', ${role}, false)
+        insert into users (email, name, password_hash, role, must_change_password, pessoa_id)
+        values (${`${marca}-${email}`}, ${email}, 'nao-usado', ${role}, false, ${pessoaId})
         returning id`) as { id: string }[];
       return linhas[0].id;
     };
@@ -66,6 +71,7 @@ descreve('integração com o banco real', () => {
     await sql`delete from rooms where id = ${salaId}`;
     await sql`delete from audit_log where actor_id in (${masterId}, ${comumId}, ${estranhoId})`;
     await sql`delete from users where id in (${masterId}, ${comumId}, ${estranhoId})`;
+    await sql`delete from pessoas where id = any(${pessoaIds})`;
   });
 
   it('cifra e devolve a senha em claro só para quem pode ver', async () => {
@@ -193,9 +199,11 @@ descreve('integração com o banco real', () => {
 
   it('compartilha a senha restrita com quem o dono escolher', async () => {
     // Um segundo membro comum na mesma sala, para receber o compartilhamento.
+    const colegaPessoaId = randomUUID();
+    await sql`insert into pessoas (id) values (${colegaPessoaId})`;
     const linhas = (await sql`
-      insert into users (email, name, password_hash, role, must_change_password)
-      values (${`${marca}-colega`}, 'colega', 'nao-usado', 'user', false)
+      insert into users (email, name, password_hash, role, must_change_password, pessoa_id)
+      values (${`${marca}-colega`}, 'colega', 'nao-usado', 'user', false, ${colegaPessoaId})
       returning id`) as { id: string }[];
     const colegaId = linhas[0].id;
     const colega: Ator = {
@@ -245,6 +253,7 @@ descreve('integração com o banco real', () => {
       await sql`delete from credential_shares where user_id = ${colegaId}`;
       await sql`delete from room_members where user_id = ${colegaId}`;
       await sql`delete from users where id = ${colegaId}`;
+      await sql`delete from pessoas where id = ${colegaPessoaId}`;
     }
   });
 
