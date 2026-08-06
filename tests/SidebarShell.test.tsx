@@ -12,6 +12,7 @@ vi.mock('next/navigation', () => ({
 const groups: SidebarGroup[] = [
   {
     label: 'Geral',
+    icon: <LayoutGrid size={18} />,
     items: [
       { href: '/', label: 'Salas', icon: <LayoutGrid size={18} /> },
       { href: '/admin/salas', label: 'Salas (admin)', icon: <Users size={18} /> },

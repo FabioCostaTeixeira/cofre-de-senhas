@@ -1,4 +1,4 @@
-import { FolderKanban, Home, ScrollText, Trash2, Users } from 'lucide-react';
+import { FolderKanban, Folders, Home, ScrollText, Trash2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
 import { listModulesOfUser } from '@/lib/db/queries';
 import { MODULES } from '@/lib/modules';
@@ -12,8 +12,21 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
 
   const iconClass = 'shrink-0';
   const groups: SidebarGroup[] = [
+    // Módulos primeiro: o Cofre é o hub, e os outros módulos do ecossistema
+    // ganham o topo do menu em vez de ficarem abaixo das rotas do próprio Cofre.
+    ...(modulosVisiveis.length > 0
+      ? [{
+          label: 'Módulos',
+          icon: <Folders size={18} className={iconClass} />,
+          items: modulosVisiveis.map((m) => {
+            const Icon = m.icon;
+            return { href: m.href, label: m.label, icon: <Icon size={18} className={iconClass} /> };
+          }),
+        }]
+      : []),
     {
       label: 'Cofre de Senhas',
+      icon: <Vault size={18} className={iconClass} />,
       items: [
         { href: '/', label: 'Salas', icon: <Home size={18} className={iconClass} /> },
         ...(actor.role === 'master'
@@ -38,15 +51,6 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
           : []),
       ],
     },
-    ...(modulosVisiveis.length > 0
-      ? [{
-          label: 'Módulos',
-          items: modulosVisiveis.map((m) => {
-            const Icon = m.icon;
-            return { href: m.href, label: m.label, icon: <Icon size={18} className={iconClass} /> };
-          }),
-        }]
-      : []),
   ];
 
   return (
