@@ -565,4 +565,47 @@ descreve('integração com o banco real', () => {
     await sql`delete from produtos where id = ${produtoId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
   });
+
+  it('plano: pacote_fechado e assinatura, e o check do banco rejeita mistura', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const pl = await import('@/lib/db/planos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-plano`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-plano`, descricao: null,
+      atributos: {}, preco: 399, ativo: true,
+    });
+
+    const fechadoId = await pl.createPlano({
+      nome: `${marca}-plano-fechado`, descricao: null, tipo_cobranca: 'pacote_fechado',
+      validade_dias: 90, ciclo: null, preco: 2500, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 2 }],
+    });
+    const fechado = await pl.getPlano(fechadoId);
+    expect(fechado?.validade_dias).toBe(90);
+    expect(fechado?.ciclo).toBeNull();
+
+    const assinaturaId = await pl.createPlano({
+      nome: `${marca}-plano-assinatura`, descricao: null, tipo_cobranca: 'assinatura',
+      validade_dias: null, ciclo: 'mensal', preco: 1500, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 48 }],
+    });
+    const assinatura = await pl.getPlano(assinaturaId);
+    expect(assinatura?.ciclo).toBe('mensal');
+    expect(assinatura?.validade_dias).toBeNull();
+
+    await expect(sql`
+      insert into planos (nome, tipo_cobranca, validade_dias, ciclo, preco)
+      values (${`${marca}-invalido`}, 'pacote_fechado', 10, 'mensal', 100)
+    `).rejects.toMatchObject({ code: '23514' });
+
+    await pl.softDeletePlano(fechadoId);
+    await pl.softDeletePlano(assinaturaId);
+    await sql`delete from planos where id in (${fechadoId}, ${assinaturaId})`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
 });
