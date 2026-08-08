@@ -527,4 +527,42 @@ descreve('integração com o banco real', () => {
     await cat.deleteCategoria(categoriaId);
     expect(await cat.getCategoria(categoriaId)).toBeNull();
   });
+
+  it('combo: cria com itens, edita e soft-delete', async () => {
+    const prod = await import('@/lib/db/produtos');
+    const cmb = await import('@/lib/db/combos');
+    const cat = await import('@/lib/db/categorias-produto');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-combo`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-combo`, descricao: null,
+      atributos: {}, preco: 199, ativo: true,
+    });
+
+    const comboId = await cmb.createCombo({
+      nome: `${marca}-combo`, descricao: null, preco: 700, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 4 }],
+    });
+
+    const criado = await cmb.getCombo(comboId);
+    expect(criado?.itens).toHaveLength(1);
+    expect(criado?.itens[0].quantidade).toBe(4);
+    expect(criado?.preco).toBe(700);
+
+    await cmb.updateCombo(comboId, {
+      nome: `${marca}-combo-editado`, descricao: null, preco: 750, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 5 }],
+    });
+    const editado = await cmb.getCombo(comboId);
+    expect(editado?.itens[0].quantidade).toBe(5);
+
+    await cmb.softDeleteCombo(comboId);
+    expect(await cmb.getCombo(comboId)).toBeNull();
+
+    await sql`delete from combos where id = ${comboId}`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
 });
