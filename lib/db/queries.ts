@@ -477,6 +477,17 @@ export class RoomTrashedError extends Error {
   }
 }
 
+/** Expurgar um produto/combo ainda referenciado por combo_itens/plano_itens violaria
+ *  a foreign key (sem `on delete cascade` — de propósito, ver spec do módulo Produtos:
+ *  um combo/plano precisa continuar mostrando os itens originais mesmo depois que o
+ *  produto referenciado é descontinuado). Checa antes e devolve um erro amigável em
+ *  vez de deixar o `23503` do Postgres estourar cru até a Server Action. */
+export class ItemEmUsoError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 export async function restoreItem(
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano', id: string,
 ): Promise<void> {
@@ -525,8 +536,22 @@ export async function purgeItem(
   } else if (kind === 'fornecedor') {
     await sql`delete from fornecedores where id = ${id} and deleted_at is not null`;
   } else if (kind === 'produto') {
+    const [{ n }] = (await sql`
+      select (
+        (select count(*) from combo_itens where produto_id = ${id})
+        + (select count(*) from plano_itens where produto_id = ${id})
+      )::int as n
+    `) as { n: number }[];
+    if (n > 0) {
+      throw new ItemEmUsoError(`Este produto ainda está em ${n} combo(s)/plano(s).`);
+    }
     await sql`delete from produtos where id = ${id} and deleted_at is not null`;
   } else if (kind === 'combo') {
+    const [{ n }] = (await sql`
+      select count(*)::int as n from plano_itens where combo_id = ${id}`) as { n: number }[];
+    if (n > 0) {
+      throw new ItemEmUsoError(`Este combo ainda está em ${n} plano(s).`);
+    }
     await sql`delete from combos where id = ${id} and deleted_at is not null`;
   } else if (kind === 'plano') {
     await sql`delete from planos where id = ${id} and deleted_at is not null`;

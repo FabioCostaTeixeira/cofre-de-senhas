@@ -11,7 +11,7 @@ export async function listCombos(): Promise<Combo[]> {
              json_agg(
                json_build_object(
                  'tipo', 'produto', 'valor', ci.produto_id, 'nome', p.nome,
-                 'quantidade', ci.quantidade, 'ativo', p.ativo
+                 'quantidade', ci.quantidade, 'ativo', (p.ativo and p.deleted_at is null)
                ) order by p.nome
              ) filter (where ci.id is not null), '[]'
            ) as itens
@@ -31,7 +31,7 @@ export async function getCombo(id: string): Promise<Combo | null> {
              json_agg(
                json_build_object(
                  'tipo', 'produto', 'valor', ci.produto_id, 'nome', p.nome,
-                 'quantidade', ci.quantidade, 'ativo', p.ativo
+                 'quantidade', ci.quantidade, 'ativo', (p.ativo and p.deleted_at is null)
                ) order by p.nome
              ) filter (where ci.id is not null), '[]'
            ) as itens

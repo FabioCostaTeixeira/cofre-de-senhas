@@ -13,7 +13,7 @@ export async function listPlanos(): Promise<Plano[]> {
                json_build_object(
                  'tipo', pi.tipo_item, 'valor', coalesce(pi.produto_id, pi.combo_id),
                  'nome', coalesce(p.nome, c.nome), 'quantidade', pi.quantidade,
-                 'ativo', coalesce(p.ativo, c.ativo)
+                 'ativo', coalesce(p.ativo and p.deleted_at is null, c.ativo and c.deleted_at is null)
                ) order by coalesce(p.nome, c.nome)
              ) filter (where pi.id is not null), '[]'
            ) as itens
@@ -36,7 +36,7 @@ export async function getPlano(id: string): Promise<Plano | null> {
                json_build_object(
                  'tipo', pi.tipo_item, 'valor', coalesce(pi.produto_id, pi.combo_id),
                  'nome', coalesce(p.nome, c.nome), 'quantidade', pi.quantidade,
-                 'ativo', coalesce(p.ativo, c.ativo)
+                 'ativo', coalesce(p.ativo and p.deleted_at is null, c.ativo and c.deleted_at is null)
                ) order by coalesce(p.nome, c.nome)
              ) filter (where pi.id is not null), '[]'
            ) as itens

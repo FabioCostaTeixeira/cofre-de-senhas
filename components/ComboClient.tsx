@@ -8,16 +8,50 @@ export type ComboState = { error?: string; ok?: string };
 const inicial: ComboState = {};
 type Acao = (prev: ComboState, fd: FormData) => Promise<ComboState>;
 
+/**
+ * Opções ativas + qualquer item já referenciado pelo combo em edição, mesmo que o
+ * produto tenha sido desde então desativado/apagado — sem isso o `ItemRepetidor` não
+ * acha o `valor` na lista e cai no fallback de mostrar o UUID cru (ver Fix 3 da
+ * revisão final do módulo Produtos).
+ */
+function construirOpcoes(produtos: Produto[], item: Combo | undefined): OpcaoItem[] {
+  const ativos: OpcaoItem[] = produtos
+    .filter((p) => p.ativo)
+    .map((p) => ({ tipo: 'produto' as const, valor: p.id, rotulo: p.nome, preco: p.preco }));
+  const jaIncluidos = new Set(ativos.map((o) => `${o.tipo}:${o.valor}`));
+  const referenciadosInativos: OpcaoItem[] = (item?.itens ?? [])
+    .filter((i) => !jaIncluidos.has(`${i.tipo}:${i.valor}`))
+    .map((i) => ({ tipo: i.tipo, valor: i.valor, rotulo: `${i.nome} (descontinuado)`, preco: 0 }));
+  return [...ativos, ...referenciadosInativos];
+}
+
 function CamposComuns({
   item, produtos, itens, onItens, preco, onPreco,
 }: {
   item?: Combo; produtos: Produto[]; itens: ItemEntrada[]; onItens: (i: ItemEntrada[]) => void;
   preco: string; onPreco: (v: string) => void;
 }) {
-  const opcoes: OpcaoItem[] = produtos.filter((p) => p.ativo).map((p) => ({ tipo: 'produto', valor: p.id, rotulo: p.nome, preco: p.preco }));
+  const opcoes: OpcaoItem[] = construirOpcoes(produtos, item);
   const soma = calcularSomaItens(itens, opcoes);
   return (
     <>
+      {item && item.itens.length > 0 && (
+        <div className="space-y-1">
+          <span className="text-sm font-medium">Itens do combo</span>
+          <ul className="text-sm space-y-1">
+            {item.itens.map((i) => (
+              <li key={`${i.tipo}:${i.valor}`} className="flex items-center gap-2">
+                <span>{i.quantidade}x {i.nome}</span>
+                {!i.ativo && (
+                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: 'var(--danger)', border: '1px solid var(--danger)' }}>
+                    descontinuado
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block space-y-1">
           <span className="text-sm">Nome</span>

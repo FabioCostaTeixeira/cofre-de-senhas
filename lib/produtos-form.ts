@@ -132,7 +132,25 @@ function lerItens(json: string, tiposAceitos: ItemEntrada['tipo'][]): ItemEntrad
     if (quantidade <= 0) return { error: 'Quantidade precisa ser maior que zero.' };
     itens.push({ tipo, valor, quantidade });
   }
-  return itens;
+  return mesclarItensDuplicados(itens);
+}
+
+/**
+ * Combos/planos têm uma constraint `unique (combo_id, produto_id)` (e o `plano_itens`
+ * seria naturalmente equivalente, mesmo sem constraint declarada) — adicionar o mesmo
+ * item duas vezes pelo `ItemRepetidor` não deveria virar erro nem duplicar linha no
+ * banco. Mescla entradas com o mesmo tipo+valor somando a quantidade, preservando a
+ * ordem da primeira aparição de cada uma.
+ */
+function mesclarItensDuplicados(itens: ItemEntrada[]): ItemEntrada[] {
+  const mescladas = new Map<string, ItemEntrada>();
+  for (const item of itens) {
+    const chave = `${item.tipo}:${item.valor}`;
+    const existente = mescladas.get(chave);
+    if (existente) existente.quantidade += item.quantidade;
+    else mescladas.set(chave, { ...item });
+  }
+  return [...mescladas.values()];
 }
 
 export function lerItensCombo(json: string): ItemEntrada[] | { error: string } {

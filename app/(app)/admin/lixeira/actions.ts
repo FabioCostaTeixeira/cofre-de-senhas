@@ -5,7 +5,7 @@ import { requireMaster } from '@/lib/auth/guards';
 import { NotFoundError } from '@/lib/authz';
 import { isUuid } from '@/lib/validation';
 import { audit } from '@/lib/db/audit';
-import { purgeItem, restoreItem, RoomTrashedError } from '@/lib/db/queries';
+import { ItemEmUsoError, purgeItem, restoreItem, RoomTrashedError } from '@/lib/db/queries';
 
 export type RestoreResult = { error?: string };
 
@@ -48,6 +48,7 @@ export async function expurgar(
     await purgeItem(kind, id);
   } catch (err) {
     if (err instanceof NotFoundError) return { error: 'Item não encontrado.' };
+    if (err instanceof ItemEmUsoError) return { error: err.message };
     throw err;
   }
   await audit({ actorId: actor.id, action: 'purge', entityType: kind, entityId: id });

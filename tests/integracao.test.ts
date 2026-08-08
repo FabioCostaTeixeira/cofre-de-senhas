@@ -636,4 +636,127 @@ descreve('integração com o banco real', () => {
 
     await sql`delete from categorias_produto where id = ${categoriaId}`;
   });
+
+  it('combo apagado aparece na lixeira, restaura e depois expurga', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const cmb = await import('@/lib/db/combos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-combo-lixeira`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-combo-lixeira`, descricao: null,
+      atributos: {}, preco: 100, ativo: true,
+    });
+    const comboId = await cmb.createCombo({
+      nome: `${marca}-combo-lixeira`, descricao: null, preco: 100, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 1 }],
+    });
+
+    await cmb.softDeleteCombo(comboId);
+
+    const lixeira = await q.listTrash();
+    const item = lixeira.find((i) => i.kind === 'combo' && i.id === comboId);
+    expect(item?.title).toBe(`${marca}-combo-lixeira`);
+
+    await q.restoreItem('combo', comboId);
+    expect(await cmb.getCombo(comboId)).not.toBeNull();
+
+    await cmb.softDeleteCombo(comboId);
+    await q.purgeItem('combo', comboId);
+    const linhas = (await sql`select id from combos where id = ${comboId}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
+
+  it('plano apagado aparece na lixeira, restaura e depois expurga', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const pl = await import('@/lib/db/planos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-plano-lixeira`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-plano-lixeira`, descricao: null,
+      atributos: {}, preco: 100, ativo: true,
+    });
+    const planoId = await pl.createPlano({
+      nome: `${marca}-plano-lixeira`, descricao: null, tipo_cobranca: 'pacote_fechado',
+      validade_dias: 30, ciclo: null, preco: 100, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 1 }],
+    });
+
+    await pl.softDeletePlano(planoId);
+
+    const lixeira = await q.listTrash();
+    const item = lixeira.find((i) => i.kind === 'plano' && i.id === planoId);
+    expect(item?.title).toBe(`${marca}-plano-lixeira`);
+
+    await q.restoreItem('plano', planoId);
+    expect(await pl.getPlano(planoId)).not.toBeNull();
+
+    await pl.softDeletePlano(planoId);
+    await q.purgeItem('plano', planoId);
+    const linhas = (await sql`select id from planos where id = ${planoId}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
+
+  it('expurgar produto ainda referenciado por um combo rejeita com ItemEmUsoError, em vez de crashar', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const cmb = await import('@/lib/db/combos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-produto-em-uso`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-referenciado`, descricao: null,
+      atributos: {}, preco: 50, ativo: true,
+    });
+    const comboId = await cmb.createCombo({
+      nome: `${marca}-combo-referenciador`, descricao: null, preco: 50, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoId, quantidade: 1 }],
+    });
+
+    await prod.softDeleteProduto(produtoId);
+    await expect(q.purgeItem('produto', produtoId)).rejects.toThrow(q.ItemEmUsoError);
+
+    await cmb.softDeleteCombo(comboId);
+    await q.purgeItem('combo', comboId);
+    await q.purgeItem('produto', produtoId);
+
+    const linhas = (await sql`select id from produtos where id = ${produtoId}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
+
+  it('plano_itens: o check do banco rejeita tipo_item "produto" com combo_id preenchido', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const pl = await import('@/lib/db/planos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-plano-itens-check`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const planoId = await pl.createPlano({
+      nome: `${marca}-plano-itens-check`, descricao: null, tipo_cobranca: 'pacote_fechado',
+      validade_dias: 30, ciclo: null, preco: 100, ativo: true, itens: [],
+    });
+
+    await expect(sql`
+      insert into plano_itens (plano_id, tipo_item, combo_id, quantidade)
+      values (${planoId}, 'produto', ${randomUUID()}, 1)
+    `).rejects.toMatchObject({ code: '23514' });
+
+    await pl.softDeletePlano(planoId);
+    await sql`delete from planos where id = ${planoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
 });

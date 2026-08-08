@@ -27,7 +27,13 @@ function CampoAtributo({
       <input
         aria-label={ariaLabel} name={nome} className="input" type={campo.tipo === 'numero' ? 'number' : 'text'}
         value={valor === undefined ? '' : String(valor)} required={campo.obrigatorio}
-        onChange={(e) => onChange(campo.tipo === 'numero' ? Number(e.target.value) : e.target.value)}
+        // Mantém o valor local sempre como string (mesmo pra "numero"): `Number('')` é
+        // `0`, então convertendo aqui um campo obrigatório apagado nunca voltaria a
+        // "vazio" e salvaria 0 em silêncio em vez de disparar a validação de
+        // "informe X". A conversão pra número de verdade fica só em
+        // `lerValorAtributo` (lib/produtos-form.ts), que já trata string vazia como
+        // "não informado".
+        onChange={(e) => onChange(e.target.value)}
       />
     </label>
   );
@@ -120,6 +126,26 @@ function FormularioNovo({ categorias, criar, isModalOpen }: { categorias: Catego
   );
 }
 
+/**
+ * Os atributos vindos do produto salvo trazem "numero" como `number` de verdade
+ * (é o que fica no banco). O estado local do formulário representa "numero" sempre
+ * como string (ver `CampoAtributo`), então precisa converter uma vez ao carregar —
+ * senão o valor pré-preenchido teria um tipo diferente do que o campo produz depois
+ * de qualquer edição.
+ */
+function normalizarAtributosParaEdicao(
+  atributos: Record<string, ValorAtributo>, molde: AtributoMolde[],
+): Record<string, ValorAtributo> {
+  const normalizados = { ...atributos };
+  for (const campo of molde) {
+    const valor = normalizados[campo.chave];
+    if (campo.tipo === 'numero' && typeof valor === 'number') {
+      normalizados[campo.chave] = String(valor);
+    }
+  }
+  return normalizados;
+}
+
 function ModalEdicao({
   item, categorias, salvar, apagar, onFechar,
 }: {
@@ -128,7 +154,9 @@ function ModalEdicao({
 }) {
   const [state, action, pending] = useActionState(salvar, inicial);
   const [categoriaId, setCategoriaId] = useState(item.categoria_id);
-  const [atributos, setAtributos] = useState<Record<string, ValorAtributo>>(item.atributos);
+  const [atributos, setAtributos] = useState<Record<string, ValorAtributo>>(() => normalizarAtributosParaEdicao(
+    item.atributos, categorias.find((c) => c.id === item.categoria_id)?.atributos_molde ?? [],
+  ));
   const [erroApagar, setErroApagar] = useState<string | null>(null);
 
   useEffect(() => {

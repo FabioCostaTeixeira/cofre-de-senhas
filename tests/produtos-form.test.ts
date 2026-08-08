@@ -79,6 +79,18 @@ describe('lerItensCombo', () => {
     const r = lerItensCombo(JSON.stringify([{ tipo: 'produto', valor: 'p1', quantidade: 4 }]));
     expect(r).toEqual([{ tipo: 'produto', valor: 'p1', quantidade: 4 }]);
   });
+
+  it('mescla itens repetidos (mesmo tipo+valor) somando a quantidade', () => {
+    const r = lerItensCombo(JSON.stringify([
+      { tipo: 'produto', valor: 'p1', quantidade: 1 },
+      { tipo: 'produto', valor: 'p2', quantidade: 5 },
+      { tipo: 'produto', valor: 'p1', quantidade: 2 },
+    ]));
+    expect(r).toEqual([
+      { tipo: 'produto', valor: 'p1', quantidade: 3 },
+      { tipo: 'produto', valor: 'p2', quantidade: 5 },
+    ]);
+  });
 });
 
 describe('lerItensPlano', () => {
@@ -96,6 +108,18 @@ describe('lerItensPlano', () => {
   it('quantidade zero retorna erro', () => {
     const r = lerItensPlano(JSON.stringify([{ tipo: 'produto', valor: 'p1', quantidade: 0 }]));
     expect(r).toEqual({ error: 'Quantidade precisa ser maior que zero.' });
+  });
+
+  it('mescla itens repetidos preservando a ordem da primeira aparição', () => {
+    const r = lerItensPlano(JSON.stringify([
+      { tipo: 'combo', valor: 'c1', quantidade: 1 },
+      { tipo: 'produto', valor: 'p1', quantidade: 1 },
+      { tipo: 'combo', valor: 'c1', quantidade: 3 },
+    ]));
+    expect(r).toEqual([
+      { tipo: 'combo', valor: 'c1', quantidade: 4 },
+      { tipo: 'produto', valor: 'p1', quantidade: 1 },
+    ]);
   });
 });
 
