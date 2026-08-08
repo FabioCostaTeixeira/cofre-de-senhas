@@ -424,4 +424,45 @@ descreve('integração com o banco real', () => {
       })).rejects.toMatchObject({ code: '23505' });
     });
   });
+
+  it('cria, edita e apaga (soft) um cliente', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+
+    const id = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente`, contato_responsavel: 'Fulano', email: 'f@x.com',
+      telefone: '11987654321', cidade: 'São Paulo', uf: 'SP',
+    });
+
+    const criado = await terceiros.getTerceiro('clientes', id);
+    expect(criado?.nome).toBe(`${marca}-cliente`);
+    expect((await terceiros.listTerceiros('clientes')).map((c) => c.id)).toContain(id);
+
+    await terceiros.updateTerceiro('clientes', id, {
+      nome: `${marca}-cliente-editado`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    expect((await terceiros.getTerceiro('clientes', id))?.nome).toBe(`${marca}-cliente-editado`);
+
+    await terceiros.softDeleteTerceiro('clientes', id);
+    expect(await terceiros.getTerceiro('clientes', id)).toBeNull();
+    expect((await terceiros.listTerceiros('clientes')).map((c) => c.id)).not.toContain(id);
+
+    await sql`delete from clientes where id = ${id}`;
+  });
+
+  it('cria e apaga (soft) um fornecedor, mesma forma da tabela de clientes', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+
+    const id = await terceiros.createTerceiro('fornecedores', {
+      nome: `${marca}-fornecedor`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+
+    expect((await terceiros.getTerceiro('fornecedores', id))?.nome).toBe(`${marca}-fornecedor`);
+
+    await terceiros.softDeleteTerceiro('fornecedores', id);
+    expect(await terceiros.getTerceiro('fornecedores', id)).toBeNull();
+
+    await sql`delete from fornecedores where id = ${id}`;
+  });
 });
