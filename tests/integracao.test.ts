@@ -487,4 +487,24 @@ descreve('integração com o banco real', () => {
     const linhas = (await sql`select id from clientes where id = ${id}`) as { id: string }[];
     expect(linhas).toHaveLength(0);
   });
+
+  it('categoria: cria, edita e apaga quando não está em uso', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+
+    const id = await cat.createCategoria({
+      nome: `${marca}-categoria`, unidade_consumo: 'gravação',
+      atributos_molde: [{ chave: 'qtd_cameras', rotulo: 'Câmeras', tipo: 'numero', obrigatorio: true }],
+      ativo: true,
+    });
+
+    const criada = await cat.getCategoria(id);
+    expect(criada?.nome).toBe(`${marca}-categoria`);
+    expect(criada?.atributos_molde).toHaveLength(1);
+
+    await cat.updateCategoria(id, { ...criada!, nome: `${marca}-categoria-editada` });
+    expect((await cat.getCategoria(id))?.nome).toBe(`${marca}-categoria-editada`);
+
+    await cat.deleteCategoria(id);
+    expect(await cat.getCategoria(id)).toBeNull();
+  });
 });
