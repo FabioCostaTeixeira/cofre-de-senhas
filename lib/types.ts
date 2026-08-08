@@ -114,3 +114,100 @@ export type DadosTerceiro = {
   cidade: string | null;
   uf: string | null;
 };
+
+export type TipoAtributo = 'numero' | 'texto' | 'booleano';
+
+export type AtributoMolde = {
+  chave: string;
+  rotulo: string;
+  tipo: TipoAtributo;
+  obrigatorio: boolean;
+};
+
+export type CategoriaProduto = {
+  id: string;
+  nome: string;
+  unidade_consumo: string | null;
+  atributos_molde: AtributoMolde[];
+  ativo: boolean;
+};
+
+export type ValorAtributo = string | number | boolean;
+
+export type Produto = {
+  id: string;
+  categoria_id: string;
+  nome: string;
+  descricao: string | null;
+  atributos: Record<string, ValorAtributo>;
+  preco: number;
+  ativo: boolean;
+  created_at: string;
+};
+
+export type DadosProduto = {
+  categoria_id: string;
+  nome: string;
+  descricao: string | null;
+  atributos: Record<string, ValorAtributo>;
+  preco: number;
+  ativo: boolean;
+};
+
+export type TipoItemPedido = 'produto' | 'combo';
+
+/** O que o `ItemRepetidor` produz e o que as actions de combo/plano leem do formulário. */
+export type ItemEntrada = { tipo: TipoItemPedido; valor: string; quantidade: number };
+
+/** Item já resolvido com nome/estado do produto ou combo referenciado, pra exibição. */
+export type ItemResolvido = {
+  tipo: TipoItemPedido;
+  valor: string;
+  nome: string;
+  quantidade: number;
+  ativo: boolean;
+};
+
+export type Combo = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  preco: number;
+  ativo: boolean;
+  created_at: string;
+  itens: ItemResolvido[];
+};
+
+export type DadosCombo = {
+  nome: string;
+  descricao: string | null;
+  preco: number;
+  ativo: boolean;
+  itens: ItemEntrada[];
+};
+
+export type TipoCobranca = 'pacote_fechado' | 'assinatura';
+
+export type Plano = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  tipo_cobranca: TipoCobranca;
+  validade_dias: number | null;
+  ciclo: 'mensal' | null;
+  preco: number;
+  ativo: boolean;
+  created_at: string;
+  itens: ItemResolvido[];
+};
+
+export type DadosPlano = {
+  nome: string;
+  descricao: string | null;
+  tipo_cobranca: TipoCobranca;
+  validade_dias: number | null;
+  ciclo: 'mensal' | null;
+  preco: number;
+  ativo: boolean;
+  itens: ItemEntrada[];
+};

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canCreateCredential, canDeleteCredential, canEditCredential, canManageRooms, canManageUsers,
-  canManageTerceiros,
+  canManageTerceiros, canManageProdutos,
   canReadCredential, canViewAudit, camposEditaveis, podeRevelarDados, type CredentialAcl,
 } from '@/lib/authz';
 import type { Actor } from '@/lib/types';
@@ -208,6 +208,11 @@ describe('administração', () => {
   it('só master gerencia clientes e fornecedores', () => {
     expect(canManageTerceiros(master)).toBe(true);
     expect(canManageTerceiros(dono)).toBe(false);
+  });
+
+  it('só master gerencia produtos', () => {
+    expect(canManageProdutos(master)).toBe(true);
+    expect(canManageProdutos(dono)).toBe(false);
   });
 });
 
