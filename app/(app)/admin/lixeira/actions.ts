@@ -15,7 +15,7 @@ export type RestoreResult = { error?: string };
  * devolver uma mensagem — mesmo padrão de `expurgar` logo abaixo.
  */
 export async function restaurar(
-  kind: 'credential' | 'room' | 'cliente' | 'fornecedor', id: string,
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano', id: string,
 ): Promise<RestoreResult> {
   const actor = await requireMaster();
   if (!isUuid(id)) return { error: 'Item não encontrado.' };
@@ -40,7 +40,7 @@ export type ExpurgarResult = { error?: string };
  * mesmo padrão de `deleteCredential` em `app/credenciais/actions.ts`.
  */
 export async function expurgar(
-  kind: 'credential' | 'room' | 'cliente' | 'fornecedor', id: string,
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano', id: string,
 ): Promise<ExpurgarResult> {
   const actor = await requireMaster();
   if (!isUuid(id)) return { error: 'Item não encontrado.' };

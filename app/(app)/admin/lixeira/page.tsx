@@ -21,7 +21,7 @@ export default async function LixeiraPage() {
               <div className="flex-1 min-w-0">
                 <span className="font-medium">{item.title}</span>{' '}
                 <span className="badge">
-                  {{ room: 'sala', credential: 'senha', cliente: 'cliente', fornecedor: 'fornecedor' }[item.kind]}
+                  {{ room: 'sala', credential: 'senha', cliente: 'cliente', fornecedor: 'fornecedor', produto: 'produto', combo: 'combo', plano: 'plano' }[item.kind]}
                 </span>
                 <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
                   {item.room_name ? `${item.room_name} · ` : ''}

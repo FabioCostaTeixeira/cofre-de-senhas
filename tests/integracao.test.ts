@@ -608,4 +608,32 @@ descreve('integração com o banco real', () => {
     await sql`delete from produtos where id = ${produtoId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
   });
+
+  it('produto apagado aparece na lixeira, restaura e depois expurga', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-lixeira`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-lixeira`, descricao: null,
+      atributos: {}, preco: 100, ativo: true,
+    });
+    await prod.softDeleteProduto(produtoId);
+
+    const lixeira = await q.listTrash();
+    const item = lixeira.find((i) => i.kind === 'produto' && i.id === produtoId);
+    expect(item?.title).toBe(`${marca}-produto-lixeira`);
+
+    await q.restoreItem('produto', produtoId);
+    expect(await prod.getProduto(produtoId)).not.toBeNull();
+
+    await prod.softDeleteProduto(produtoId);
+    await q.purgeItem('produto', produtoId);
+    const linhas = (await sql`select id from produtos where id = ${produtoId}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+  });
 });
