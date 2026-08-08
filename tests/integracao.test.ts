@@ -507,4 +507,24 @@ descreve('integração com o banco real', () => {
     await cat.deleteCategoria(id);
     expect(await cat.getCategoria(id)).toBeNull();
   });
+
+  it('categoria em uso não pode ser apagada, mas libera depois que o produto é removido', async () => {
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-em-uso`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-em-uso`, descricao: null,
+      atributos: {}, preco: 100, ativo: true,
+    });
+
+    await expect(cat.deleteCategoria(categoriaId)).rejects.toThrow('Categoria em uso por 1 produto.');
+
+    await prod.softDeleteProduto(produtoId);
+    await sql`delete from produtos where id = ${produtoId}`;
+    await cat.deleteCategoria(categoriaId);
+    expect(await cat.getCategoria(categoriaId)).toBeNull();
+  });
 });
