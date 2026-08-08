@@ -423,14 +423,14 @@ export async function setUserRooms(userId: string, roomIds: string[]): Promise<v
 
 export type TrashItem = {
   id: string;
-  kind: 'credential' | 'room';
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor';
   title: string;
   room_name: string | null;
   deleted_at: string;
   /**
    * Só preenchido para `kind === 'room'`: quantas credenciais daquela sala (na
    * lixeira ou não) serão destruídas junto se a sala for expurgada. `null` para
-   * itens do tipo `credential`, onde o expurgo não arrasta mais nada.
+   * os demais tipos, onde o expurgo não arrasta mais nada.
    */
   credential_count: number | null;
 };
@@ -445,6 +445,14 @@ export async function listTrash(): Promise<TrashItem[]> {
     select r.id, 'room' as kind, r.name as title, null as room_name, r.deleted_at,
            (select count(*) from credentials c2 where c2.room_id = r.id)::int as credential_count
       from rooms r where r.deleted_at is not null
+    union all
+    select cl.id, 'cliente' as kind, cl.nome as title, null as room_name, cl.deleted_at,
+           null::int as credential_count
+      from clientes cl where cl.deleted_at is not null
+    union all
+    select f.id, 'fornecedor' as kind, f.nome as title, null as room_name, f.deleted_at,
+           null::int as credential_count
+      from fornecedores f where f.deleted_at is not null
      order by deleted_at desc`) as TrashItem[];
 }
 
@@ -457,7 +465,9 @@ export class RoomTrashedError extends Error {
   }
 }
 
-export async function restoreItem(kind: 'credential' | 'room', id: string): Promise<void> {
+export async function restoreItem(
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor', id: string,
+): Promise<void> {
   assertUuid(id);
   if (kind === 'credential') {
     const rows = (await sql`
@@ -467,16 +477,22 @@ export async function restoreItem(kind: 'credential' | 'room', id: string): Prom
     if (!rows[0]) throw new NotFoundError('Senha não encontrada');
     if (rows[0].room_deleted_at) throw new RoomTrashedError();
     await sql`update credentials set deleted_at = null where id = ${id}`;
-  } else {
+  } else if (kind === 'room') {
     await sql`update rooms set deleted_at = null where id = ${id}`;
+  } else if (kind === 'cliente') {
+    await sql`update clientes set deleted_at = null where id = ${id}`;
+  } else {
+    await sql`update fornecedores set deleted_at = null where id = ${id}`;
   }
 }
 
-export async function purgeItem(kind: 'credential' | 'room', id: string): Promise<void> {
+export async function purgeItem(
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor', id: string,
+): Promise<void> {
   assertUuid(id);
   if (kind === 'credential') {
     await sql`delete from credentials where id = ${id} and deleted_at is not null`;
-  } else {
+  } else if (kind === 'room') {
     // A sala só pode ser expurgada se já estiver na lixeira; a subconsulta reaplica
     // essa mesma guarda ao delete de credenciais, para uma sala ativa jamais perder
     // credenciais aqui (Server Action é endpoint HTTP, invocável com qualquer id).
@@ -486,6 +502,10 @@ export async function purgeItem(kind: 'credential' | 'room', id: string): Promis
            where room_id = (select id from rooms where id = ${id} and deleted_at is not null)`,
       sql`delete from rooms where id = ${id} and deleted_at is not null`,
     ]);
+  } else if (kind === 'cliente') {
+    await sql`delete from clientes where id = ${id} and deleted_at is not null`;
+  } else {
+    await sql`delete from fornecedores where id = ${id} and deleted_at is not null`;
   }
 }
 

@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { restaurar } from '@/app/(app)/admin/lixeira/actions';
 
-export function RestoreButton({ kind, id }: { kind: 'credential' | 'room'; id: string }) {
+export function RestoreButton({
+  kind, id,
+}: { kind: 'credential' | 'room' | 'cliente' | 'fornecedor'; id: string }) {
   const [erro, setErro] = useState<string | null>(null);
 
   async function restaurarItem() {

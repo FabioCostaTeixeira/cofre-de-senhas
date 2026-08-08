@@ -14,7 +14,9 @@ export type RestoreResult = { error?: string };
  * porque restaurar uma credencial pode falhar (sala ainda na lixeira) e precisa
  * devolver uma mensagem — mesmo padrão de `expurgar` logo abaixo.
  */
-export async function restaurar(kind: 'credential' | 'room', id: string): Promise<RestoreResult> {
+export async function restaurar(
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor', id: string,
+): Promise<RestoreResult> {
   const actor = await requireMaster();
   if (!isUuid(id)) return { error: 'Item não encontrado.' };
   try {
@@ -37,7 +39,9 @@ export type ExpurgarResult = { error?: string };
  * o que permite pedir `confirm()` no cliente antes de destruir os dados —
  * mesmo padrão de `deleteCredential` em `app/credenciais/actions.ts`.
  */
-export async function expurgar(kind: 'credential' | 'room', id: string): Promise<ExpurgarResult> {
+export async function expurgar(
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor', id: string,
+): Promise<ExpurgarResult> {
   const actor = await requireMaster();
   if (!isUuid(id)) return { error: 'Item não encontrado.' };
   try {

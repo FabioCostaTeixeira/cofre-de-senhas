@@ -5,7 +5,7 @@ import type { AuditAction } from '@/lib/types';
 type Entry = {
   actorId: string | null;
   action: AuditAction;
-  entityType?: 'credential' | 'room' | 'user';
+  entityType?: 'credential' | 'room' | 'user' | 'cliente' | 'fornecedor';
   entityId?: string | null;
   metadata?: Record<string, unknown>;
 };

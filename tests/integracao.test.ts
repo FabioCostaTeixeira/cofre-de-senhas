@@ -465,4 +465,26 @@ descreve('integração com o banco real', () => {
 
     await sql`delete from fornecedores where id = ${id}`;
   });
+
+  it('cliente apagado aparece na lixeira, restaura e depois expurga', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+
+    const id = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-lixeira`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    await terceiros.softDeleteTerceiro('clientes', id);
+
+    const lixeira = await q.listTrash();
+    const item = lixeira.find((i) => i.kind === 'cliente' && i.id === id);
+    expect(item?.title).toBe(`${marca}-lixeira`);
+
+    await q.restoreItem('cliente', id);
+    expect(await terceiros.getTerceiro('clientes', id)).not.toBeNull();
+
+    await terceiros.softDeleteTerceiro('clientes', id);
+    await q.purgeItem('cliente', id);
+    const linhas = (await sql`select id from clientes where id = ${id}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+  });
 });

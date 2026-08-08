@@ -20,7 +20,9 @@ export default async function LixeiraPage() {
             <div key={`${item.kind}-${item.id}`} className="p-4 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <span className="font-medium">{item.title}</span>{' '}
-                <span className="badge">{item.kind === 'room' ? 'sala' : 'senha'}</span>
+                <span className="badge">
+                  {{ room: 'sala', credential: 'senha', cliente: 'cliente', fornecedor: 'fornecedor' }[item.kind]}
+                </span>
                 <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
                   {item.room_name ? `${item.room_name} · ` : ''}
                   apagado em {formatarDataHora(item.deleted_at)}
