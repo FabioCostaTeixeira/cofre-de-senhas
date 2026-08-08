@@ -88,3 +88,29 @@ export const AUDIT_ACTIONS = [
 ] as const;
 
 export type AuditAction = typeof AUDIT_ACTIONS[number];
+
+/** `tabela` nunca vem de input do usuário — sempre um literal escolhido pelo
+ *  próprio código de cada rota (`/cadastros/clientes` chama sempre com
+ *  `'clientes'`). Isso é o que torna seguro usar `sql.unsafe(tabela)` em
+ *  `lib/db/terceiros.ts` para interpolar o nome da tabela. */
+export type TipoTerceiro = 'clientes' | 'fornecedores';
+
+export type Terceiro = {
+  id: string;
+  nome: string;
+  contato_responsavel: string | null;
+  email: string | null;
+  telefone: string | null;
+  cidade: string | null;
+  uf: string | null;
+  created_at: string;
+};
+
+export type DadosTerceiro = {
+  nome: string;
+  contato_responsavel: string | null;
+  email: string | null;
+  telefone: string | null;
+  cidade: string | null;
+  uf: string | null;
+};
