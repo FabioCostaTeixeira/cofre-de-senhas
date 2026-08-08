@@ -49,14 +49,14 @@ cosmético, a validação de forma é sempre revalidada no servidor, mesmo padr�
 Migration: `db/migrations/006_produtos.sql`.
 
 ```sql
-create type tipo_atributo_produto as enum ('numero', 'texto', 'booleano');
-
 create table categorias_produto (
   id                uuid primary key default gen_random_uuid(),
   nome              text not null unique,
   unidade_consumo   text,              -- rótulo livre, ex.: "gravação", "corte", "vídeo"
   atributos_molde   jsonb not null default '[]',
-  -- cada item: {chave, rotulo, tipo: numero|texto|booleano, obrigatorio}
+  -- cada item: {chave, rotulo, tipo: numero|texto|booleano, obrigatorio}. `tipo` é
+  -- texto livre na coluna (vive dentro do jsonb); a validação dos 3 valores aceitos
+  -- é em código (lib/produtos-form.ts), não em enum do banco.
   ativo             boolean not null default true,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
