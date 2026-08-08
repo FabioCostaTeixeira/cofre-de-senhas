@@ -126,6 +126,14 @@ function FormularioNovo({
   const [state, action, pending] = useActionState(criar, inicial);
   const [telefoneDigitos, setTelefoneDigitos] = useState('');
 
+  // O React reseta o `<form>` nativo sozinho após a Server Action ter sucesso,
+  // o que limpa os campos não controlados (defaultValue) — mas telefone é
+  // controlado por este estado, então precisa ser zerado à mão aqui, senão
+  // fica o único campo que "sobrevive" ao cadastro.
+  useEffect(() => {
+    if (state.ok) setTelefoneDigitos('');
+  }, [state.ok]);
+
   return (
     <details className="glass p-5">
       <summary className="cursor-pointer font-semibold">{rotulos.novo}</summary>
