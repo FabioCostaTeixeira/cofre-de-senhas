@@ -211,3 +211,24 @@ export type DadosPlano = {
   ativo: boolean;
   itens: ItemEntrada[];
 };
+
+export type Estudio = { id: string; local_id: string; nome: string; created_at: string };
+
+export type LocalGravacao = {
+  id: string;
+  nome: string;
+  endereco: string | null;
+  responsavel: string | null;
+  created_at: string;
+  estudios: Estudio[];
+};
+
+export type DadosLocal = {
+  nome: string;
+  endereco: string | null;
+  responsavel: string | null;
+  /** Com `id` presente: renomeia o estúdio existente. Sem `id`: cria um novo. Um
+   *  estúdio existente que não aparece nesta lista é soft-deleted (ver
+   *  `lib/db/locais-gravacao.ts`, `updateLocal`). */
+  estudios: { id?: string; nome: string }[];
+};
