@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import { mascararMoeda, soDigitos } from '@/lib/documentos';
 import type { AtributoMolde, CategoriaProduto, Produto, ValorAtributo } from '@/lib/types';
 
 export type ProdutoState = { error?: string; ok?: string };
@@ -40,10 +41,11 @@ function CampoAtributo({
 }
 
 function CamposComuns({
-  item, categorias, categoriaId, onCategoriaId, atributos, onAtributo,
+  item, categorias, categoriaId, onCategoriaId, atributos, onAtributo, preco, onPreco,
 }: {
   item?: Produto; categorias: CategoriaProduto[]; categoriaId: string; onCategoriaId: (id: string) => void;
   atributos: Record<string, ValorAtributo>; onAtributo: (chave: string, valor: ValorAtributo) => void;
+  preco: string; onPreco: (v: string) => void;
 }) {
   const categoria = categorias.find((c) => c.id === categoriaId);
   const opcoes = categorias.filter((c) => c.ativo || c.id === categoriaId);
@@ -62,7 +64,10 @@ function CamposComuns({
         </label>
         <label className="block space-y-1">
           <span className="text-sm">Preço (R$)</span>
-          <input name="preco" className="input" defaultValue={item?.preco ?? ''} required />
+          <input
+            aria-label="Preço (R$)" name="preco" className="input" inputMode="decimal"
+            value={mascararMoeda(preco)} onChange={(e) => onPreco(soDigitos(e.target.value))} required
+          />
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="ativo" defaultChecked={item?.ativo ?? true} />
@@ -94,10 +99,11 @@ function FormularioNovo({ categorias, criar, isModalOpen }: { categorias: Catego
   const [state, action, pending] = useActionState(criar, inicial);
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? '');
   const [atributos, setAtributos] = useState<Record<string, ValorAtributo>>({});
+  const [preco, setPreco] = useState('');
   const [detalhesAberto, setDetalhesAberto] = useState(true);
 
   useEffect(() => {
-    if (state.ok) setAtributos({});
+    if (state.ok) { setAtributos({}); setPreco(''); }
   }, [state.ok]);
 
   useEffect(() => {
@@ -116,6 +122,7 @@ function FormularioNovo({ categorias, criar, isModalOpen }: { categorias: Catego
           <CamposComuns
             categorias={categorias} categoriaId={categoriaId} onCategoriaId={setCategoriaId}
             atributos={atributos} onAtributo={(chave, valor) => setAtributos({ ...atributos, [chave]: valor })}
+            preco={preco} onPreco={setPreco}
           />
           {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
           {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
@@ -157,6 +164,7 @@ function ModalEdicao({
   const [atributos, setAtributos] = useState<Record<string, ValorAtributo>>(() => normalizarAtributosParaEdicao(
     item.atributos, categorias.find((c) => c.id === item.categoria_id)?.atributos_molde ?? [],
   ));
+  const [preco, setPreco] = useState(String(Math.round(item.preco * 100)));
   const [erroApagar, setErroApagar] = useState<string | null>(null);
 
   useEffect(() => {
@@ -181,6 +189,7 @@ function ModalEdicao({
         <CamposComuns
           item={item} categorias={categorias} categoriaId={categoriaId} onCategoriaId={setCategoriaId}
           atributos={atributos} onAtributo={(chave, valor) => setAtributos({ ...atributos, [chave]: valor })}
+          preco={preco} onPreco={setPreco}
         />
         {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
         <button className="btn btn-primary" disabled={pending}>Salvar</button>

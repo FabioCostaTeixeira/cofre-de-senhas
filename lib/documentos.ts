@@ -66,6 +66,18 @@ export function mascararTelefone(digitos: string): string {
 }
 
 /**
+ * Formata dígitos como centavos de reais: "39900" -> "R$ 399,00". Mesma ideia de
+ * `mascararTelefone` — o estado guardado é só dígitos, a máscara é aplicada na
+ * exibição, e o `input` mantém o cursor sempre no fim (não dá pra editar no meio).
+ */
+export function mascararMoeda(digitos: string): string {
+  const d = soDigitos(digitos);
+  if (!d) return '';
+  const centavos = Number(d);
+  return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/**
  * `yyyy-mm-dd` (valor de `<input type="date">`) para `dd/mm/yyyy`. Manipulação de
  * string, sem `Date`/fuso horário: um `new Date('2026-08-06')` é meia-noite UTC, e
  * formatar isso de volta em America/Sao_Paulo pode devolver o dia anterior — errado

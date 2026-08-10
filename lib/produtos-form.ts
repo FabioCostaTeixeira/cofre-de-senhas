@@ -76,8 +76,14 @@ function lerValorAtributo(
   return bruto;
 }
 
+/**
+ * Aceita tanto número puro ("399") quanto o valor já mascarado pelo campo de
+ * preço ("R$ 1.234,56") — descarta tudo que não for dígito ou vírgula antes de
+ * interpretar a vírgula como separador decimal.
+ */
 function lerPreco(fd: FormData): number | { error: string } {
-  const preco = Number(String(fd.get('preco') ?? '').replace(',', '.'));
+  const limpo = String(fd.get('preco') ?? '').replace(/[^0-9,]/g, '');
+  const preco = limpo === '' ? NaN : Number(limpo.replace(',', '.'));
   if (Number.isNaN(preco) || preco < 0) return { error: 'Preço inválido.' };
   return preco;
 }

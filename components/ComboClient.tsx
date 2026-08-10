@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { calcularSomaItens, ItemRepetidor, type OpcaoItem } from '@/components/ItemRepetidor';
+import { mascararMoeda, soDigitos } from '@/lib/documentos';
 import type { Combo, ItemEntrada, Produto } from '@/lib/types';
 
 export type ComboState = { error?: string; ok?: string };
@@ -59,7 +60,10 @@ function CamposComuns({
         </label>
         <label className="block space-y-1">
           <span className="text-sm">Preço (R$)</span>
-          <input aria-label="Preço (R$)" name="preco" className="input" value={preco} onChange={(e) => onPreco(e.target.value)} required />
+          <input
+            aria-label="Preço (R$)" name="preco" className="input" inputMode="decimal"
+            value={mascararMoeda(preco)} onChange={(e) => onPreco(soDigitos(e.target.value))} required
+          />
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="ativo" defaultChecked={item?.ativo ?? true} />
@@ -71,8 +75,8 @@ function CamposComuns({
         <textarea name="descricao" className="input" defaultValue={item?.descricao ?? ''} />
       </label>
       <ItemRepetidor nomeCampo="itens" opcoes={opcoes} itens={itens} onChange={onItens} />
-      <button type="button" className="btn" onClick={() => onPreco(soma.toFixed(2))}>
-        Usar soma sugerida (R$ {soma.toFixed(2)})
+      <button type="button" className="btn" onClick={() => onPreco(String(Math.round(soma * 100)))}>
+        Usar soma sugerida ({mascararMoeda(String(Math.round(soma * 100)))})
       </button>
     </>
   );
@@ -105,7 +109,7 @@ function ModalEdicao({
 }: { item: Combo; produtos: Produto[]; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>; onFechar: () => void }) {
   const [state, action, pending] = useActionState(salvar, inicial);
   const [itens, setItens] = useState<ItemEntrada[]>(item.itens.map((i) => ({ tipo: i.tipo, valor: i.valor, quantidade: i.quantidade })));
-  const [preco, setPreco] = useState(String(item.preco));
+  const [preco, setPreco] = useState(String(Math.round(item.preco * 100)));
   const [erroApagar, setErroApagar] = useState<string | null>(null);
 
   useEffect(() => {
