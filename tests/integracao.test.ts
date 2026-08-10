@@ -759,4 +759,64 @@ descreve('integração com o banco real', () => {
     await sql`delete from planos where id = ${planoId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
   });
+
+  it('cria local com estudios, edita renomeando um e adicionando outro sem perder o id do renomeado', async () => {
+    const lg = await import('@/lib/db/locais-gravacao');
+
+    const id = await lg.createLocal({
+      nome: `${marca}-local`, endereco: 'Rua X, 100', responsavel: 'Fulano',
+      estudios: [{ nome: 'Estúdio A' }, { nome: 'Estúdio B' }],
+    });
+
+    const criado = await lg.getLocal(id);
+    expect(criado?.estudios).toHaveLength(2);
+    const estudioA = criado!.estudios.find((e) => e.nome === 'Estúdio A')!;
+
+    await lg.updateLocal(id, {
+      nome: `${marca}-local-editado`, endereco: null, responsavel: null,
+      estudios: [{ id: estudioA.id, nome: 'Estúdio A renomeado' }, { nome: 'Estúdio C' }],
+    });
+
+    const editado = await lg.getLocal(id);
+    expect(editado?.nome).toBe(`${marca}-local-editado`);
+    expect(editado?.estudios.map((e) => e.nome).sort()).toEqual(['Estúdio A renomeado', 'Estúdio C']);
+    // O id do estúdio renomeado não mudou — é o que garante que uma referência futura
+    // (Agenda) sobreviveria a essa edição.
+    expect(editado?.estudios.find((e) => e.nome === 'Estúdio A renomeado')?.id).toBe(estudioA.id);
+    // "Estúdio B" saiu da lista enviada: some da listagem ativa (soft-deleted).
+    expect(editado?.estudios.some((e) => e.nome === 'Estúdio B')).toBe(false);
+
+    await sql`delete from estudios where local_id = ${id}`;
+    await sql`delete from locais_gravacao where id = ${id}`;
+  });
+
+  it('estudio removido da lista no update aparece na lixeira; apagar o local nao arrasta os estudios', async () => {
+    const lg = await import('@/lib/db/locais-gravacao');
+
+    const id = await lg.createLocal({
+      nome: `${marca}-local-lixeira`, endereco: null, responsavel: null,
+      estudios: [{ nome: 'Estúdio A' }],
+    });
+    const [estudioA] = (await lg.getLocal(id))!.estudios;
+
+    await lg.updateLocal(id, {
+      nome: `${marca}-local-lixeira`, endereco: null, responsavel: null, estudios: [],
+    });
+
+    // Checagem direto na tabela, não via `q.listTrash()`: `listTrash` só passa a
+    // reconhecer `kind: 'estudio'` na Task 5 — esta task ainda não a modifica.
+    const linhaEstudioRemovido = (await sql`
+      select deleted_at from estudios where id = ${estudioA.id}`) as { deleted_at: string | null }[];
+    expect(linhaEstudioRemovido[0]?.deleted_at).not.toBeNull();
+
+    await lg.softDeleteLocal(id);
+    const linhaEstudio = (await sql`
+      select deleted_at from estudios where id = ${estudioA.id}`) as { deleted_at: string }[];
+    // O estúdio já estava soft-deleted desde o update acima; apagar o local não altera
+    // esse timestamp (cada um soft-deleta na própria hora, sem cascata).
+    expect(linhaEstudio[0]?.deleted_at).not.toBeNull();
+
+    await sql`delete from estudios where local_id = ${id}`;
+    await sql`delete from locais_gravacao where id = ${id}`;
+  });
 });
