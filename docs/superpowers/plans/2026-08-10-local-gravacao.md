@@ -389,8 +389,11 @@ final que fecha esse describe:
       nome: `${marca}-local-lixeira`, endereco: null, responsavel: null, estudios: [],
     });
 
-    const lixeira = await q.listTrash();
-    expect(lixeira.some((i) => i.kind === 'estudio' && i.id === estudioA.id)).toBe(true);
+    // Checagem direto na tabela, não via `q.listTrash()`: `listTrash` só passa a
+    // reconhecer `kind: 'estudio'` na Task 5 — esta task ainda não a modifica.
+    const linhaEstudioRemovido = (await sql`
+      select deleted_at from estudios where id = ${estudioA.id}`) as { deleted_at: string | null }[];
+    expect(linhaEstudioRemovido[0]?.deleted_at).not.toBeNull();
 
     await lg.softDeleteLocal(id);
     const linhaEstudio = (await sql`
@@ -484,21 +487,22 @@ export async function updateLocal(id: string, dados: DadosLocal): Promise<void> 
   assertUuid(id);
   if (!(await getLocal(id))) throw new NotFoundError();
 
-  const idsEnviados = dados.estudios
-    .filter((e): e is { id: string; nome: string } => Boolean(e.id))
-    .map((e) => e.id);
+  const existentes = dados.estudios.filter((e): e is { id: string; nome: string } => Boolean(e.id));
+  const novos = dados.estudios
+    .filter((e) => !e.id)
+    .map((e) => ({ id: randomUUID(), nome: e.nome }));
+  // Os ids recém-gerados pros novos entram aqui também: sem isso, o soft-delete final
+  // (que roda na mesma transação) apagaria de volta o estúdio que acabou de ser
+  // inserido, por não reconhecer o id dele como "enviado".
+  const idsEnviados = [...existentes.map((e) => e.id), ...novos.map((e) => e.id)];
 
   await sql.transaction([
     sql`update locais_gravacao
            set nome = ${dados.nome}, endereco = ${dados.endereco}, responsavel = ${dados.responsavel},
                updated_at = now()
          where id = ${id}`,
-    ...dados.estudios
-      .filter((e) => e.id)
-      .map((e) => sql`update estudios set nome = ${e.nome}, updated_at = now() where id = ${e.id}`),
-    ...dados.estudios
-      .filter((e) => !e.id)
-      .map((e) => sql`insert into estudios (id, local_id, nome) values (${randomUUID()}, ${id}, ${e.nome})`),
+    ...existentes.map((e) => sql`update estudios set nome = ${e.nome}, updated_at = now() where id = ${e.id}`),
+    ...novos.map((e) => sql`insert into estudios (id, local_id, nome) values (${e.id}, ${id}, ${e.nome})`),
     sql`update estudios set deleted_at = now()
          where local_id = ${id} and deleted_at is null and id <> all(${idsEnviados}::uuid[])`,
   ]);
