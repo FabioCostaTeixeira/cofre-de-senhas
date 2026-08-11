@@ -66,6 +66,9 @@ export async function updateLocal(id: string, dados: DadosLocal): Promise<void> 
   if (!(await getLocal(id))) throw new NotFoundError();
 
   const existentes = dados.estudios.filter((e): e is { id: string; nome: string } => Boolean(e.id));
+  // Cada `id` de estúdio enviado precisa ter formato de uuid antes de virar `where id = ...`
+  // — sem isso, um id malformado vira erro de cast do Postgres (500) em vez de 404.
+  existentes.forEach((e) => assertUuid(e.id));
   const novos = dados.estudios
     .filter((e) => !e.id)
     .map((e) => ({ id: randomUUID(), nome: e.nome }));
@@ -79,7 +82,10 @@ export async function updateLocal(id: string, dados: DadosLocal): Promise<void> 
            set nome = ${dados.nome}, endereco = ${dados.endereco}, responsavel = ${dados.responsavel},
                updated_at = now()
          where id = ${id}`,
-    ...existentes.map((e) => sql`update estudios set nome = ${e.nome}, updated_at = now() where id = ${e.id}`),
+    // `and local_id = ${id}`: sem isso, um id de estúdio de OUTRO local enviado no
+    // payload renomearia silenciosamente um registro que não pertence a este local.
+    ...existentes.map((e) => sql`
+      update estudios set nome = ${e.nome}, updated_at = now() where id = ${e.id} and local_id = ${id}`),
     ...novos.map((e) => sql`insert into estudios (id, local_id, nome) values (${e.id}, ${id}, ${e.nome})`),
     sql`update estudios set deleted_at = now()
          where local_id = ${id} and deleted_at is null and id <> all(${idsEnviados}::uuid[])`,

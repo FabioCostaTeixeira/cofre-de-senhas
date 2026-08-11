@@ -819,4 +819,30 @@ descreve('integração com o banco real', () => {
     await sql`delete from estudios where local_id = ${id}`;
     await sql`delete from locais_gravacao where id = ${id}`;
   });
+
+  it('editar um local nao renomeia estudio pertencente a outro local', async () => {
+    const lg = await import('@/lib/db/locais-gravacao');
+
+    const idA = await lg.createLocal({
+      nome: `${marca}-local-A`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio A' }],
+    });
+    const idB = await lg.createLocal({
+      nome: `${marca}-local-B`, endereco: null, responsavel: null, estudios: [],
+    });
+    const [estudioDoLocalA] = (await lg.getLocal(idA))!.estudios;
+
+    // Tenta renomear, a partir do local B, um estúdio que pertence ao local A.
+    await lg.updateLocal(idB, {
+      nome: `${marca}-local-B`, endereco: null, responsavel: null,
+      estudios: [{ id: estudioDoLocalA.id, nome: 'Nome hostil' }],
+    });
+
+    const linha = (await sql`select nome, local_id from estudios where id = ${estudioDoLocalA.id}`) as
+      { nome: string; local_id: string }[];
+    expect(linha[0]?.nome).toBe('Estúdio A');
+    expect(linha[0]?.local_id).toBe(idA);
+
+    await sql`delete from estudios where local_id in (${idA}, ${idB})`;
+    await sql`delete from locais_gravacao where id in (${idA}, ${idB})`;
+  });
 });
