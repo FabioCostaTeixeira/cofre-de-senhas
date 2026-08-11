@@ -52,6 +52,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
   const gridRef = useRef<HTMLDivElement>(null);
   const suprimirProximoCliqueRef = useRef(false);
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicioSemana, i));
+  const hoje = hojeISO();
   const locaisComEstudio = locais.filter((local) => local.estudios.length > 0);
   const localAtual = locaisComEstudio.find((local) => local.estudios.some((estudio) => estudio.id === estudioId))
     ?? locaisComEstudio[0];
@@ -208,7 +209,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
     <div className="grid gap-1 text-xs text-center" style={{ gridTemplateColumns: '3rem repeat(7, minmax(0, 1fr))', color: 'var(--text-dim)' }}>
       <div aria-hidden="true" />
-      {dias.map((d, i) => <div key={d}>{DIAS_SEMANA[i]} {d.slice(8, 10)}/{d.slice(5, 7)}</div>)}
+      {dias.map((d, i) => <div key={d} style={d === hoje ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{DIAS_SEMANA[i]} {d.slice(8, 10)}/{d.slice(5, 7)}</div>)}
     </div>
     <div data-testid="agenda-scroll" className="max-h-[70vh] overflow-y-auto">
       <div className="grid gap-1" style={{ gridTemplateColumns: '3rem minmax(0, 1fr)' }}>
@@ -216,7 +217,12 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
           {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div key={bloco} className="text-[10px] leading-none text-right pr-1" style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}>{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
         </div>
         <div ref={gridRef} className="grid grid-cols-7 gap-1" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
-          {dias.map((dia) => <div key={dia} className="relative border-x" style={{ borderColor: 'var(--border)' }}>
+          {dias.map((dia) => <div
+            key={dia}
+            className="relative border-x"
+            data-testid="agenda-coluna-dia"
+            style={{ borderColor: 'var(--border)', backgroundColor: dia === hoje ? 'rgba(108, 140, 255, 0.06)' : undefined }}
+          >
             {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div
               key={bloco}
               data-testid="agenda-slot"
