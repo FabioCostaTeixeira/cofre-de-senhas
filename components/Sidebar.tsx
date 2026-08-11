@@ -1,6 +1,6 @@
-import { Building2, Boxes, CalendarClock, FolderKanban, Home, Layers, Package, ScrollText, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
+import { Building2, Boxes, CalendarClock, FolderKanban, Home, Layers, MapPin, Package, ScrollText, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
-import { canManageProdutos, canManageTerceiros } from '@/lib/authz';
+import { canManageLocaisGravacao, canManageProdutos, canManageTerceiros } from '@/lib/authz';
 import { listModulesOfUser } from '@/lib/db/queries';
 import { MODULES } from '@/lib/modules';
 import type { Actor } from '@/lib/types';
@@ -29,6 +29,14 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
               {
                 href: '/cadastros/fornecedores', label: 'Fornecedores',
                 icon: <Truck size={18} className={iconClass} />,
+              },
+            ]
+          : []),
+        ...(canManageLocaisGravacao(actor)
+          ? [
+              {
+                href: '/cadastros/locais-gravacao', label: 'Locais de Gravação',
+                icon: <MapPin size={18} className={iconClass} />,
               },
             ]
           : []),
