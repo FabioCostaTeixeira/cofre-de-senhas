@@ -26,6 +26,17 @@ function somarDias(iso: string, dias: number) {
   return d.toISOString().slice(0, 10);
 }
 
+function segundaDaSemana(iso: string) {
+  const d = new Date(`${iso}T00:00:00`);
+  const dia = d.getDay();
+  d.setDate(d.getDate() + (dia === 0 ? -6 : 1 - dia));
+  return d.toISOString().slice(0, 10);
+}
+
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 type Acao = (prev: AgendaFormState, fd: FormData) => Promise<AgendaFormState>;
 type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string };
 
@@ -37,6 +48,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
   const [aberto, setAberto] = useState<Agendamento | 'novo' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState<Arrasto | null>(null);
+  const [dataAlvo, setDataAlvo] = useState('');
   const gridRef = useRef<HTMLDivElement>(null);
   const suprimirProximoCliqueRef = useRef(false);
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicioSemana, i));
@@ -169,6 +181,27 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
       </label>
       <button type="button" className="btn" onClick={() => navegar(estudioId, somarDias(inicioSemana, -7))}>◀ Semana</button>
       <button type="button" className="btn" onClick={() => navegar(estudioId, somarDias(inicioSemana, 7))}>Semana ▶</button>
+      <button type="button" className="btn" onClick={() => navegar(estudioId, segundaDaSemana(hojeISO()))}>Hoje</button>
+      <label className="block space-y-1">
+        <span className="text-sm">Ir para</span>
+        <div className="flex gap-2">
+          <input
+            type="date"
+            aria-label="Data para navegar"
+            className="input"
+            value={dataAlvo}
+            onChange={(e) => setDataAlvo(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn"
+            disabled={!dataAlvo}
+            onClick={() => navegar(estudioId, segundaDaSemana(dataAlvo))}
+          >
+            Ir para
+          </button>
+        </div>
+      </label>
       <button type="button" className="btn btn-primary" onClick={() => setAberto('novo')}>Novo agendamento</button>
     </div>
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}

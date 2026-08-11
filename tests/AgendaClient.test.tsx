@@ -52,4 +52,21 @@ describe('AgendaClient', () => {
     expect(screen.getByText('Editar agendamento')).toBeInTheDocument();
   });
   it('botão "Novo agendamento" abre o modal em branco', () => { render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />); fireEvent.click(screen.getByText('Novo agendamento')); expect(screen.getByText('Novo agendamento', { selector: 'h2' })).toBeInTheDocument(); });
+  it('botão "Hoje" navega para a segunda-feira da semana atual', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-27T12:00:00'));
+    render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-03" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);
+    fireEvent.click(screen.getByText('Hoje'));
+    expect(push).toHaveBeenCalledWith('/agenda?estudioId=e1&semana=2026-08-24');
+    vi.useRealTimers();
+  });
+  it('"Ir para" navega para a segunda-feira da semana da data escolhida', () => {
+    render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);
+    const botaoIrPara = screen.getByRole('button', { name: 'Ir para' });
+    expect(botaoIrPara).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Data para navegar'), { target: { value: '2026-09-10' } });
+    expect(botaoIrPara).toBeEnabled();
+    fireEvent.click(botaoIrPara);
+    expect(push).toHaveBeenCalledWith('/agenda?estudioId=e1&semana=2026-09-07');
+  });
 });
