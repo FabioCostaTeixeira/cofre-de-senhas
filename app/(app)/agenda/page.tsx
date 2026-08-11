@@ -1,7 +1,7 @@
 import { AgendaClient } from '@/components/AgendaClient';
 import { requireMaster } from '@/lib/auth/guards';
-import { listAgendamentosDaSemana } from '@/lib/db/agenda';
-import { listBloqueiosAtivos, listBloqueiosDaSemana } from '@/lib/db/bloqueios';
+import { listAgendamentosDaSemana, listAgendamentosDoEstudio } from '@/lib/db/agenda';
+import { listBloqueiosAtivos, listBloqueiosDaSemana, listBloqueiosDoEstudio } from '@/lib/db/bloqueios';
 import { listCategorias } from '@/lib/db/categorias-produto';
 import { listLocais } from '@/lib/db/locais-gravacao';
 import { listTerceiros } from '@/lib/db/terceiros';
@@ -13,12 +13,14 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   await requireMaster(); const { estudioId: param, semana } = await searchParams;
   const [clientes, categorias, locais] = await Promise.all([listTerceiros('clientes'), listCategorias(), listLocais()]);
   const primeiro = locais.flatMap((l) => l.estudios)[0]?.id ?? ''; const estudioId = param || primeiro; const inicioSemana = semana || segundaAtualISO();
-  const [itens, bloqueiosDaSemana, bloqueiosAtivos] = estudioId
+  const [itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio] = estudioId
     ? await Promise.all([
       listAgendamentosDaSemana(estudioId, inicioSemana),
+      listAgendamentosDoEstudio(estudioId),
       listBloqueiosDaSemana(estudioId, inicioSemana),
       listBloqueiosAtivos(estudioId),
+      listBloqueiosDoEstudio(estudioId),
     ])
-    : [[], [], []];
-  return <main className="p-4 md:p-6 max-w-6xl mx-auto">{!estudioId ? <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Cadastre um local de gravação com pelo menos um estúdio antes de usar a agenda.</p> : <AgendaClient itens={itens} bloqueiosDaSemana={bloqueiosDaSemana} bloqueiosAtivos={bloqueiosAtivos} clientes={clientes} locais={locais} categorias={categorias.filter((c) => c.ativo)} estudioId={estudioId} inicioSemana={inicioSemana} criar={criarAgendamento} salvar={salvarAgendamento} apagar={apagarAgendamento} mover={moverAgendamento} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />}</main>;
+    : [[], [], [], [], []];
+  return <main className="p-4 md:p-6 max-w-6xl mx-auto">{!estudioId ? <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Cadastre um local de gravação com pelo menos um estúdio antes de usar a agenda.</p> : <AgendaClient itens={itens} itensDoEstudio={itensDoEstudio} bloqueiosDaSemana={bloqueiosDaSemana} bloqueiosAtivos={bloqueiosAtivos} bloqueiosDoEstudio={bloqueiosDoEstudio} clientes={clientes} locais={locais} categorias={categorias.filter((c) => c.ativo)} estudioId={estudioId} inicioSemana={inicioSemana} criar={criarAgendamento} salvar={salvarAgendamento} apagar={apagarAgendamento} mover={moverAgendamento} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />}</main>;
 }

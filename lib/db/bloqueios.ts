@@ -58,6 +58,17 @@ export async function listBloqueiosAtivos(estudioId: string): Promise<BloqueioEs
      order by data, hora_inicio`) as BloqueioEstudio[];
 }
 
+/** Todos os bloqueios ativos do estúdio (sem recorte de data), pra visão em lista. */
+export async function listBloqueiosDoEstudio(estudioId: string): Promise<BloqueioEstudio[]> {
+  assertUuid(estudioId);
+  return (await sql`
+    select id, estudio_id, data::text as data, hora_inicio::text as hora_inicio, hora_fim::text as hora_fim,
+           motivo, created_at
+      from bloqueios_estudio
+     where estudio_id = ${estudioId} and deleted_at is null
+     order by data, hora_inicio`) as BloqueioEstudio[];
+}
+
 export async function createBloqueio(dados: DadosBloqueio): Promise<string> {
   assertUuid(dados.estudio_id);
 

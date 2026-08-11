@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
+import { AgendaListaModal } from '@/components/AgendaListaModal';
 import { BloqueioFormularioModal } from '@/components/BloqueioFormularioModal';
 import type { Agendamento, BloqueioEstudio, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
 
@@ -54,10 +55,11 @@ type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string }
 type Rascunho = { data: string; horaInicio: string; horaFim: string; localId: string; estudioId: string };
 
 export function AgendaClient({
-  itens, bloqueiosDaSemana, bloqueiosAtivos, clientes, locais, categorias, estudioId, inicioSemana,
+  itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio, clientes, locais, categorias, estudioId, inicioSemana,
   criar, salvar, apagar, mover, criarBloqueio, apagarBloqueio,
 }: {
-  itens: Agendamento[]; bloqueiosDaSemana: BloqueioEstudio[]; bloqueiosAtivos: BloqueioEstudio[];
+  itens: Agendamento[]; itensDoEstudio: Agendamento[];
+  bloqueiosDaSemana: BloqueioEstudio[]; bloqueiosAtivos: BloqueioEstudio[]; bloqueiosDoEstudio: BloqueioEstudio[];
   clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[]; estudioId: string; inicioSemana: string;
   criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
   mover: (id: string, data: string, horaInicio: string, horaFim: string) => Promise<{ error?: string }>;
@@ -66,6 +68,7 @@ export function AgendaClient({
   const router = useRouter();
   const [aberto, setAberto] = useState<Agendamento | Rascunho | 'novo' | null>(null);
   const [bloqueioAberto, setBloqueioAberto] = useState(false);
+  const [listaAberta, setListaAberta] = useState(false);
   const [bloqueioSelecionado, setBloqueioSelecionado] = useState<BloqueioEstudio | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState<Arrasto | null>(null);
@@ -243,6 +246,7 @@ export function AgendaClient({
       </label>
       <button type="button" className="btn btn-primary" onClick={() => setAberto('novo')}>Novo agendamento</button>
       <button type="button" className="btn" onClick={() => setBloqueioAberto(true)}>Bloquear horário</button>
+      <button type="button" className="btn" onClick={() => setListaAberta(true)}>Ver lista</button>
     </div>
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
     <div className="grid gap-1 text-xs text-center" style={{ gridTemplateColumns: '3rem repeat(7, minmax(0, 1fr))', color: 'var(--text-dim)' }}>
@@ -344,6 +348,17 @@ export function AgendaClient({
             onFechar={() => setBloqueioAberto(false)}
             onAtualizar={() => router.refresh()}
           />
+        </div>
+      </div>
+    )}
+    {listaAberta && (
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+        onClick={(e) => { if (e.target === e.currentTarget) setListaAberta(false); }}
+      >
+        <div className="w-full max-w-4xl">
+          <AgendaListaModal agendamentos={itensDoEstudio} bloqueios={bloqueiosDoEstudio} onFechar={() => setListaAberta(false)} />
         </div>
       </div>
     )}
