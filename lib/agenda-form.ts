@@ -11,6 +11,20 @@ function horaParaMinutos(hora: string): number {
   return h * 60 + m;
 }
 
+export function validarPeriodoAgendamento(
+  data: string, horaInicio: string, horaFim: string,
+): { error: string } | null {
+  if (!DATA_RE.test(data)) return { error: 'Informe a data.' };
+  if (!HORA_RE.test(horaInicio) || !HORA_RE.test(horaFim)) return { error: 'Informe o horário.' };
+  if (horaParaMinutos(horaInicio) % 15 !== 0 || horaParaMinutos(horaFim) % 15 !== 0) {
+    return { error: 'Horário precisa ser múltiplo de 15 minutos.' };
+  }
+  if (horaParaMinutos(horaFim) <= horaParaMinutos(horaInicio)) {
+    return { error: 'Horário de fim precisa ser depois do início.' };
+  }
+  return null;
+}
+
 export function lerDadosAgendamento(fd: FormData): DadosAgendamento | { error: string } {
   const cliente_id = String(fd.get('clienteId') ?? '');
   if (!cliente_id) return { error: 'Escolha o cliente.' };
@@ -28,18 +42,10 @@ export function lerDadosAgendamento(fd: FormData): DadosAgendamento | { error: s
   if (!STATUS_VALIDOS.includes(status as StatusAgendamento)) return { error: 'Status inválido.' };
 
   const data = String(fd.get('data') ?? '');
-  if (!DATA_RE.test(data)) return { error: 'Informe a data.' };
-
   const hora_inicio = String(fd.get('horaInicio') ?? '');
   const hora_fim = String(fd.get('horaFim') ?? '');
-  if (!HORA_RE.test(hora_inicio) || !HORA_RE.test(hora_fim)) return { error: 'Informe o horário.' };
-
-  if (horaParaMinutos(hora_inicio) % 15 !== 0 || horaParaMinutos(hora_fim) % 15 !== 0) {
-    return { error: 'Horário precisa ser múltiplo de 15 minutos.' };
-  }
-  if (horaParaMinutos(hora_fim) <= horaParaMinutos(hora_inicio)) {
-    return { error: 'Horário de fim precisa ser depois do início.' };
-  }
+  const erroPeriodo = validarPeriodoAgendamento(data, hora_inicio, hora_fim);
+  if (erroPeriodo) return erroPeriodo;
 
   return {
     cliente_id, local_id, estudio_id, categoria_produto_id,

@@ -974,6 +974,89 @@ descreve('integração com o banco real', () => {
     await sql`delete from clientes where id = ${clienteId}`;
   });
 
+  it('mover para horário ocupado rejeita e preserva o agendamento original', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const ag = await import('@/lib/db/agenda');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-agenda-conflito-mover`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-agenda-conflito-mover`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-agenda-conflito-mover`, endereco: null, responsavel: null,
+      estudios: [{ nome: 'Estúdio conflito mover' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+    const base = {
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado' as const, data: '2026-08-27', hora_inicio: '09:00', hora_fim: '10:00',
+    };
+    const ocupadoId = await ag.createAgendamento(base);
+    const movidoId = await ag.createAgendamento({ ...base, hora_inicio: '11:00', hora_fim: '12:00' });
+
+    await expect(ag.moverOuRedimensionar(movidoId, '2026-08-27', '09:30', '10:30'))
+      .rejects.toThrow(ag.ConflitoHorarioError);
+    const semana = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-24');
+    const preservado = semana.find((a) => a.id === movidoId);
+    expect(preservado?.data).toBe('2026-08-27');
+    expect(preservado?.hora_inicio.slice(0, 5)).toBe('11:00');
+    expect(preservado?.hora_fim.slice(0, 5)).toBe('12:00');
+
+    await sql`delete from agendamentos where id in (${ocupadoId}, ${movidoId})`;
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('updateAgendamento persiste a edição completa de status e categoria', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const ag = await import('@/lib/db/agenda');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-agenda-update`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-agenda-update-original`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const categoriaNovaId = await cat.createCategoria({
+      nome: `${marca}-categoria-agenda-update-nova`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-agenda-update`, endereco: null, responsavel: null,
+      estudios: [{ nome: 'Estúdio update' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+    const base = {
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'pre_agendado' as const, data: '2026-08-28', hora_inicio: '14:00', hora_fim: '15:00',
+    };
+    const id = await ag.createAgendamento(base);
+
+    await ag.updateAgendamento(id, {
+      ...base, categoria_produto_id: categoriaNovaId, status: 'concluido',
+    });
+    const semana = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-24');
+    const atualizado = semana.find((a) => a.id === id);
+    expect(atualizado?.status).toBe('concluido');
+    expect(atualizado?.categoria_produto_id).toBe(categoriaNovaId);
+    expect(atualizado?.categoria_nome).toBe(`${marca}-categoria-agenda-update-nova`);
+
+    await sql`delete from agendamentos where id = ${id}`;
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from categorias_produto where id in (${categoriaId}, ${categoriaNovaId})`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
   it('agendamento apagado aparece na lixeira, restaura e depois expurga', async () => {
     const terceiros = await import('@/lib/db/terceiros');
     const cat = await import('@/lib/db/categorias-produto');

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireMaster } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { ConflitoHorarioError, createAgendamento, moverOuRedimensionar, softDeleteAgendamento, updateAgendamento } from '@/lib/db/agenda';
-import { lerDadosAgendamento } from '@/lib/agenda-form';
+import { lerDadosAgendamento, validarPeriodoAgendamento } from '@/lib/agenda-form';
 import { isUuid } from '@/lib/validation';
 import type { AgendaFormState } from '@/components/AgendaFormularioModal';
 
@@ -24,6 +24,7 @@ export async function apagarAgendamento(id: string): Promise<{ error?: string }>
 }
 export async function moverAgendamento(id: string, data: string, horaInicio: string, horaFim: string): Promise<{ error?: string }> {
   const actor = await requireMaster(); if (!isUuid(id)) return { error: 'Agendamento não encontrado.' };
+  const erroPeriodo = validarPeriodoAgendamento(data, horaInicio, horaFim); if (erroPeriodo) return erroPeriodo;
   try { await moverOuRedimensionar(id, data, horaInicio, horaFim); await audit({ actorId: actor.id, action: 'update', entityType: 'agendamento', entityId: id }); revalidatePath(ROTA); return {}; }
   catch (err) { if (err instanceof ConflitoHorarioError) return { error: err.message }; throw err; }
 }

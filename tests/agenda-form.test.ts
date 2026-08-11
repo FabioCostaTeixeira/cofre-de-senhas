@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lerDadosAgendamento } from '@/lib/agenda-form';
+import { lerDadosAgendamento, validarPeriodoAgendamento } from '@/lib/agenda-form';
 
 function formData(campos: Record<string, string>): FormData {
   const fd = new FormData();
@@ -64,5 +64,20 @@ describe('lerDadosAgendamento', () => {
       cliente_id: 'c1', local_id: 'l1', estudio_id: 'e1', categoria_produto_id: 'cat1',
       status: 'agendado', data: '2026-08-20', hora_inicio: '09:00', hora_fim: '10:00',
     });
+  });
+});
+
+describe('validarPeriodoAgendamento', () => {
+  it.each([
+    ['20/08/2026', '09:00', '10:00', 'Informe a data.'],
+    ['2026-08-20', '9h', '10:00', 'Informe o horário.'],
+    ['2026-08-20', '09:05', '10:00', 'Horário precisa ser múltiplo de 15 minutos.'],
+    ['2026-08-20', '10:00', '10:00', 'Horário de fim precisa ser depois do início.'],
+  ])('rejeita período inválido (%s, %s, %s)', (data, inicio, fim, error) => {
+    expect(validarPeriodoAgendamento(data, inicio, fim)).toEqual({ error });
+  });
+
+  it('aceita data e horários válidos', () => {
+    expect(validarPeriodoAgendamento('2026-08-20', '09:00', '10:00')).toBeNull();
   });
 });

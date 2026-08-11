@@ -36,6 +36,7 @@ export function AgendaCard({
   const { top, height } = calcularPosicaoCard(item.hora_inicio, item.hora_fim);
   return (
     <div
+      data-agenda-card
       className="absolute left-1 right-1 rounded text-xs text-white overflow-hidden cursor-pointer select-none"
       style={{ top, height, backgroundColor: CORES[item.status] }}
       onPointerDown={onPointerDownMover}
