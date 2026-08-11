@@ -77,6 +77,8 @@ describe('AgendaClient', () => {
     expect(screen.getByLabelText('Data')).toHaveValue('2026-08-24');
     expect(screen.getByLabelText('Início')).toHaveValue('10:00');
     expect(screen.getByLabelText('Fim')).toHaveValue('11:00');
+    expect(screen.getAllByLabelText('Local de gravação')[1]).toHaveValue('l1');
+    expect(screen.getByLabelText('Estúdio', { selector: 'select[name="estudioId"]' })).toHaveValue('e1');
   });
   it('clique fantasma depois de arrastar um card não abre criação na célula por baixo', () => {
     render(<AgendaClient itens={[item]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);

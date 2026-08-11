@@ -14,14 +14,15 @@ const STATUS_OPCOES: { valor: StatusAgendamento; rotulo: string }[] = [
 ];
 
 export function AgendaFormularioModal({
-  item, padraoData, padraoHoraInicio, padraoHoraFim, clientes, locais, categorias, criar, salvar, apagar, onFechar,
+  item, padraoData, padraoHoraInicio, padraoHoraFim, padraoLocalId, padraoEstudioId, clientes, locais, categorias, criar, salvar, apagar, onFechar,
 }: {
   item?: Agendamento; padraoData?: string; padraoHoraInicio?: string; padraoHoraFim?: string;
+  padraoLocalId?: string; padraoEstudioId?: string;
   clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[];
   criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>; onFechar: () => void;
 }) {
   const [state, action, pending] = useActionState(item ? salvar : criar, inicial);
-  const [localId, setLocalId] = useState(item?.local_id ?? locais[0]?.id ?? '');
+  const [localId, setLocalId] = useState(item?.local_id ?? padraoLocalId ?? locais[0]?.id ?? '');
   const [erroApagar, setErroApagar] = useState<string | null>(null);
   const localAtual = locais.find((l) => l.id === localId);
 
@@ -53,7 +54,7 @@ export function AgendaFormularioModal({
             </select>
           </label>
           <label className="block space-y-1"><span className="text-sm">Estúdio</span>
-            <select name="estudioId" className="input" defaultValue={item?.estudio_id ?? ''} required>
+            <select name="estudioId" className="input" defaultValue={item?.estudio_id ?? padraoEstudioId ?? ''} required>
               <option value="" disabled>Escolha…</option>{(localAtual?.estudios ?? []).map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
             </select>
           </label>

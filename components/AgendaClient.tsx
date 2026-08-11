@@ -50,7 +50,7 @@ function janelaPadrao(inicioMin: number) {
 
 type Acao = (prev: AgendaFormState, fd: FormData) => Promise<AgendaFormState>;
 type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string };
-type Rascunho = { data: string; horaInicio: string; horaFim: string };
+type Rascunho = { data: string; horaInicio: string; horaFim: string; localId: string; estudioId: string };
 
 export function AgendaClient({ itens, clientes, locais, categorias, estudioId, inicioSemana, criar, salvar, apagar, mover }: {
   itens: Agendamento[]; clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[]; estudioId: string; inicioSemana: string;
@@ -180,7 +180,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
       return;
     }
     const { horaInicio, horaFim } = janelaPadrao(bloco * 15);
-    setAberto({ data: dia, horaInicio, horaFim });
+    setAberto({ data: dia, horaInicio, horaFim, localId: localAtual?.id ?? '', estudioId });
   };
 
   return <div className="space-y-4">
@@ -284,6 +284,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
             padraoData={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.data : undefined}
             padraoHoraInicio={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaInicio : undefined}
             padraoHoraFim={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaFim : undefined}
+            padraoLocalId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.localId : undefined}
+            padraoEstudioId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.estudioId : undefined}
             clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
           />
         </div>
