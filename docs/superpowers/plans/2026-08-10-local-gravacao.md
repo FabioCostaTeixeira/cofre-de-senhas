@@ -405,6 +405,32 @@ final que fecha esse describe:
     await sql`delete from estudios where local_id = ${id}`;
     await sql`delete from locais_gravacao where id = ${id}`;
   });
+
+  it('editar um local nao renomeia estudio pertencente a outro local', async () => {
+    const lg = await import('@/lib/db/locais-gravacao');
+
+    const idA = await lg.createLocal({
+      nome: `${marca}-local-A`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio A' }],
+    });
+    const idB = await lg.createLocal({
+      nome: `${marca}-local-B`, endereco: null, responsavel: null, estudios: [],
+    });
+    const [estudioDoLocalA] = (await lg.getLocal(idA))!.estudios;
+
+    // Tenta renomear, a partir do local B, um estúdio que pertence ao local A.
+    await lg.updateLocal(idB, {
+      nome: `${marca}-local-B`, endereco: null, responsavel: null,
+      estudios: [{ id: estudioDoLocalA.id, nome: 'Nome hostil' }],
+    });
+
+    const linha = (await sql`select nome, local_id from estudios where id = ${estudioDoLocalA.id}`) as
+      { nome: string; local_id: string }[];
+    expect(linha[0]?.nome).toBe('Estúdio A');
+    expect(linha[0]?.local_id).toBe(idA);
+
+    await sql`delete from estudios where local_id in (${idA}, ${idB})`;
+    await sql`delete from locais_gravacao where id in (${idA}, ${idB})`;
+  });
 ```
 
 - [ ] **Step 2: Rodar e confirmar que falha**
@@ -429,8 +455,9 @@ import type { DadosLocal, LocalGravacao } from '@/lib/types';
 // A mesma consulta se repete nas duas funções abaixo (`listLocais`/`getLocal`), em vez
 // de virar uma constante compartilhada: o tagged template `sql\`...\`` deste driver não
 // é composable — `sql\`${outraQuery} where ...\`` tentaria bindar a query como
-// parâmetro, não colar o texto SQL dela (mesmo problema já documentado no módulo
-// Produtos, `lib/db/produtos.ts`).
+// parâmetro, não colar o texto SQL dela. `lib/db/produtos.ts`/`lib/db/combos.ts` repetem
+// os SELECTs pelo mesmo motivo, sem comentário próprio — este aqui existe pra não
+// reintroduzir a tentativa de "otimizar" numa constante compartilhada.
 export async function listLocais(): Promise<LocalGravacao[]> {
   return (await sql`
     select l.id, l.nome, l.endereco, l.responsavel, l.created_at,
@@ -488,6 +515,9 @@ export async function updateLocal(id: string, dados: DadosLocal): Promise<void> 
   if (!(await getLocal(id))) throw new NotFoundError();
 
   const existentes = dados.estudios.filter((e): e is { id: string; nome: string } => Boolean(e.id));
+  // Cada `id` de estúdio enviado precisa ter formato de uuid antes de virar `where id = ...`
+  // — sem isso, um id malformado vira erro de cast do Postgres (500) em vez de 404.
+  existentes.forEach((e) => assertUuid(e.id));
   const novos = dados.estudios
     .filter((e) => !e.id)
     .map((e) => ({ id: randomUUID(), nome: e.nome }));
@@ -501,7 +531,10 @@ export async function updateLocal(id: string, dados: DadosLocal): Promise<void> 
            set nome = ${dados.nome}, endereco = ${dados.endereco}, responsavel = ${dados.responsavel},
                updated_at = now()
          where id = ${id}`,
-    ...existentes.map((e) => sql`update estudios set nome = ${e.nome}, updated_at = now() where id = ${e.id}`),
+    // `and local_id = ${id}`: sem isso, um id de estúdio de OUTRO local enviado no
+    // payload renomearia silenciosamente um registro que não pertence a este local.
+    ...existentes.map((e) => sql`
+      update estudios set nome = ${e.nome}, updated_at = now() where id = ${e.id} and local_id = ${id}`),
     ...novos.map((e) => sql`insert into estudios (id, local_id, nome) values (${e.id}, ${id}, ${e.nome})`),
     sql`update estudios set deleted_at = now()
          where local_id = ${id} and deleted_at is null and id <> all(${idsEnviados}::uuid[])`,
@@ -538,7 +571,7 @@ npx tsc --noEmit
 npm test
 ```
 
-Esperado: `tsc` sem saída; **180 testes** (178 + 2).
+Esperado: `tsc` sem saída; **181 testes** (178 + 3).
 
 ```bash
 git add lib/db/locais-gravacao.ts tests/integracao.test.ts
@@ -602,7 +635,7 @@ npx tsc --noEmit
 npm test
 ```
 
-Esperado: `tsc` sem saída; **181 testes** (180 + 1).
+Esperado: `tsc` sem saída; **182 testes** (181 + 1).
 
 ```bash
 git add lib/authz.ts tests/authz.test.ts
@@ -826,7 +859,7 @@ Esperado: `tsc` sem saída; todos os testes de integração passando, incluindo 
 npm test
 ```
 
-Esperado: **182 testes** (181 + 1).
+Esperado: **183 testes** (182 + 1).
 
 ```bash
 git add lib/db/queries.ts lib/db/audit.ts components/RestoreButton.tsx components/PurgeButton.tsx "app/(app)/admin/lixeira/actions.ts" "app/(app)/admin/lixeira/page.tsx" tests/integracao.test.ts
@@ -1163,7 +1196,7 @@ npx tsc --noEmit
 npm test
 ```
 
-Esperado: `tsc` sem saída; **188 testes** (182 + 3 + 3).
+Esperado: `tsc` sem saída; **189 testes** (183 + 3 + 3).
 
 ```bash
 git add components/EstudiosRepetidor.tsx tests/EstudiosRepetidor.test.tsx components/LocalGravacaoClient.tsx tests/LocalGravacaoClient.test.tsx
@@ -1271,7 +1304,7 @@ npx tsc --noEmit
 npm test
 ```
 
-Esperado: `tsc` sem saída; **188 testes** (sem teste novo — rota fina, coberta pelo que `LocalGravacaoClient` e `locais-gravacao.ts` já testam).
+Esperado: `tsc` sem saída; **189 testes** (sem teste novo — rota fina, coberta pelo que `LocalGravacaoClient` e `locais-gravacao.ts` já testam).
 
 ```bash
 npm run dev
@@ -1360,7 +1393,7 @@ npx tsc --noEmit
 npm test
 ```
 
-Esperado: `tsc` sem saída; **188 testes** (sem teste novo — `Sidebar.tsx` não tem suíte própria hoje, mesmo padrão dos itens já existentes nele).
+Esperado: `tsc` sem saída; **189 testes** (sem teste novo — `Sidebar.tsx` não tem suíte própria hoje, mesmo padrão dos itens já existentes nele).
 
 ```bash
 npm run dev
