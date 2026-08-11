@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
-import { AgendaListaModal } from '@/components/AgendaListaModal';
+import { AgendaLista, calcularMesesDisponiveis, mesRotulo } from '@/components/AgendaLista';
 import { BloqueioFormularioModal } from '@/components/BloqueioFormularioModal';
 import type { Agendamento, BloqueioEstudio, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
 
@@ -68,7 +68,9 @@ export function AgendaClient({
   const router = useRouter();
   const [aberto, setAberto] = useState<Agendamento | Rascunho | 'novo' | null>(null);
   const [bloqueioAberto, setBloqueioAberto] = useState(false);
-  const [listaAberta, setListaAberta] = useState(false);
+  const [modoLista, setModoLista] = useState(false);
+  const [buscaCliente, setBuscaCliente] = useState('');
+  const [mesFiltro, setMesFiltro] = useState('todos');
   const [bloqueioSelecionado, setBloqueioSelecionado] = useState<BloqueioEstudio | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState<Arrasto | null>(null);
@@ -94,6 +96,11 @@ export function AgendaClient({
       : item);
 
   const bloqueiosDoDia = (dia: string) => bloqueiosDaSemana.filter((b) => b.data === dia);
+
+  const mesesDisponiveis = calcularMesesDisponiveis([
+    ...itensDoEstudio.map((i) => i.data),
+    ...bloqueiosDoEstudio.map((b) => b.data),
+  ]);
 
   function coordenadas(x: number, y: number) {
     const rect = gridRef.current?.getBoundingClientRect();
@@ -220,35 +227,72 @@ export function AgendaClient({
           {(localAtual?.estudios ?? []).map((estudio) => <option key={estudio.id} value={estudio.id}>{estudio.nome}</option>)}
         </select>
       </label>
-      <button type="button" className="btn" onClick={() => navegar(estudioId, somarDias(inicioSemana, -7))}>◀ Semana</button>
-      <button type="button" className="btn" onClick={() => navegar(estudioId, somarDias(inicioSemana, 7))}>Semana ▶</button>
-      <button type="button" className="btn" onClick={() => navegar(estudioId, segundaDaSemana(hojeISO()))}>Hoje</button>
-      <label className="block space-y-1">
-        <span className="text-sm">Ir para</span>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            aria-label="Data para navegar"
-            className="input"
-            style={{ width: 'auto' }}
-            value={dataAlvo}
-            onChange={(e) => setDataAlvo(e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn"
-            disabled={!dataAlvo}
-            onClick={() => navegar(estudioId, segundaDaSemana(dataAlvo))}
-          >
-            Ir para
-          </button>
-        </div>
-      </label>
+      {!modoLista && (
+        <>
+          <button type="button" className="btn" onClick={() => navegar(estudioId, somarDias(inicioSemana, -7))}>◀ Semana</button>
+          <button type="button" className="btn" onClick={() => navegar(estudioId, somarDias(inicioSemana, 7))}>Semana ▶</button>
+          <button type="button" className="btn" onClick={() => navegar(estudioId, segundaDaSemana(hojeISO()))}>Hoje</button>
+          <label className="block space-y-1">
+            <span className="text-sm">Ir para</span>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                aria-label="Data para navegar"
+                className="input"
+                style={{ width: 'auto' }}
+                value={dataAlvo}
+                onChange={(e) => setDataAlvo(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn"
+                disabled={!dataAlvo}
+                onClick={() => navegar(estudioId, segundaDaSemana(dataAlvo))}
+              >
+                Ir para
+              </button>
+            </div>
+          </label>
+        </>
+      )}
+      {modoLista && (
+        <>
+          <label className="block space-y-1">
+            <span className="text-sm">Buscar cliente</span>
+            <input
+              type="text"
+              aria-label="Buscar cliente"
+              className="input"
+              style={{ width: 'auto' }}
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.target.value)}
+              placeholder="Nome do cliente"
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-sm">Mês</span>
+            <select aria-label="Filtrar por mês" className="input" value={mesFiltro} onChange={(e) => setMesFiltro(e.target.value)}>
+              <option value="todos">Todos os meses</option>
+              {mesesDisponiveis.map((m) => <option key={m} value={m}>{mesRotulo(m)}</option>)}
+            </select>
+          </label>
+        </>
+      )}
       <button type="button" className="btn btn-primary" onClick={() => setAberto('novo')}>Novo agendamento</button>
       <button type="button" className="btn" onClick={() => setBloqueioAberto(true)}>Bloquear horário</button>
-      <button type="button" className="btn" onClick={() => setListaAberta(true)}>Ver lista</button>
+      <button type="button" className="btn" onClick={() => setModoLista((atual) => !atual)}>{modoLista ? 'Ver grade' : 'Ver lista'}</button>
     </div>
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+    {modoLista && (
+      <AgendaLista
+        agendamentos={itensDoEstudio}
+        bloqueios={bloqueiosDoEstudio}
+        mesesDisponiveis={mesesDisponiveis}
+        busca={buscaCliente}
+        mesFiltro={mesFiltro}
+      />
+    )}
+    {!modoLista && <>
     <div className="grid gap-1 text-xs text-center" style={{ gridTemplateColumns: '3rem repeat(7, minmax(0, 1fr))', color: 'var(--text-dim)' }}>
       <div aria-hidden="true" />
       {dias.map((d, i) => <div key={d} style={d === hoje ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{DIAS_SEMANA[i]} {d.slice(8, 10)}/{d.slice(5, 7)}</div>)}
@@ -314,6 +358,7 @@ export function AgendaClient({
         </div>
       </div>
     </div>
+    </>}
     {aberto && (
       <div
         className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
@@ -348,17 +393,6 @@ export function AgendaClient({
             onFechar={() => setBloqueioAberto(false)}
             onAtualizar={() => router.refresh()}
           />
-        </div>
-      </div>
-    )}
-    {listaAberta && (
-      <div
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-        onClick={(e) => { if (e.target === e.currentTarget) setListaAberta(false); }}
-      >
-        <div className="w-full max-w-4xl">
-          <AgendaListaModal agendamentos={itensDoEstudio} bloqueios={bloqueiosDoEstudio} onFechar={() => setListaAberta(false)} />
         </div>
       </div>
     )}

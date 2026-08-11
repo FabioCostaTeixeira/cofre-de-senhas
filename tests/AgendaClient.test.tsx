@@ -132,18 +132,55 @@ describe('AgendaClient', () => {
     expect(screen.getByText('Bloquear horário do estúdio')).toBeInTheDocument();
     expect(screen.getByText(/Manutenção/)).toBeInTheDocument();
   });
-  it('botão "Ver lista" abre a lista de agendamentos e bloqueios agrupada por mês', () => {
+  it('botão "Ver lista" oculta a grade, mostra a lista agrupada por mês e os filtros exclusivos', () => {
     const item1: Agendamento = { ...item, id: 'a1', data: '2026-08-24', categoria_nome: 'Podcast' };
     const item2: Agendamento = { ...item, id: 'a2', data: '2026-09-10', categoria_nome: 'Corte' };
     const bloqueio = { id: 'b1', estudio_id: 'e1', data: '2026-08-25', hora_inicio: '14:00:00', hora_fim: '15:00:00', motivo: 'Manutenção', created_at: '2026-08-20T00:00:00Z' };
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[item1, item2]} bloqueiosDoEstudio={[bloqueio]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
+    // Antes de clicar: filtros de lista ocultos, nav de semana visível, grade visível.
+    expect(screen.queryByLabelText('Buscar cliente')).not.toBeInTheDocument();
+    expect(screen.getByText('◀ Semana')).toBeInTheDocument();
+    expect(screen.getByTestId('agenda-scroll')).toBeInTheDocument();
+
     fireEvent.click(screen.getByText('Ver lista'));
-    expect(screen.getByText('Agendamentos e bloqueios por mês')).toBeInTheDocument();
-    expect(screen.getByText('Agosto de 2026')).toBeInTheDocument();
-    expect(screen.getByText('Setembro de 2026')).toBeInTheDocument();
+
+    // Depois de clicar: grade some, nav de semana some, filtros de lista aparecem.
+    expect(screen.queryByTestId('agenda-scroll')).not.toBeInTheDocument();
+    expect(screen.queryByText('◀ Semana')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar cliente')).toBeInTheDocument();
+    expect(screen.getByLabelText('Filtrar por mês')).toBeInTheDocument();
+
+    expect(screen.getByRole('heading', { name: 'Agosto de 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Setembro de 2026' })).toBeInTheDocument();
     expect(screen.getByText('Podcast')).toBeInTheDocument();
     expect(screen.getByText('Corte')).toBeInTheDocument();
     expect(screen.getByText(/Manutenção/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Ver grade'));
+    expect(screen.getByTestId('agenda-scroll')).toBeInTheDocument();
+  });
+  it('lista mostra meses sem agendamento e filtra por cliente e por mês', () => {
+    const item1: Agendamento = { ...item, id: 'a1', data: '2026-08-24', cliente_nome: 'ACME' };
+    const item2: Agendamento = { ...item, id: 'a2', data: '2026-10-10', cliente_nome: 'Beta Ltda' };
+    render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[item1, item2]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
+    fireEvent.click(screen.getByText('Ver lista'));
+
+    // Setembro não tem nada, mas o mês aparece (intervalo entre agosto e outubro).
+    expect(screen.getByRole('heading', { name: 'Agosto de 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Setembro de 2026' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Outubro de 2026' })).toBeInTheDocument();
+    expect(screen.getByText('Nenhum agendamento ou bloqueio neste mês.')).toBeInTheDocument();
+
+    // Busca por cliente.
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'beta' } });
+    expect(screen.queryByText('ACME')).not.toBeInTheDocument();
+    expect(screen.getByText('Beta Ltda')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: '' } });
+
+    // Filtro de mês.
+    fireEvent.change(screen.getByLabelText('Filtrar por mês'), { target: { value: '2026-08' } });
+    expect(screen.getByText('ACME')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Outubro de 2026' })).not.toBeInTheDocument();
   });
   it('"Ir para" navega para a segunda-feira da semana da data escolhida', () => {
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
