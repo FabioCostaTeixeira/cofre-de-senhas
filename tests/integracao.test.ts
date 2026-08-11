@@ -882,4 +882,95 @@ descreve('integração com o banco real', () => {
     await sql`delete from estudios where id = ${estudioA.id}`;
     await sql`delete from locais_gravacao where id = ${id}`;
   });
+
+  it('cria agendamento, lista na semana certa, e bloqueia conflito no mesmo estudio', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const ag = await import('@/lib/db/agenda');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-agenda`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-agenda`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-agenda`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio A' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+
+    const dadosBase = {
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado' as const, data: '2026-08-24', hora_inicio: '09:00', hora_fim: '10:00',
+    };
+
+    const id1 = await ag.createAgendamento(dadosBase);
+    const semana = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-24');
+    expect(semana.map((a) => a.id)).toContain(id1);
+    expect(semana.find((a) => a.id === id1)?.cliente_nome).toBe(`${marca}-cliente-agenda`);
+
+    // Sobrepõe o mesmo horário no mesmo estúdio → bloqueia.
+    await expect(ag.createAgendamento({
+      ...dadosBase, hora_inicio: '09:30', hora_fim: '10:30',
+    })).rejects.toThrow(ag.ConflitoHorarioError);
+
+    // Mesmo horário, estúdio diferente (criado só pra este teste) → sem problema.
+    const localId2 = await lg.createLocal({
+      nome: `${marca}-local-agenda-2`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio B' }],
+    });
+    const [estudio2] = (await lg.getLocal(localId2))!.estudios;
+    const id2 = await ag.createAgendamento({ ...dadosBase, local_id: localId2, estudio_id: estudio2.id });
+    expect(id2).toBeTruthy();
+
+    await sql`delete from agendamentos where id in (${id1}, ${id2})`;
+    await sql`delete from estudios where local_id in (${localId}, ${localId2})`;
+    await sql`delete from locais_gravacao where id in (${localId}, ${localId2})`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('cancelado nao bloqueia conflito; mover para horario livre funciona; soft-delete some da lista', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const ag = await import('@/lib/db/agenda');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-agenda-2`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-agenda-2`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-agenda-3`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio C' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+
+    const dadosBase = {
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'cancelado' as const, data: '2026-08-25', hora_inicio: '09:00', hora_fim: '10:00',
+    };
+
+    const id1 = await ag.createAgendamento(dadosBase);
+    // id1 esta cancelado — nao bloqueia o mesmo horario.
+    const id2 = await ag.createAgendamento({ ...dadosBase, status: 'agendado' });
+
+    // Mover id2 pro proprio horario de id1 (cancelado) nao deveria bloquear.
+    await ag.moverOuRedimensionar(id2, '2026-08-25', '09:00', '10:00');
+    const semana = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-25');
+    expect(semana.find((a) => a.id === id2)?.hora_inicio.slice(0, 5)).toBe('09:00');
+
+    await ag.softDeleteAgendamento(id2);
+    const semanaDepois = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-25');
+    expect(semanaDepois.map((a) => a.id)).not.toContain(id2);
+
+    await sql`delete from agendamentos where id in (${id1}, ${id2})`;
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
 });
