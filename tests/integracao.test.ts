@@ -866,4 +866,20 @@ descreve('integração com o banco real', () => {
     const linhas = (await sql`select id from locais_gravacao where id = ${id}`) as { id: string }[];
     expect(linhas).toHaveLength(0);
   });
+
+  it('expurgar local ainda com estudio (mesmo na lixeira) rejeita com ItemEmUsoError, em vez de crashar', async () => {
+    const lg = await import('@/lib/db/locais-gravacao');
+
+    const id = await lg.createLocal({
+      nome: `${marca}-local-com-estudio-em-uso`, endereco: null, responsavel: null,
+      estudios: [{ nome: 'Estúdio A' }],
+    });
+    const [estudioA] = (await lg.getLocal(id))!.estudios;
+
+    await lg.softDeleteLocal(id);
+    await expect(q.purgeItem('local_gravacao', id)).rejects.toThrow(q.ItemEmUsoError);
+
+    await sql`delete from estudios where id = ${estudioA.id}`;
+    await sql`delete from locais_gravacao where id = ${id}`;
+  });
 });

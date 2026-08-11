@@ -574,6 +574,14 @@ export async function purgeItem(
   } else if (kind === 'plano') {
     await sql`delete from planos where id = ${id} and deleted_at is not null`;
   } else if (kind === 'local_gravacao') {
+    // Sem `on delete cascade` em estudios.local_id (de propósito, ver spec do módulo Local
+    // de Gravação) — checa antes, senão o delete estoura 23503 cru. Conta qualquer estúdio,
+    // ativo ou já na lixeira: a FK não distingue, então os dois bloqueiam o expurgo.
+    const [{ n }] = (await sql`
+      select count(*)::int as n from estudios where local_id = ${id}`) as { n: number }[];
+    if (n > 0) {
+      throw new ItemEmUsoError(`Este local ainda tem ${n} estúdio(s). Apague os estúdios antes.`);
+    }
     await sql`delete from locais_gravacao where id = ${id} and deleted_at is not null`;
   } else if (kind === 'estudio') {
     await sql`delete from estudios where id = ${id} and deleted_at is not null`;
