@@ -261,3 +261,21 @@ export type DadosAgendamento = {
   hora_inicio: string;
   hora_fim: string;
 };
+
+export type BloqueioEstudio = {
+  id: string;
+  estudio_id: string;
+  data: string;
+  hora_inicio: string;
+  hora_fim: string;
+  motivo: string | null;
+  created_at: string;
+};
+
+export type DadosBloqueio = {
+  estudio_id: string;
+  data: string;
+  hora_inicio: string;
+  hora_fim: string;
+  motivo: string | null;
+};

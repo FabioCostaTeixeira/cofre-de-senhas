@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requireMaster } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { ConflitoHorarioError, createAgendamento, moverOuRedimensionar, softDeleteAgendamento, updateAgendamento } from '@/lib/db/agenda';
-import { lerDadosAgendamento, validarPeriodoAgendamento } from '@/lib/agenda-form';
+import { ConflitoBloqueioError, createBloqueio, softDeleteBloqueio } from '@/lib/db/bloqueios';
+import { lerDadosAgendamento, lerDadosBloqueio, validarPeriodoAgendamento } from '@/lib/agenda-form';
 import { isUuid } from '@/lib/validation';
 import type { AgendaFormState } from '@/components/AgendaFormularioModal';
 
@@ -27,4 +28,12 @@ export async function moverAgendamento(id: string, data: string, horaInicio: str
   const erroPeriodo = validarPeriodoAgendamento(data, horaInicio, horaFim); if (erroPeriodo) return erroPeriodo;
   try { await moverOuRedimensionar(id, data, horaInicio, horaFim); await audit({ actorId: actor.id, action: 'update', entityType: 'agendamento', entityId: id }); revalidatePath(ROTA); return {}; }
   catch (err) { if (err instanceof ConflitoHorarioError) return { error: err.message }; throw err; }
+}
+export async function criarBloqueio(_prev: AgendaFormState, fd: FormData): Promise<AgendaFormState> {
+  const actor = await requireMaster(); const dados = lerDadosBloqueio(fd); if ('error' in dados) return dados;
+  try { const id = await createBloqueio(dados); await audit({ actorId: actor.id, action: 'create', entityType: 'bloqueio_estudio', entityId: id }); revalidatePath(ROTA); return { ok: 'Horário bloqueado.' }; }
+  catch (err) { if (err instanceof ConflitoBloqueioError) return { error: err.message }; throw err; }
+}
+export async function apagarBloqueio(id: string): Promise<{ error?: string }> {
+  const actor = await requireMaster(); if (!isUuid(id)) return { error: 'Bloqueio não encontrado.' }; await softDeleteBloqueio(id); await audit({ actorId: actor.id, action: 'delete', entityType: 'bloqueio_estudio', entityId: id }); revalidatePath(ROTA); return {};
 }

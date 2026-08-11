@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AgendaCard } from '@/components/AgendaCard';
+import { AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
-import type { Agendamento, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
+import { BloqueioFormularioModal } from '@/components/BloqueioFormularioModal';
+import type { Agendamento, BloqueioEstudio, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
 
 const ALTURA_BLOCO_PX = 25;
 const BLOCOS_POR_DIA = 96;
@@ -52,12 +53,19 @@ type Acao = (prev: AgendaFormState, fd: FormData) => Promise<AgendaFormState>;
 type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string };
 type Rascunho = { data: string; horaInicio: string; horaFim: string; localId: string; estudioId: string };
 
-export function AgendaClient({ itens, clientes, locais, categorias, estudioId, inicioSemana, criar, salvar, apagar, mover }: {
-  itens: Agendamento[]; clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[]; estudioId: string; inicioSemana: string;
-  criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>; mover: (id: string, data: string, horaInicio: string, horaFim: string) => Promise<{ error?: string }>;
+export function AgendaClient({
+  itens, bloqueiosDaSemana, bloqueiosAtivos, clientes, locais, categorias, estudioId, inicioSemana,
+  criar, salvar, apagar, mover, criarBloqueio, apagarBloqueio,
+}: {
+  itens: Agendamento[]; bloqueiosDaSemana: BloqueioEstudio[]; bloqueiosAtivos: BloqueioEstudio[];
+  clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[]; estudioId: string; inicioSemana: string;
+  criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
+  mover: (id: string, data: string, horaInicio: string, horaFim: string) => Promise<{ error?: string }>;
+  criarBloqueio: Acao; apagarBloqueio: (id: string) => Promise<{ error?: string }>;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState<Agendamento | Rascunho | 'novo' | null>(null);
+  const [bloqueioAberto, setBloqueioAberto] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState<Arrasto | null>(null);
   const [dataAlvo, setDataAlvo] = useState('');
@@ -80,6 +88,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
     .map((item) => arrastando?.id === item.id
       ? { ...item, hora_inicio: arrastando.horaInicio, hora_fim: arrastando.horaFim }
       : item);
+
+  const bloqueiosDoDia = (dia: string) => bloqueiosDaSemana.filter((b) => b.data === dia);
 
   function coordenadas(x: number, y: number) {
     const rect = gridRef.current?.getBoundingClientRect();
@@ -231,6 +241,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         </div>
       </label>
       <button type="button" className="btn btn-primary" onClick={() => setAberto('novo')}>Novo agendamento</button>
+      <button type="button" className="btn" onClick={() => setBloqueioAberto(true)}>Bloquear horário</button>
     </div>
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
     <div className="grid gap-1 text-xs text-center" style={{ gridTemplateColumns: '3rem repeat(7, minmax(0, 1fr))', color: 'var(--text-dim)' }}>
@@ -261,6 +272,16 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
               onClick={() => abrirCriacaoNaCelula(dia, bloco)}
               style={{ height: ALTURA_BLOCO_PX, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
             />)}
+            {bloqueiosDoDia(dia).map((b) => {
+              const { top, height } = calcularPosicaoCard(b.hora_inicio, b.hora_fim);
+              return <div
+                key={b.id}
+                data-testid="agenda-bloqueio"
+                title={b.motivo ?? 'Bloqueado'}
+                className="absolute left-1 right-1 rounded"
+                style={{ top, height, backgroundColor: '#fff', zIndex: 5 }}
+              />;
+            })}
             {itensDoDia(dia).map((item) => <AgendaCard
               key={item.id}
               item={item}
@@ -287,6 +308,24 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
             padraoLocalId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.localId : undefined}
             padraoEstudioId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.estudioId : undefined}
             clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
+          />
+        </div>
+      </div>
+    )}
+    {bloqueioAberto && (
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+        onClick={(e) => { if (e.target === e.currentTarget) setBloqueioAberto(false); }}
+      >
+        <div className="w-full max-w-2xl">
+          <BloqueioFormularioModal
+            estudioId={estudioId}
+            bloqueios={bloqueiosAtivos}
+            criar={criarBloqueio}
+            apagar={apagarBloqueio}
+            onFechar={() => setBloqueioAberto(false)}
+            onAtualizar={() => router.refresh()}
           />
         </div>
       </div>

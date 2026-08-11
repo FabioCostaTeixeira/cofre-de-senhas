@@ -1,4 +1,4 @@
-import type { DadosAgendamento, StatusAgendamento } from '@/lib/types';
+import type { DadosAgendamento, DadosBloqueio, StatusAgendamento } from '@/lib/types';
 
 const STATUS_VALIDOS: StatusAgendamento[] = [
   'cancelado', 'agendado', 'pre_agendado', 'gravando', 'concluido',
@@ -51,4 +51,19 @@ export function lerDadosAgendamento(fd: FormData): DadosAgendamento | { error: s
     cliente_id, local_id, estudio_id, categoria_produto_id,
     status: status as StatusAgendamento, data, hora_inicio, hora_fim,
   };
+}
+
+export function lerDadosBloqueio(fd: FormData): DadosBloqueio | { error: string } {
+  const estudio_id = String(fd.get('estudioId') ?? '');
+  if (!estudio_id) return { error: 'Escolha o estúdio.' };
+
+  const data = String(fd.get('data') ?? '');
+  const hora_inicio = String(fd.get('horaInicio') ?? '');
+  const hora_fim = String(fd.get('horaFim') ?? '');
+  const erroPeriodo = validarPeriodoAgendamento(data, hora_inicio, hora_fim);
+  if (erroPeriodo) return erroPeriodo;
+
+  const motivo = String(fd.get('motivo') ?? '').trim() || null;
+
+  return { estudio_id, data, hora_inicio, hora_fim, motivo };
 }

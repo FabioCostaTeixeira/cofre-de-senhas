@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lerDadosAgendamento, validarPeriodoAgendamento } from '@/lib/agenda-form';
+import { lerDadosAgendamento, lerDadosBloqueio, validarPeriodoAgendamento } from '@/lib/agenda-form';
 
 function formData(campos: Record<string, string>): FormData {
   const fd = new FormData();
@@ -79,5 +79,37 @@ describe('validarPeriodoAgendamento', () => {
 
   it('aceita data e horários válidos', () => {
     expect(validarPeriodoAgendamento('2026-08-20', '09:00', '10:00')).toBeNull();
+  });
+});
+
+const CAMPOS_BLOQUEIO_VALIDOS = { estudioId: 'e1', data: '2026-08-20', horaInicio: '09:00', horaFim: '10:00', motivo: 'Manutenção do equipamento' };
+
+describe('lerDadosBloqueio', () => {
+  it('sem estúdio retorna erro', () => {
+    const r = lerDadosBloqueio(formData({ ...CAMPOS_BLOQUEIO_VALIDOS, estudioId: '' }));
+    expect(r).toEqual({ error: 'Escolha o estúdio.' });
+  });
+
+  it('data em formato errado retorna erro', () => {
+    const r = lerDadosBloqueio(formData({ ...CAMPOS_BLOQUEIO_VALIDOS, data: '20/08/2026' }));
+    expect(r).toEqual({ error: 'Informe a data.' });
+  });
+
+  it('horário fora do múltiplo de 15 minutos retorna erro', () => {
+    const r = lerDadosBloqueio(formData({ ...CAMPOS_BLOQUEIO_VALIDOS, horaInicio: '09:05' }));
+    expect(r).toEqual({ error: 'Horário precisa ser múltiplo de 15 minutos.' });
+  });
+
+  it('motivo é opcional (vazio vira null)', () => {
+    const r = lerDadosBloqueio(formData({ ...CAMPOS_BLOQUEIO_VALIDOS, motivo: '' }));
+    expect(r).toEqual({ estudio_id: 'e1', data: '2026-08-20', hora_inicio: '09:00', hora_fim: '10:00', motivo: null });
+  });
+
+  it('campos completos e válidos são lidos corretamente', () => {
+    const r = lerDadosBloqueio(formData(CAMPOS_BLOQUEIO_VALIDOS));
+    expect(r).toEqual({
+      estudio_id: 'e1', data: '2026-08-20', hora_inicio: '09:00', hora_fim: '10:00',
+      motivo: 'Manutenção do equipamento',
+    });
   });
 });

@@ -1099,4 +1099,71 @@ descreve('integração com o banco real', () => {
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
+
+  it('bloqueio impede agendamento sobreposto e agendamento existente impede bloqueio sobreposto', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const ag = await import('@/lib/db/agenda');
+    const bl = await import('@/lib/db/bloqueios');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-bloqueio`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-bloqueio`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-bloqueio`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio E' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+
+    // Bloqueia 14:00-15:00 e confirma que aparece na semana e nos ativos.
+    const bloqueioId = await bl.createBloqueio({
+      estudio_id: estudio.id, data: '2026-08-29', hora_inicio: '14:00', hora_fim: '15:00', motivo: 'Manutenção',
+    });
+    const semanaBloqueios = await bl.listBloqueiosDaSemana(estudio.id, '2026-08-24');
+    expect(semanaBloqueios.map((b) => b.id)).toContain(bloqueioId);
+    const ativos = await bl.listBloqueiosAtivos(estudio.id);
+    expect(ativos.map((b) => b.id)).toContain(bloqueioId);
+
+    // Tentar agendar em cima do bloqueio (mesmo estúdio, horário sobreposto) rejeita.
+    await expect(ag.createAgendamento({
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado', data: '2026-08-29', hora_inicio: '14:30', hora_fim: '15:30',
+    })).rejects.toThrow(ag.ConflitoHorarioError);
+
+    // Agendar num horário livre do mesmo dia funciona normalmente.
+    const agendamentoId = await ag.createAgendamento({
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado', data: '2026-08-29', hora_inicio: '09:00', hora_fim: '10:00',
+    });
+
+    // Tentar bloquear em cima de um agendamento existente rejeita.
+    await expect(bl.createBloqueio({
+      estudio_id: estudio.id, data: '2026-08-29', hora_inicio: '09:30', hora_fim: '10:30', motivo: null,
+    })).rejects.toThrow(bl.ConflitoBloqueioError);
+
+    // Mover o agendamento pra cima do bloqueio também rejeita.
+    await expect(ag.moverOuRedimensionar(agendamentoId, '2026-08-29', '14:00', '15:00'))
+      .rejects.toThrow(ag.ConflitoHorarioError);
+
+    // Remover o bloqueio (soft-delete) libera o horário de novo.
+    await bl.softDeleteBloqueio(bloqueioId);
+    const semanaDepois = await bl.listBloqueiosDaSemana(estudio.id, '2026-08-24');
+    expect(semanaDepois.map((b) => b.id)).not.toContain(bloqueioId);
+    const idLivre = await ag.createAgendamento({
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado', data: '2026-08-29', hora_inicio: '14:00', hora_fim: '15:00',
+    });
+    expect(idLivre).toBeTruthy();
+
+    await sql`delete from agendamentos where id in (${agendamentoId}, ${idLivre})`;
+    await sql`delete from bloqueios_estudio where id = ${bloqueioId}`;
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
 });

@@ -1,11 +1,12 @@
 import { sql } from '@/lib/db/client';
 import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
+import { existeBloqueioNoHorario } from '@/lib/db/bloqueios';
 import type { Agendamento, DadosAgendamento } from '@/lib/types';
 
 export class ConflitoHorarioError extends Error {
-  constructor() {
-    super('Este estúdio já tem outro agendamento nesse horário.');
+  constructor(mensagem = 'Este estúdio já tem outro agendamento nesse horário.') {
+    super(mensagem);
   }
 }
 
@@ -52,6 +53,9 @@ export async function createAgendamento(dados: DadosAgendamento): Promise<string
   assertUuid(dados.estudio_id);
   assertUuid(dados.categoria_produto_id);
 
+  if (await existeBloqueioNoHorario(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim)) {
+    throw new ConflitoHorarioError('Este horário está bloqueado para manutenção.');
+  }
   if (await existeConflito(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim, null)) {
     throw new ConflitoHorarioError();
   }
@@ -72,6 +76,9 @@ export async function updateAgendamento(id: string, dados: DadosAgendamento): Pr
   assertUuid(dados.estudio_id);
   assertUuid(dados.categoria_produto_id);
 
+  if (await existeBloqueioNoHorario(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim)) {
+    throw new ConflitoHorarioError('Este horário está bloqueado para manutenção.');
+  }
   if (await existeConflito(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim, id)) {
     throw new ConflitoHorarioError();
   }
@@ -99,6 +106,9 @@ export async function moverOuRedimensionar(
     select estudio_id from agendamentos where id = ${id} and deleted_at is null`) as { estudio_id: string }[];
   if (!atual[0]) throw new NotFoundError();
 
+  if (await existeBloqueioNoHorario(atual[0].estudio_id, data, horaInicio, horaFim)) {
+    throw new ConflitoHorarioError('Este horário está bloqueado para manutenção.');
+  }
   if (await existeConflito(atual[0].estudio_id, data, horaInicio, horaFim, id)) {
     throw new ConflitoHorarioError();
   }
