@@ -24,7 +24,7 @@ export default async function LixeiraPage() {
                   {{
                     room: 'sala', credential: 'senha', cliente: 'cliente', fornecedor: 'fornecedor',
                     produto: 'produto', combo: 'combo', plano: 'plano',
-                    local_gravacao: 'local de gravação', estudio: 'estúdio',
+                    local_gravacao: 'local de gravação', estudio: 'estúdio', agendamento: 'agendamento',
                   }[item.kind]}
                 </span>
                 <p className="text-xs" style={{ color: 'var(--text-dim)' }}>

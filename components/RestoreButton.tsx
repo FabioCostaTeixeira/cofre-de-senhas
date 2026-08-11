@@ -7,7 +7,7 @@ export function RestoreButton({
   kind, id,
 }: {
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio';
+    | 'local_gravacao' | 'estudio' | 'agendamento';
   id: string;
 }) {
   const [erro, setErro] = useState<string | null>(null);

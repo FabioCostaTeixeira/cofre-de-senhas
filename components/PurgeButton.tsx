@@ -7,7 +7,7 @@ export function PurgeButton({
   kind, id, title, credentialCount,
 }: {
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio';
+    | 'local_gravacao' | 'estudio' | 'agendamento';
   id: string;
   title: string;
   /** Só se aplica a `kind === 'room'`: quantas senhas serão destruídas junto. */

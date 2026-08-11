@@ -1,6 +1,6 @@
-import { Building2, Boxes, CalendarClock, FolderKanban, Home, Layers, MapPin, Package, ScrollText, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
+import { Building2, Boxes, CalendarClock, CalendarDays, FolderKanban, Home, Layers, MapPin, Package, ScrollText, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
-import { canManageLocaisGravacao, canManageProdutos, canManageTerceiros } from '@/lib/authz';
+import { canManageAgenda, canManageLocaisGravacao, canManageProdutos, canManageTerceiros } from '@/lib/authz';
 import { listModulesOfUser } from '@/lib/db/queries';
 import { MODULES } from '@/lib/modules';
 import type { Actor } from '@/lib/types';
@@ -53,6 +53,9 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
             { href: '/produtos/planos', label: 'Planos', icon: <CalendarClock size={18} className={iconClass} /> },
           ],
         }]
+      : []),
+    ...(canManageAgenda(actor)
+      ? [{ label: 'Agenda', icon: <CalendarDays size={18} className={iconClass} />, items: [{ href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} className={iconClass} /> }] }]
       : []),
     // Cada módulo externo ganha seu próprio grupo de topo (não mais agrupado sob
     // um "Módulos" genérico), lado a lado com Cadastros e Cofre de Senhas.

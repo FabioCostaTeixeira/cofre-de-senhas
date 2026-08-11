@@ -16,7 +16,7 @@ export type RestoreResult = { error?: string };
  */
 export async function restaurar(
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio',
+    | 'local_gravacao' | 'estudio' | 'agendamento',
   id: string,
 ): Promise<RestoreResult> {
   const actor = await requireMaster();
@@ -43,7 +43,7 @@ export type ExpurgarResult = { error?: string };
  */
 export async function expurgar(
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio',
+    | 'local_gravacao' | 'estudio' | 'agendamento',
   id: string,
 ): Promise<ExpurgarResult> {
   const actor = await requireMaster();

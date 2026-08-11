@@ -973,4 +973,47 @@ descreve('integração com o banco real', () => {
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
+
+  it('agendamento apagado aparece na lixeira, restaura e depois expurga', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const ag = await import('@/lib/db/agenda');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-agenda-lixeira`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-agenda-lixeira`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-agenda-lixeira`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio D' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+
+    const id = await ag.createAgendamento({
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado', data: '2026-08-26', hora_inicio: '09:00', hora_fim: '10:00',
+    });
+    await ag.softDeleteAgendamento(id);
+
+    const lixeira = await q.listTrash();
+    const item = lixeira.find((i) => i.kind === 'agendamento' && i.id === id);
+    expect(item?.title).toBe(`${marca}-cliente-agenda-lixeira — 26/08/2026`);
+
+    await q.restoreItem('agendamento', id);
+    const semana = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-26');
+    expect(semana.map((a) => a.id)).toContain(id);
+
+    await ag.softDeleteAgendamento(id);
+    await q.purgeItem('agendamento', id);
+    const linhas = (await sql`select id from agendamentos where id = ${id}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
 });

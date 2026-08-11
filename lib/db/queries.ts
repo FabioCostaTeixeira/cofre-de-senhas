@@ -424,7 +424,7 @@ export async function setUserRooms(userId: string, roomIds: string[]): Promise<v
 export type TrashItem = {
   id: string;
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio';
+    | 'local_gravacao' | 'estudio' | 'agendamento';
   title: string;
   room_name: string | null;
   deleted_at: string;
@@ -475,6 +475,14 @@ export async function listTrash(): Promise<TrashItem[]> {
            null::int as credential_count
       from estudios e join locais_gravacao l on l.id = e.local_id
      where e.deleted_at is not null
+    union all
+    select a.id, 'agendamento' as kind,
+           (cl.nome || ' — ' || to_char(a.data, 'DD/MM/YYYY')) as title,
+           e.nome as room_name, a.deleted_at, null::int as credential_count
+      from agendamentos a
+      join clientes cl on cl.id = a.cliente_id
+      join estudios e on e.id = a.estudio_id
+     where a.deleted_at is not null
      order by deleted_at desc`) as TrashItem[];
 }
 
@@ -500,7 +508,7 @@ export class ItemEmUsoError extends Error {
 
 export async function restoreItem(
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio',
+    | 'local_gravacao' | 'estudio' | 'agendamento',
   id: string,
 ): Promise<void> {
   assertUuid(id);
@@ -528,12 +536,14 @@ export async function restoreItem(
     await sql`update locais_gravacao set deleted_at = null where id = ${id}`;
   } else if (kind === 'estudio') {
     await sql`update estudios set deleted_at = null where id = ${id}`;
+  } else if (kind === 'agendamento') {
+    await sql`update agendamentos set deleted_at = null where id = ${id}`;
   }
 }
 
 export async function purgeItem(
   kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
-    | 'local_gravacao' | 'estudio',
+    | 'local_gravacao' | 'estudio' | 'agendamento',
   id: string,
 ): Promise<void> {
   assertUuid(id);
@@ -585,6 +595,8 @@ export async function purgeItem(
     await sql`delete from locais_gravacao where id = ${id} and deleted_at is not null`;
   } else if (kind === 'estudio') {
     await sql`delete from estudios where id = ${id} and deleted_at is not null`;
+  } else if (kind === 'agendamento') {
+    await sql`delete from agendamentos where id = ${id} and deleted_at is not null`;
   }
 }
 
