@@ -66,6 +66,7 @@ export function AgendaClient({
   const router = useRouter();
   const [aberto, setAberto] = useState<Agendamento | Rascunho | 'novo' | null>(null);
   const [bloqueioAberto, setBloqueioAberto] = useState(false);
+  const [bloqueioSelecionado, setBloqueioSelecionado] = useState<BloqueioEstudio | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState<Arrasto | null>(null);
   const [dataAlvo, setDataAlvo] = useState('');
@@ -248,7 +249,7 @@ export function AgendaClient({
       <div aria-hidden="true" />
       {dias.map((d, i) => <div key={d} style={d === hoje ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{DIAS_SEMANA[i]} {d.slice(8, 10)}/{d.slice(5, 7)}</div>)}
     </div>
-    <div data-testid="agenda-scroll" className="max-h-[70vh] overflow-y-auto">
+    <div data-testid="agenda-scroll" className="max-h-[70vh] overflow-y-auto" onClick={() => setBloqueioSelecionado(null)}>
       <div className="relative grid gap-1" style={{ gridTemplateColumns: '3rem minmax(0, 1fr)' }}>
         <div
           data-testid="agenda-linha-agora"
@@ -278,9 +279,25 @@ export function AgendaClient({
                 key={b.id}
                 data-testid="agenda-bloqueio"
                 title={b.motivo ?? 'Bloqueado'}
-                className="absolute left-1 right-1 rounded"
+                className="absolute left-1 right-1 rounded cursor-pointer"
                 style={{ top, height, backgroundColor: '#fff', zIndex: 5 }}
-              />;
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setBloqueioSelecionado((atual) => (atual?.id === b.id ? null : b));
+                }}
+              >
+                {bloqueioSelecionado?.id === b.id && (
+                  <div
+                    data-testid="agenda-bloqueio-tooltip"
+                    className="absolute left-0 top-full mt-1 rounded p-2 text-xs whitespace-nowrap"
+                    style={{ backgroundColor: 'var(--bg, #1e212d)', border: '1px solid var(--border)', color: 'var(--text)', zIndex: 20 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="font-medium">{b.hora_inicio.slice(0, 5)}–{b.hora_fim.slice(0, 5)}</div>
+                    <div>{b.motivo || 'Bloqueado'}</div>
+                  </div>
+                )}
+              </div>;
             })}
             {itensDoDia(dia).map((item) => <AgendaCard
               key={item.id}

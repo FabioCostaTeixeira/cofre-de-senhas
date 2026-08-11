@@ -103,13 +103,17 @@ describe('AgendaClient', () => {
     expect(linha).toHaveStyle({ top: '1100px' }); // (11*60)/15 * 25
     vi.useRealTimers();
   });
-  it('renderiza bloqueio como bloco branco e clicar nele não abre criação', () => {
+  it('renderiza bloqueio como bloco branco e clicar nele não abre criação, só o tooltip do motivo', () => {
     const bloqueio = { id: 'b1', estudio_id: 'e1', data: '2026-08-24', hora_inicio: '09:00:00', hora_fim: '10:00:00', motivo: 'Manutenção', created_at: '2026-08-20T00:00:00Z' };
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} bloqueiosDaSemana={[bloqueio]} bloqueiosAtivos={[bloqueio]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
     const bloco = screen.getByTestId('agenda-bloqueio');
     expect(bloco).toHaveStyle({ backgroundColor: '#fff' });
+    expect(screen.queryByTestId('agenda-bloqueio-tooltip')).not.toBeInTheDocument();
     fireEvent.click(bloco);
     expect(screen.queryByText('Novo agendamento', { selector: 'h2' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('agenda-bloqueio-tooltip')).toHaveTextContent('Manutenção');
+    fireEvent.click(bloco);
+    expect(screen.queryByTestId('agenda-bloqueio-tooltip')).not.toBeInTheDocument();
   });
   it('botão "Bloquear horário" abre o modal de bloqueio com a lista de ativos', () => {
     const bloqueio = { id: 'b1', estudio_id: 'e1', data: '2026-08-24', hora_inicio: '09:00:00', hora_fim: '10:00:00', motivo: 'Manutenção', created_at: '2026-08-20T00:00:00Z' };
