@@ -87,6 +87,7 @@ export const canManageUsers = (actor: Actor) => isMaster(actor);
  */
 export const canManageTerceiros = (actor: Actor) => isMaster(actor);
 export const canManageProdutos = (actor: Actor) => isMaster(actor);
+export const canManageLocaisGravacao = (actor: Actor) => isMaster(actor);
 export const canViewAudit = (actor: Actor) => isMaster(actor);
 
 /**
