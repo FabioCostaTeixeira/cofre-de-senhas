@@ -159,7 +159,7 @@ export function AgendaClient({
         const c = coordenadas(ev.clientX, ev.clientY);
         if (!c) return;
         const fim = Math.max(minutos(item.hora_inicio) + 15, c.minutos + 15);
-        ultimo = { id: item.id, data: item.data, horaInicio: item.hora_inicio, horaFim: hora(fim) };
+        ultimo = { id: item.id, data: item.data, horaInicio: hora(minutos(item.hora_inicio)), horaFim: hora(fim) };
         setArrastando(ultimo);
       }
 

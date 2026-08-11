@@ -103,6 +103,16 @@ describe('AgendaClient', () => {
     expect(linha).toHaveStyle({ top: '1100px' }); // (11*60)/15 * 25
     vi.useRealTimers();
   });
+  it('redimensionar envia horaInicio no formato HH:MM, sem os segundos do servidor (regressão)', () => {
+    render(<AgendaClient itens={[item]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
+    const alca = screen.getByTestId('agenda-card-resize');
+    fireEvent.pointerDown(alca, { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(document, { clientX: 100, clientY: 500 });
+    fireEvent.pointerUp(document, { clientX: 100, clientY: 500 });
+    expect(mover).toHaveBeenCalled();
+    const horaInicioEnviado = mover.mock.calls[0][2];
+    expect(horaInicioEnviado).toBe('09:00');
+  });
   it('renderiza bloqueio como bloco branco e clicar nele não abre criação, só o tooltip do motivo', () => {
     const bloqueio = { id: 'b1', estudio_id: 'e1', data: '2026-08-24', hora_inicio: '09:00:00', hora_fim: '10:00:00', motivo: 'Manutenção', created_at: '2026-08-20T00:00:00Z' };
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} bloqueiosDaSemana={[bloqueio]} bloqueiosAtivos={[bloqueio]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);

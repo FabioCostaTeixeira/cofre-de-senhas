@@ -48,6 +48,7 @@ export function AgendaCard({
         <div className="truncate">{ROTULOS_STATUS[item.status]}</div>
       </div>
       <div
+        data-testid="agenda-card-resize"
         className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize"
         onPointerDown={(e) => { e.stopPropagation(); onPointerDownRedimensionar(e); }}
       />
