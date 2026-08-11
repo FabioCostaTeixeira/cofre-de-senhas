@@ -39,5 +39,17 @@ describe('AgendaClient', () => {
     fireEvent.click(card);
     expect(screen.queryByText('Editar agendamento')).not.toBeInTheDocument();
   });
+  it('abre o modal em um clique real após terminar o arraste fora do card', async () => {
+    render(<AgendaClient itens={[item]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);
+    const card = screen.getByText('ACME').closest('[data-agenda-card]')!;
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(document, { clientX: 110, clientY: 110 });
+    fireEvent.pointerUp(document, { clientX: 110, clientY: 110 });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.click(screen.getByText('ACME').closest('[data-agenda-card]')!);
+
+    expect(screen.getByText('Editar agendamento')).toBeInTheDocument();
+  });
   it('botão "Novo agendamento" abre o modal em branco', () => { render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />); fireEvent.click(screen.getByText('Novo agendamento')); expect(screen.getByText('Novo agendamento', { selector: 'h2' })).toBeInTheDocument(); });
 });

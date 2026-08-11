@@ -65,6 +65,13 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
     router.refresh();
   }
 
+  function suprimirCliqueFantasma() {
+    suprimirProximoCliqueRef.current = true;
+    setTimeout(() => {
+      suprimirProximoCliqueRef.current = false;
+    }, 0);
+  }
+
   function iniciarMover(item: Agendamento) {
     return (e: React.PointerEvent) => {
       e.stopPropagation();
@@ -85,7 +92,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', up);
         if (!houveMovimento) return;
-        suprimirProximoCliqueRef.current = true;
+        suprimirCliqueFantasma();
         setArrastando((atual) => {
           if (atual) void confirmar(atual);
           return null;
@@ -116,7 +123,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', up);
         if (!houveMovimento) return;
-        suprimirProximoCliqueRef.current = true;
+        suprimirCliqueFantasma();
         setArrastando((atual) => {
           if (atual) void confirmar(atual);
           return null;
