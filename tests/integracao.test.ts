@@ -845,4 +845,25 @@ descreve('integração com o banco real', () => {
     await sql`delete from estudios where local_id in (${idA}, ${idB})`;
     await sql`delete from locais_gravacao where id in (${idA}, ${idB})`;
   });
+
+  it('local apagado aparece na lixeira, restaura e depois expurga', async () => {
+    const lg = await import('@/lib/db/locais-gravacao');
+
+    const id = await lg.createLocal({
+      nome: `${marca}-local-crud-lixeira`, endereco: null, responsavel: null, estudios: [],
+    });
+    await lg.softDeleteLocal(id);
+
+    const lixeira = await q.listTrash();
+    const item = lixeira.find((i) => i.kind === 'local_gravacao' && i.id === id);
+    expect(item?.title).toBe(`${marca}-local-crud-lixeira`);
+
+    await q.restoreItem('local_gravacao', id);
+    expect(await lg.getLocal(id)).not.toBeNull();
+
+    await lg.softDeleteLocal(id);
+    await q.purgeItem('local_gravacao', id);
+    const linhas = (await sql`select id from locais_gravacao where id = ${id}`) as { id: string }[];
+    expect(linhas).toHaveLength(0);
+  });
 });

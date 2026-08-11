@@ -5,7 +5,11 @@ import { restaurar } from '@/app/(app)/admin/lixeira/actions';
 
 export function RestoreButton({
   kind, id,
-}: { kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'; id: string }) {
+}: {
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
+    | 'local_gravacao' | 'estudio';
+  id: string;
+}) {
   const [erro, setErro] = useState<string | null>(null);
 
   async function restaurarItem() {

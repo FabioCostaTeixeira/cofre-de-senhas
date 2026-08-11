@@ -423,7 +423,8 @@ export async function setUserRooms(userId: string, roomIds: string[]): Promise<v
 
 export type TrashItem = {
   id: string;
-  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano';
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
+    | 'local_gravacao' | 'estudio';
   title: string;
   room_name: string | null;
   deleted_at: string;
@@ -465,6 +466,15 @@ export async function listTrash(): Promise<TrashItem[]> {
     select pl.id, 'plano' as kind, pl.nome as title, null as room_name, pl.deleted_at,
            null::int as credential_count
       from planos pl where pl.deleted_at is not null
+    union all
+    select lg.id, 'local_gravacao' as kind, lg.nome as title, null as room_name, lg.deleted_at,
+           null::int as credential_count
+      from locais_gravacao lg where lg.deleted_at is not null
+    union all
+    select e.id, 'estudio' as kind, e.nome as title, l.nome as room_name, e.deleted_at,
+           null::int as credential_count
+      from estudios e join locais_gravacao l on l.id = e.local_id
+     where e.deleted_at is not null
      order by deleted_at desc`) as TrashItem[];
 }
 
@@ -489,7 +499,9 @@ export class ItemEmUsoError extends Error {
 }
 
 export async function restoreItem(
-  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano', id: string,
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
+    | 'local_gravacao' | 'estudio',
+  id: string,
 ): Promise<void> {
   assertUuid(id);
   if (kind === 'credential') {
@@ -512,11 +524,17 @@ export async function restoreItem(
     await sql`update combos set deleted_at = null where id = ${id}`;
   } else if (kind === 'plano') {
     await sql`update planos set deleted_at = null where id = ${id}`;
+  } else if (kind === 'local_gravacao') {
+    await sql`update locais_gravacao set deleted_at = null where id = ${id}`;
+  } else if (kind === 'estudio') {
+    await sql`update estudios set deleted_at = null where id = ${id}`;
   }
 }
 
 export async function purgeItem(
-  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano', id: string,
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
+    | 'local_gravacao' | 'estudio',
+  id: string,
 ): Promise<void> {
   assertUuid(id);
   if (kind === 'credential') {
@@ -555,6 +573,10 @@ export async function purgeItem(
     await sql`delete from combos where id = ${id} and deleted_at is not null`;
   } else if (kind === 'plano') {
     await sql`delete from planos where id = ${id} and deleted_at is not null`;
+  } else if (kind === 'local_gravacao') {
+    await sql`delete from locais_gravacao where id = ${id} and deleted_at is not null`;
+  } else if (kind === 'estudio') {
+    await sql`delete from estudios where id = ${id} and deleted_at is not null`;
   }
 }
 

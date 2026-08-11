@@ -6,7 +6,8 @@ import { expurgar } from '@/app/(app)/admin/lixeira/actions';
 export function PurgeButton({
   kind, id, title, credentialCount,
 }: {
-  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano';
+  kind: 'credential' | 'room' | 'cliente' | 'fornecedor' | 'produto' | 'combo' | 'plano'
+    | 'local_gravacao' | 'estudio';
   id: string;
   title: string;
   /** Só se aplica a `kind === 'room'`: quantas senhas serão destruídas junto. */
