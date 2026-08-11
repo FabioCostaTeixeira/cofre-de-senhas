@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }));
@@ -67,6 +67,37 @@ describe('AgendaClient', () => {
     const colunas = screen.getAllByTestId('agenda-coluna-dia');
     expect(colunas[3]).toHaveStyle({ backgroundColor: 'rgba(108, 140, 255, 0.06)' });
     expect(colunas[0]).not.toHaveStyle({ backgroundColor: 'rgba(108, 140, 255, 0.06)' });
+    vi.useRealTimers();
+  });
+  it('clicar numa célula vazia abre o modal de criação com data e horário pré-preenchidos', () => {
+    render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);
+    const slots = screen.getAllByTestId('agenda-slot');
+    fireEvent.click(slots[40]); // dia 0 (segunda, 2026-08-24), bloco 40 = 10:00
+    expect(screen.getByText('Novo agendamento', { selector: 'h2' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Data')).toHaveValue('2026-08-24');
+    expect(screen.getByLabelText('Início')).toHaveValue('10:00');
+    expect(screen.getByLabelText('Fim')).toHaveValue('11:00');
+  });
+  it('clique fantasma depois de arrastar um card não abre criação na célula por baixo', () => {
+    render(<AgendaClient itens={[item]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);
+    const card = screen.getByText('ACME').closest('[data-agenda-card]')!;
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(document, { clientX: 110, clientY: 110 });
+    fireEvent.pointerUp(document, { clientX: 110, clientY: 110 });
+    fireEvent.click(screen.getAllByTestId('agenda-slot')[0]);
+    expect(screen.queryByText('Novo agendamento', { selector: 'h2' })).not.toBeInTheDocument();
+  });
+  it('linha da hora atual fica na posição certa e acompanha o relógio', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-24T10:30:00'));
+    render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} />);
+    const linha = screen.getByTestId('agenda-linha-agora');
+    expect(linha).toHaveStyle({ top: '1050px' }); // (10*60+30)/15 * 25
+    act(() => {
+      vi.setSystemTime(new Date('2026-08-24T11:00:00'));
+      vi.advanceTimersByTime(30000);
+    });
+    expect(linha).toHaveStyle({ top: '1100px' }); // (11*60)/15 * 25
     vi.useRealTimers();
   });
   it('"Ir para" navega para a segunda-feira da semana da data escolhida', () => {

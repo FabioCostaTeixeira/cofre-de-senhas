@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AgendaCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
@@ -37,20 +37,38 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function minutosAgora() {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function janelaPadrao(inicioMin: number) {
+  const fim = Math.min(inicioMin + 60, BLOCOS_POR_DIA * 15 - 15);
+  const inicio = Math.max(0, Math.min(inicioMin, fim - 15));
+  return { horaInicio: hora(inicio), horaFim: hora(fim) };
+}
+
 type Acao = (prev: AgendaFormState, fd: FormData) => Promise<AgendaFormState>;
 type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string };
+type Rascunho = { data: string; horaInicio: string; horaFim: string };
 
 export function AgendaClient({ itens, clientes, locais, categorias, estudioId, inicioSemana, criar, salvar, apagar, mover }: {
   itens: Agendamento[]; clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[]; estudioId: string; inicioSemana: string;
   criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>; mover: (id: string, data: string, horaInicio: string, horaFim: string) => Promise<{ error?: string }>;
 }) {
   const router = useRouter();
-  const [aberto, setAberto] = useState<Agendamento | 'novo' | null>(null);
+  const [aberto, setAberto] = useState<Agendamento | Rascunho | 'novo' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState<Arrasto | null>(null);
   const [dataAlvo, setDataAlvo] = useState('');
+  const [agora, setAgora] = useState(() => minutosAgora());
   const gridRef = useRef<HTMLDivElement>(null);
   const suprimirProximoCliqueRef = useRef(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setAgora(minutosAgora()), 30000);
+    return () => clearInterval(id);
+  }, []);
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicioSemana, i));
   const hoje = hojeISO();
   const locaisComEstudio = locais.filter((local) => local.estudios.length > 0);
@@ -156,6 +174,14 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
     }
     setAberto(item);
   };
+  const abrirCriacaoNaCelula = (dia: string, bloco: number) => {
+    if (suprimirProximoCliqueRef.current) {
+      suprimirProximoCliqueRef.current = false;
+      return;
+    }
+    const { horaInicio, horaFim } = janelaPadrao(bloco * 15);
+    setAberto({ data: dia, horaInicio, horaFim });
+  };
 
   return <div className="space-y-4">
     <div className="flex items-end gap-4 flex-wrap">
@@ -212,7 +238,13 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
       {dias.map((d, i) => <div key={d} style={d === hoje ? { color: 'var(--text)', fontWeight: 600 } : undefined}>{DIAS_SEMANA[i]} {d.slice(8, 10)}/{d.slice(5, 7)}</div>)}
     </div>
     <div data-testid="agenda-scroll" className="max-h-[70vh] overflow-y-auto">
-      <div className="grid gap-1" style={{ gridTemplateColumns: '3rem minmax(0, 1fr)' }}>
+      <div className="relative grid gap-1" style={{ gridTemplateColumns: '3rem minmax(0, 1fr)' }}>
+        <div
+          data-testid="agenda-linha-agora"
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 right-0"
+          style={{ top: (agora / 15) * ALTURA_BLOCO_PX, height: 2, backgroundColor: 'var(--danger)', zIndex: 10 }}
+        />
         <div aria-hidden="true" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
           {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div key={bloco} className="text-[10px] leading-none text-right pr-1" style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}>{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
         </div>
@@ -226,7 +258,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
             {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div
               key={bloco}
               data-testid="agenda-slot"
-              style={{ height: ALTURA_BLOCO_PX, borderTop: '1px solid var(--border)' }}
+              onClick={() => abrirCriacaoNaCelula(dia, bloco)}
+              style={{ height: ALTURA_BLOCO_PX, borderTop: '1px solid var(--border)', cursor: 'pointer' }}
             />)}
             {itensDoDia(dia).map((item) => <AgendaCard
               key={item.id}
@@ -246,7 +279,13 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
       >
         <div className="w-full max-w-2xl">
-          <AgendaFormularioModal item={aberto === 'novo' ? undefined : aberto} clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
+          <AgendaFormularioModal
+            item={aberto !== 'novo' && aberto && 'id' in aberto ? aberto : undefined}
+            padraoData={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.data : undefined}
+            padraoHoraInicio={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaInicio : undefined}
+            padraoHoraFim={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaFim : undefined}
+            clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
+          />
         </div>
       </div>
     )}
