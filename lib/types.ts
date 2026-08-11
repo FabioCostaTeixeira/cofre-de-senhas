@@ -232,3 +232,32 @@ export type DadosLocal = {
    *  `lib/db/locais-gravacao.ts`, `updateLocal`). */
   estudios: { id?: string; nome: string }[];
 };
+
+export type StatusAgendamento = 'cancelado' | 'agendado' | 'pre_agendado' | 'gravando' | 'concluido';
+
+export type Agendamento = {
+  id: string;
+  cliente_id: string;
+  cliente_nome: string;
+  local_id: string;
+  estudio_id: string;
+  estudio_nome: string;
+  categoria_produto_id: string;
+  categoria_nome: string;
+  status: StatusAgendamento;
+  data: string;
+  hora_inicio: string;
+  hora_fim: string;
+  created_at: string;
+};
+
+export type DadosAgendamento = {
+  cliente_id: string;
+  local_id: string;
+  estudio_id: string;
+  categoria_produto_id: string;
+  status: StatusAgendamento;
+  data: string;
+  hora_inicio: string;
+  hora_fim: string;
+};
