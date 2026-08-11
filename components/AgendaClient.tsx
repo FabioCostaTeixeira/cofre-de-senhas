@@ -189,6 +189,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
             type="date"
             aria-label="Data para navegar"
             className="input"
+            style={{ width: 'auto' }}
             value={dataAlvo}
             onChange={(e) => setDataAlvo(e.target.value)}
           />
