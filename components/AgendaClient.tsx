@@ -6,7 +6,7 @@ import { AgendaCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
 import type { Agendamento, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
 
-const ALTURA_BLOCO_PX = 16;
+const ALTURA_BLOCO_PX = 20;
 const BLOCOS_POR_DIA = 96;
 const LIMIAR_ARRASTO_PX = 4;
 const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
@@ -78,6 +78,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
       const origem = { x: e.clientX, y: e.clientY };
       const duracao = minutos(item.hora_fim) - minutos(item.hora_inicio);
       let houveMovimento = false;
+      let ultimo: Arrasto | null = null;
 
       function move(ev: PointerEvent) {
         if (!houveMovimento && Math.hypot(ev.clientX - origem.x, ev.clientY - origem.y) < LIMIAR_ARRASTO_PX) return;
@@ -85,7 +86,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         const c = coordenadas(ev.clientX, ev.clientY);
         if (!c) return;
         const inicio = Math.min(c.minutos, BLOCOS_POR_DIA * 15 - duracao);
-        setArrastando({ id: item.id, data: dias[c.dia], horaInicio: hora(inicio), horaFim: hora(inicio + duracao) });
+        ultimo = { id: item.id, data: dias[c.dia], horaInicio: hora(inicio), horaFim: hora(inicio + duracao) };
+        setArrastando(ultimo);
       }
 
       function up() {
@@ -93,10 +95,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         document.removeEventListener('pointerup', up);
         if (!houveMovimento) return;
         suprimirCliqueFantasma();
-        setArrastando((atual) => {
-          if (atual) void confirmar(atual);
-          return null;
-        });
+        setArrastando(null);
+        if (ultimo) void confirmar(ultimo);
       }
 
       document.addEventListener('pointermove', move);
@@ -109,6 +109,7 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
       e.stopPropagation();
       const origem = { x: e.clientX, y: e.clientY };
       let houveMovimento = false;
+      let ultimo: Arrasto | null = null;
 
       function move(ev: PointerEvent) {
         if (!houveMovimento && Math.hypot(ev.clientX - origem.x, ev.clientY - origem.y) < LIMIAR_ARRASTO_PX) return;
@@ -116,7 +117,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         const c = coordenadas(ev.clientX, ev.clientY);
         if (!c) return;
         const fim = Math.max(minutos(item.hora_inicio) + 15, c.minutos + 15);
-        setArrastando({ id: item.id, data: item.data, horaInicio: item.hora_inicio, horaFim: hora(fim) });
+        ultimo = { id: item.id, data: item.data, horaInicio: item.hora_inicio, horaFim: hora(fim) };
+        setArrastando(ultimo);
       }
 
       function up() {
@@ -124,10 +126,8 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         document.removeEventListener('pointerup', up);
         if (!houveMovimento) return;
         suprimirCliqueFantasma();
-        setArrastando((atual) => {
-          if (atual) void confirmar(atual);
-          return null;
-        });
+        setArrastando(null);
+        if (ultimo) void confirmar(ultimo);
       }
 
       document.addEventListener('pointermove', move);
@@ -199,6 +199,16 @@ export function AgendaClient({ itens, clientes, locais, categorias, estudioId, i
         </div>
       </div>
     </div>
-    {aberto && <AgendaFormularioModal item={aberto === 'novo' ? undefined : aberto} clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />}
+    {aberto && (
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+        onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
+      >
+        <div className="w-full max-w-2xl">
+          <AgendaFormularioModal item={aberto === 'novo' ? undefined : aberto} clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
+        </div>
+      </div>
+    )}
   </div>;
 }
