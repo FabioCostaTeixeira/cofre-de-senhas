@@ -2,7 +2,7 @@
 
 import type { Agendamento, StatusAgendamento } from '@/lib/types';
 
-const ALTURA_BLOCO_PX = 20;
+const ALTURA_BLOCO_PX = 25;
 
 const CORES: Record<StatusAgendamento, string> = {
   cancelado: '#ef4444', agendado: '#22c55e', pre_agendado: '#eab308',

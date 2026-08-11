@@ -6,7 +6,7 @@ import { AgendaCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
 import type { Agendamento, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
 
-const ALTURA_BLOCO_PX = 20;
+const ALTURA_BLOCO_PX = 25;
 const BLOCOS_POR_DIA = 96;
 const LIMIAR_ARRASTO_PX = 4;
 const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];

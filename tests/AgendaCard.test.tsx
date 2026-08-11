@@ -6,10 +6,10 @@ import type { Agendamento } from '@/lib/types';
 
 describe('calcularPosicaoCard', () => {
   it('09:00 as 10:00 comeca no bloco 36 (9h * 4) e dura 4 blocos (1h)', () => {
-    expect(calcularPosicaoCard('09:00', '10:00')).toEqual({ top: 36 * 20, height: 4 * 20 });
+    expect(calcularPosicaoCard('09:00', '10:00')).toEqual({ top: 36 * 25, height: 4 * 25 });
   });
   it('00:00 as 00:15 comeca no topo e dura 1 bloco', () => {
-    expect(calcularPosicaoCard('00:00', '00:15')).toEqual({ top: 0, height: 20 });
+    expect(calcularPosicaoCard('00:00', '00:15')).toEqual({ top: 0, height: 25 });
   });
 });
 
