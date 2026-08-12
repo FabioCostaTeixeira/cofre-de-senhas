@@ -1,5 +1,27 @@
 # Cofre de Senhas — Contexto do Projeto
 
+## Módulo Contratação (venda de avulso/combo/plano) — BLOQUEIO DE MERGE PARA MAIN
+
+Implementado na branch `dev` (spec em
+[docs/superpowers/specs/2026-08-12-contratacao-plano-design.md](docs/superpowers/specs/2026-08-12-contratacao-plano-design.md),
+plano em [docs/superpowers/plans/2026-08-12-contratacao-plano.md](docs/superpowers/plans/2026-08-12-contratacao-plano.md)),
+testado (261/261, incluindo integração contra banco real) e revisado (4 tasks + revisão final
+de branch, todos os achados Important corrigidos).
+
+**Decisão do cliente (2026-08-12):** contratação cancelada some da lista principal
+(`listContratacoes` filtra `deleted_at is null`, mesmo padrão de produto/combo/plano) — não
+fica só marcada como "Cancelada" na tabela, que era a versão original do design e ficou
+poluída visualmente.
+
+**Pendência que BLOQUEIA merge/PR para `main`:** não existe hoje nenhuma forma de ver o
+histórico de contratações canceladas (a linha simplesmente desaparece, sem alternativa de
+consulta). O cliente pediu explicitamente pra reservar essa visão pra um futuro módulo de
+**relatórios/gestão financeira** — mas até esse módulo existir, dados de cancelamento ficam
+tecnicamente órfãos (presentes no banco via `contratacoes.deleted_at`, mas inacessíveis pela
+UI). Se for solicitado merge ou PR para `main` envolvendo este módulo antes desse módulo de
+relatórios existir, o motivo do bloqueio é este: falta de visibilidade do histórico de
+cancelamentos, decisão consciente e temporária do cliente, não um bug.
+
 ## Iniciativa em andamento: Unificação de Módulos (hub)
 
 Cliente contratou módulos adicionais além do Cofre de Senhas. Decisão: o Cofre de Senhas vira o
