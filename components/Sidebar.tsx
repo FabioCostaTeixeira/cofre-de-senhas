@@ -1,6 +1,6 @@
-import { Building2, Boxes, CalendarClock, CalendarDays, FolderKanban, Home, Layers, MapPin, Package, ScrollText, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
+import { Building2, Boxes, CalendarClock, CalendarDays, FolderKanban, Home, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
-import { canManageAgenda, canManageLocaisGravacao, canManageProdutos, canManageTerceiros } from '@/lib/authz';
+import { canManageAgenda, canManageContratacoes, canManageLocaisGravacao, canManageProdutos, canManageTerceiros } from '@/lib/authz';
 import { listModulesOfUser } from '@/lib/db/queries';
 import { MODULES } from '@/lib/modules';
 import type { Actor } from '@/lib/types';
@@ -56,6 +56,13 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
       : []),
     ...(canManageAgenda(actor)
       ? [{ label: 'Agenda', icon: <CalendarDays size={18} className={iconClass} />, items: [{ href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} className={iconClass} /> }] }]
+      : []),
+    ...(canManageContratacoes(actor)
+      ? [{
+          label: 'Contratações',
+          icon: <ShoppingCart size={18} className={iconClass} />,
+          items: [{ href: '/contratacoes', label: 'Contratações', icon: <ShoppingCart size={18} className={iconClass} /> }],
+        }]
       : []),
     // Cada módulo externo ganha seu próprio grupo de topo (não mais agrupado sob
     // um "Módulos" genérico), lado a lado com Cadastros e Cofre de Senhas.
