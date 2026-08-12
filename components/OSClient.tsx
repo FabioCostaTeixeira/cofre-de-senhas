@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import { formatarDataHora } from '@/lib/formato';
 import type { LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
 
 export type OSState = { error?: string; ok?: string };
@@ -216,7 +217,7 @@ function Lista({ itens, apagar }: { itens: OrdemServico[]; apagar: (id: string) 
                   </div>
                 ))}
               </td>
-              <td className="p-2">{os.created_at.slice(8, 10)}/{os.created_at.slice(5, 7)}/{os.created_at.slice(0, 4)}</td>
+              <td className="p-2">{formatarDataHora(os.created_at)}</td>
               <td className="p-2">
                 <button
                   type="button" className="btn btn-danger" disabled={cancelando === os.id}

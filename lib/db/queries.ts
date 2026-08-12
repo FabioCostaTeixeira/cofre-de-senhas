@@ -596,6 +596,14 @@ export async function purgeItem(
   } else if (kind === 'estudio') {
     await sql`delete from estudios where id = ${id} and deleted_at is not null`;
   } else if (kind === 'agendamento') {
+    // Sem `on delete cascade`/`set null` em os_itens.agendamento_id (ver migração 011): um
+    // agendamento pré-agendado por uma OS não pode ser expurgado, senão o delete estoura
+    // 23503 cru — mesmo padrão de checagem usado acima pra produto/combo/local.
+    const [{ n }] = (await sql`
+      select count(*)::int as n from os_itens where agendamento_id = ${id}`) as { n: number }[];
+    if (n > 0) {
+      throw new ItemEmUsoError('Este agendamento pertence a uma ordem de serviço.');
+    }
     await sql`delete from agendamentos where id = ${id} and deleted_at is not null`;
   }
 }

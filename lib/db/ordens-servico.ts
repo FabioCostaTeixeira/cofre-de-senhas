@@ -19,6 +19,12 @@ export class ConflitoAgendaError extends Error {
   }
 }
 
+export class ItemInativoError extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+  }
+}
+
 type SaldoLinha = { contratacao_item_id: string; disponivel: number };
 
 async function buscarSaldoDisponivel(clienteId: string, produtoId: string): Promise<SaldoLinha[]> {
@@ -48,19 +54,26 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
 
   const itensValidados: ItemValidado[] = [];
   const descontos: { itemIndex: number; contratacao_item_id: string; quantidade: number }[] = [];
+  // Rastreia, durante todo o loop, quanto já foi reservado de cada `contratacao_item_id` por
+  // linhas anteriores desta mesma OS — sem isso, duas linhas do mesmo produto releem o saldo
+  // do banco do zero e podem alocar a mesma unidade duas vezes (ver achado Critical 2).
+  const jaAlocado = new Map<string, number>();
 
   for (let i = 0; i < dados.itens.length; i++) {
     const item = dados.itens[i];
     assertUuid(item.produto_id);
     const produto = await getProduto(item.produto_id);
-    if (!produto || !produto.ativo) throw new NotFoundError();
+    if (!produto || !produto.ativo) throw new ItemInativoError('Este produto não está disponível.');
 
     const saldoLinhas = await buscarSaldoDisponivel(dados.cliente_id, item.produto_id);
     let restante = item.quantidade;
     for (const linha of saldoLinhas) {
       if (restante <= 0) break;
-      const usar = Math.min(restante, linha.disponivel);
+      const disponivelReal = linha.disponivel - (jaAlocado.get(linha.contratacao_item_id) ?? 0);
+      if (disponivelReal <= 0) continue;
+      const usar = Math.min(restante, disponivelReal);
       descontos.push({ itemIndex: i, contratacao_item_id: linha.contratacao_item_id, quantidade: usar });
+      jaAlocado.set(linha.contratacao_item_id, (jaAlocado.get(linha.contratacao_item_id) ?? 0) + usar);
       restante -= usar;
     }
     if (restante > 0) throw new SaldoInsuficienteError(produto.nome);
@@ -73,6 +86,15 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
       }
       if (await existeConflito(item.estudio_id!, item.data!, item.hora_inicio!, item.hora_fim!, null)) {
         throw new ConflitoAgendaError('Este estúdio já tem outro agendamento nesse horário.');
+      }
+      // As checagens acima só olham o banco — agendamentos de outras linhas desta mesma OS
+      // ainda não foram gravados (só existem depois da transação). Compara também contra as
+      // linhas pré-agendadas já validadas nesta chamada (ver achado Critical 3).
+      const colideComOutraLinha = itensValidados.some((outro) =>
+        outro.pre_agendar && outro.estudio_id === item.estudio_id && outro.data === item.data
+        && item.hora_inicio! < outro.hora_fim! && item.hora_fim! > outro.hora_inicio!);
+      if (colideComOutraLinha) {
+        throw new ConflitoAgendaError('Dois itens desta OS pedem o mesmo estúdio no mesmo horário.');
       }
     }
 

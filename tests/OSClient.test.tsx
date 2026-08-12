@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { OSClient } from '@/components/OSClient';
+import { formatarDataHora } from '@/lib/formato';
 import type { LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
 
 const cliente: Terceiro = {
@@ -47,6 +48,18 @@ describe('OSClient', () => {
     expect(screen.queryByLabelText('Data 1')).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('Pré-agendar item 1'));
     expect(screen.getByLabelText('Data 1')).toBeInTheDocument();
+  });
+
+  it('lista ordem de serviço cujo created_at é um Date real (regressão do driver em runtime)', () => {
+    // O driver @neondatabase/serverless devolve timestamptz como objeto Date em runtime,
+    // mesmo o tipo declarando `string` — `new Date().toISOString()` aqui simula esse valor
+    // real (diferente da fixture `osExistente`, que usa string literal). Antes do fix, a
+    // Lista fazia `.slice(...)` direto no valor e quebrava com `TypeError` quando o valor
+    // vinha como Date de verdade.
+    const agora = new Date().toISOString();
+    const osComDateReal: OrdemServico = { ...osExistente, id: '66666666-6666-6666-6666-666666666666', created_at: agora };
+    render(<OSClient itens={[osComDateReal]} clientes={[cliente]} produtos={[produto]} locais={[local]} criar={criar} apagar={apagar} />);
+    expect(screen.getByText(formatarDataHora(agora))).toBeInTheDocument();
   });
 
   it('cancelar chama apagar com o id da ordem de serviço', async () => {

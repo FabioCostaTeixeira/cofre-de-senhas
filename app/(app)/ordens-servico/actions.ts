@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { requireMaster } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
-import { cancelarOrdemServico, ConflitoAgendaError, createOrdemServico, SaldoInsuficienteError } from '@/lib/db/ordens-servico';
+import {
+  cancelarOrdemServico, ConflitoAgendaError, createOrdemServico, ItemInativoError, SaldoInsuficienteError,
+} from '@/lib/db/ordens-servico';
 import { lerDadosOS } from '@/lib/os-form';
 import { isUuid } from '@/lib/validation';
 import type { OSState } from '@/components/OSClient';
@@ -19,7 +21,9 @@ export async function criarOS(_prev: OSState, formData: FormData): Promise<OSSta
   try {
     id = await createOrdemServico(dados);
   } catch (err) {
-    if (err instanceof SaldoInsuficienteError || err instanceof ConflitoAgendaError) return { error: err.message };
+    if (err instanceof SaldoInsuficienteError || err instanceof ConflitoAgendaError || err instanceof ItemInativoError) {
+      return { error: err.message };
+    }
     throw err;
   }
   await audit({ actorId: actor.id, action: 'create', entityType: 'ordem_servico', entityId: id });
