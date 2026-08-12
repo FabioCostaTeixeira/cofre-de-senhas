@@ -279,3 +279,38 @@ export type DadosBloqueio = {
   hora_fim: string;
   motivo: string | null;
 };
+
+export type TipoContratacao = 'avulso' | 'combo' | 'plano';
+
+export type ContratacaoItemSaldo = {
+  produto_id: string;
+  produto_nome: string;
+  quantidade_total: number;
+  quantidade_consumida: number;
+};
+
+export type Contratacao = {
+  id: string;
+  cliente_id: string;
+  cliente_nome: string;
+  tipo: TipoContratacao;
+  produto_id: string | null;
+  combo_id: string | null;
+  plano_id: string | null;
+  item_nome: string;
+  quantidade: number;
+  preco_total: number;
+  data_validade: string | null;
+  cancelada: boolean;
+  created_at: string;
+  itens: ContratacaoItemSaldo[];
+};
+
+export type DadosContratacao = {
+  cliente_id: string;
+  tipo: TipoContratacao;
+  produto_id: string | null;
+  combo_id: string | null;
+  plano_id: string | null;
+  quantidade: number;
+};
