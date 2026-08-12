@@ -27,6 +27,16 @@ const contratacaoExistente: Contratacao = {
   quantidade: 2, preco_total: 200, data_validade: null, cancelada: false, created_at: '2026-01-01T00:00:00Z',
   itens: [{ produto_id: produto.id, produto_nome: produto.nome, quantidade_total: 2, quantidade_consumida: 0 }],
 };
+const clienteDois: Terceiro = {
+  id: '66666666-6666-6666-6666-666666666666', nome: 'Cliente Dois', contato_responsavel: null,
+  email: null, telefone: null, cidade: null, uf: null, created_at: '2026-01-01T00:00:00Z',
+};
+const contratacaoClienteDois: Contratacao = {
+  id: '77777777-7777-7777-7777-777777777777', cliente_id: clienteDois.id, cliente_nome: clienteDois.nome,
+  tipo: 'avulso', produto_id: produto.id, combo_id: null, plano_id: null, item_nome: produto.nome,
+  quantidade: 1, preco_total: 100, data_validade: null, cancelada: false, created_at: '2026-01-02T00:00:00Z',
+  itens: [{ produto_id: produto.id, produto_nome: produto.nome, quantidade_total: 1, quantidade_consumida: 0 }],
+};
 
 const criar = vi.fn();
 const apagar = vi.fn();
@@ -71,5 +81,22 @@ describe('ContratacaoClient', () => {
     );
     fireEvent.click(screen.getByText('Cancelar'));
     await vi.waitFor(() => expect(apagar).toHaveBeenCalledWith(contratacaoExistente.id));
+  });
+
+  it('busca por cliente filtra a lista', () => {
+    render(
+      <ContratacaoClient
+        itens={[contratacaoExistente, contratacaoClienteDois]}
+        clientes={[cliente, clienteDois]} produtos={[produto]} combos={[combo]} planos={[plano]}
+        criar={criar} apagar={apagar}
+      />,
+    );
+    expect(screen.getByText('Cliente Um')).toBeInTheDocument();
+    expect(screen.getByText('Cliente Dois')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Buscar cliente'), { target: { value: 'Dois' } });
+
+    expect(screen.getByText('Cliente Dois')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente Um')).not.toBeInTheDocument();
   });
 });

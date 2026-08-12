@@ -94,9 +94,16 @@ function Formulario({
   );
 }
 
-function Lista({ itens, apagar }: { itens: Contratacao[]; apagar: (id: string) => Promise<{ error?: string }> }) {
+function Lista({
+  itens, busca, apagar,
+}: { itens: Contratacao[]; busca: string; apagar: (id: string) => Promise<{ error?: string }> }) {
   const [erro, setErro] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState<string | null>(null);
+
+  const buscaNormalizada = busca.trim().toLowerCase();
+  const itensFiltrados = buscaNormalizada
+    ? itens.filter((c) => c.cliente_nome.toLowerCase().includes(buscaNormalizada))
+    : itens;
 
   async function cancelarClique(id: string) {
     if (!confirm('Cancelar esta contratação?')) return;
@@ -123,7 +130,7 @@ function Lista({ itens, apagar }: { itens: Contratacao[]; apagar: (id: string) =
           </tr>
         </thead>
         <tbody>
-          {itens.map((c) => (
+          {itensFiltrados.map((c) => (
             <tr key={c.id}>
               <td className="p-2">{c.cliente_nome}</td>
               <td className="p-2">{ROTULOS_TIPO[c.tipo]}</td>
@@ -155,7 +162,11 @@ function Lista({ itens, apagar }: { itens: Contratacao[]; apagar: (id: string) =
           ))}
         </tbody>
       </table>
-      {itens.length === 0 && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhuma contratação cadastrada.</p>}
+      {itensFiltrados.length === 0 && (
+        <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
+          {buscaNormalizada ? 'Nenhuma contratação encontrada.' : 'Nenhuma contratação cadastrada.'}
+        </p>
+      )}
       {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
     </div>
   );
@@ -167,6 +178,8 @@ export function ContratacaoClient({
   itens: Contratacao[]; clientes: Terceiro[]; produtos: Produto[]; combos: Combo[]; planos: Plano[];
   criar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
 }) {
+  const [busca, setBusca] = useState('');
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Contratações</h1>
@@ -174,7 +187,19 @@ export function ContratacaoClient({
         clientes={clientes} produtos={produtos} combos={combos} planos={planos} criar={criar}
         abertoPorPadrao={itens.length === 0}
       />
-      <Lista itens={itens} apagar={apagar} />
+      <label className="block space-y-1">
+        <span className="text-sm">Buscar cliente</span>
+        <input
+          type="text"
+          aria-label="Buscar cliente"
+          className="input"
+          style={{ width: 'auto' }}
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Nome do cliente"
+        />
+      </label>
+      <Lista itens={itens} busca={busca} apagar={apagar} />
     </div>
   );
 }

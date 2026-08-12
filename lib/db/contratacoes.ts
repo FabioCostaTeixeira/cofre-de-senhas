@@ -69,6 +69,7 @@ async function resolverPlano(planoId: string, quantidade: number): Promise<Resol
 }
 
 export async function createContratacao(dados: DadosContratacao): Promise<string> {
+  assertUuid(dados.cliente_id);
   const resolvido = dados.tipo === 'avulso'
     ? await resolverAvulso(dados.produto_id!, dados.quantidade)
     : dados.tipo === 'combo'
