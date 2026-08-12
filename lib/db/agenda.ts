@@ -16,7 +16,7 @@ export class ConflitoHorarioError extends Error {
  * update/mover (sem isso, editar um agendamento sem mudar horário "conflitaria"
  * consigo mesmo).
  */
-async function existeConflito(
+export async function existeConflito(
   estudioId: string, data: string, horaInicio: string, horaFim: string, ignorarId: string | null,
 ): Promise<boolean> {
   const rows = (await sql`

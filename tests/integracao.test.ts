@@ -1363,4 +1363,257 @@ descreve('integração com o banco real', () => {
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
+
+  it('FIFO desconta da contratação mais antiga primeiro, criando os_item_saldos correspondentes', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const contr = await import('@/lib/db/contratacoes');
+    const os = await import('@/lib/db/ordens-servico');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-os-1`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-os-1`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-os-1`, descricao: null, atributos: {}, preco: 50, ativo: true,
+    });
+
+    const contratacao1Id = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 2,
+    });
+    const contratacao2Id = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 5,
+    });
+
+    const osId = await os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 4, pre_agendar: false,
+        data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
+      }],
+    });
+    expect(osId).toBeTruthy();
+
+    const itemContratacao1 = (await sql`
+      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacao1Id}`) as
+      { quantidade_consumida: number }[];
+    const itemContratacao2 = (await sql`
+      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacao2Id}`) as
+      { quantidade_consumida: number }[];
+    // Contratação 1 (mais antiga) tinha saldo 2 — esgota primeiro. Contratação 2 cobre o resto (2).
+    expect(itemContratacao1[0].quantidade_consumida).toBe(2);
+    expect(itemContratacao2[0].quantidade_consumida).toBe(2);
+
+    await sql`delete from ordens_servico where id = ${osId}`;
+    await sql`delete from contratacao_itens where contratacao_id in (${contratacao1Id}, ${contratacao2Id})`;
+    await sql`delete from contratacoes where id in (${contratacao1Id}, ${contratacao2Id})`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('saldo insuficiente rejeita a OS inteira, sem gravar nada', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const contr = await import('@/lib/db/contratacoes');
+    const os = await import('@/lib/db/ordens-servico');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-os-2`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-os-2`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoAId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produtoA-os-2`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+    const produtoBId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produtoB-os-2`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+
+    const contratacaoId = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoAId, combo_id: null, plano_id: null, quantidade: 5,
+    });
+    // produtoB nunca foi contratado — saldo 0.
+
+    await expect(os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [
+        { produto_id: produtoAId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
+        { produto_id: produtoBId, quantidade: 1, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
+      ],
+    })).rejects.toThrow(os.SaldoInsuficienteError);
+
+    const osRows = (await sql`select id from ordens_servico where cliente_id = ${clienteId}`) as { id: string }[];
+    expect(osRows).toHaveLength(0);
+    const itemA = (await sql`
+      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_consumida: number }[];
+    expect(itemA[0].quantidade_consumida).toBe(0);
+
+    await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
+    await sql`delete from contratacoes where id = ${contratacaoId}`;
+    await sql`delete from produtos where id in (${produtoAId}, ${produtoBId})`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('item pré-agendado cria agendamento pre_agendado; conflito de horário e bloqueio de estúdio rejeitam a OS inteira', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const contr = await import('@/lib/db/contratacoes');
+    const ag = await import('@/lib/db/agenda');
+    const bloqueios = await import('@/lib/db/bloqueios');
+    const os = await import('@/lib/db/ordens-servico');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-os-3`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-os-3`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-os-3`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-os-3`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio OS 3' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+
+    const contratacaoId = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 3,
+    });
+
+    const osId = await os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 1, pre_agendar: true,
+        data: '2026-09-10', hora_inicio: '09:00', hora_fim: '10:00', local_id: localId, estudio_id: estudio.id,
+      }],
+    });
+    const [{ agendamento_id: agendamentoId }] = (await sql`
+      select agendamento_id from os_itens where os_id = ${osId}`) as { agendamento_id: string }[];
+    expect(agendamentoId).toBeTruthy();
+    const agRows = (await sql`
+      select status, categoria_produto_id, cliente_id from agendamentos where id = ${agendamentoId}`) as
+      { status: string; categoria_produto_id: string; cliente_id: string }[];
+    expect(agRows[0].status).toBe('pre_agendado');
+    expect(agRows[0].categoria_produto_id).toBe(categoriaId);
+    expect(agRows[0].cliente_id).toBe(clienteId);
+
+    const conflitanteId = await ag.createAgendamento({
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      status: 'agendado', data: '2026-09-11', hora_inicio: '14:00', hora_fim: '15:00',
+    });
+    await expect(os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 1, pre_agendar: true,
+        data: '2026-09-11', hora_inicio: '14:30', hora_fim: '15:30', local_id: localId, estudio_id: estudio.id,
+      }],
+    })).rejects.toThrow(os.ConflitoAgendaError);
+    const consumidoDepoisConflito = (await sql`
+      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_consumida: number }[];
+    expect(consumidoDepoisConflito[0].quantidade_consumida).toBe(1);
+
+    const bloqueioId = await bloqueios.createBloqueio({
+      estudio_id: estudio.id, data: '2026-09-12', hora_inicio: '09:00', hora_fim: '12:00', motivo: 'manutenção',
+    });
+    await expect(os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 1, pre_agendar: true,
+        data: '2026-09-12', hora_inicio: '10:00', hora_fim: '11:00', local_id: localId, estudio_id: estudio.id,
+      }],
+    })).rejects.toThrow(os.ConflitoAgendaError);
+
+    await sql`delete from ordens_servico where id = ${osId}`;
+    await sql`delete from agendamentos where id in (${agendamentoId}, ${conflitanteId})`;
+    await sql`delete from bloqueios_estudio where id = ${bloqueioId}`;
+    await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
+    await sql`delete from contratacoes where id = ${contratacaoId}`;
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('cancelamento devolve saldo, cancela agendamentos vinculados, e a OS some da lista', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const lg = await import('@/lib/db/locais-gravacao');
+    const contr = await import('@/lib/db/contratacoes');
+    const os = await import('@/lib/db/ordens-servico');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-os-4`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-os-4`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-os-4`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+    const localId = await lg.createLocal({
+      nome: `${marca}-local-os-4`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio OS 4' }],
+    });
+    const [estudio] = (await lg.getLocal(localId))!.estudios;
+
+    const contratacaoId = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 3,
+    });
+
+    const osId = await os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 2, pre_agendar: true,
+        data: '2026-09-15', hora_inicio: '09:00', hora_fim: '10:00', local_id: localId, estudio_id: estudio.id,
+      }],
+    });
+    const [{ agendamento_id: agendamentoId }] = (await sql`
+      select agendamento_id from os_itens where os_id = ${osId}`) as { agendamento_id: string }[];
+
+    const antes = (await sql`
+      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_consumida: number }[];
+    expect(antes[0].quantidade_consumida).toBe(2);
+
+    await os.cancelarOrdemServico(osId);
+
+    const depois = (await sql`
+      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_consumida: number }[];
+    expect(depois[0].quantidade_consumida).toBe(0);
+
+    const agDepois = (await sql`select status from agendamentos where id = ${agendamentoId}`) as { status: string }[];
+    expect(agDepois[0].status).toBe('cancelado');
+
+    const lista = await os.listOrdensServico();
+    expect(lista.map((o) => o.id)).not.toContain(osId);
+
+    await expect(os.cancelarOrdemServico(osId)).rejects.toThrow();
+
+    await sql`delete from ordens_servico where id = ${osId}`;
+    await sql`delete from agendamentos where id = ${agendamentoId}`;
+    await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
+    await sql`delete from contratacoes where id = ${contratacaoId}`;
+    await sql`delete from estudios where local_id = ${localId}`;
+    await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
 });
