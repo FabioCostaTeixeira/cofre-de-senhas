@@ -52,12 +52,14 @@ describe('OSClient', () => {
 
   it('lista ordem de serviço cujo created_at é um Date real (regressão do driver em runtime)', () => {
     // O driver @neondatabase/serverless devolve timestamptz como objeto Date em runtime,
-    // mesmo o tipo declarando `string` — `new Date().toISOString()` aqui simula esse valor
-    // real (diferente da fixture `osExistente`, que usa string literal). Antes do fix, a
-    // Lista fazia `.slice(...)` direto no valor e quebrava com `TypeError` quando o valor
-    // vinha como Date de verdade.
-    const agora = new Date().toISOString();
-    const osComDateReal: OrdemServico = { ...osExistente, id: '66666666-6666-6666-6666-666666666666', created_at: agora };
+    // mesmo o tipo declarando `string` — o cast abaixo simula esse valor real (diferente
+    // da fixture `osExistente`, que usa string literal). Antes do fix, a Lista fazia
+    // `.slice(...)` direto no valor e quebrava com `TypeError` quando o valor vinha como
+    // Date de verdade — `.toISOString()` sozinho já é string e não reproduzia o bug.
+    const agora = new Date();
+    const osComDateReal: OrdemServico = {
+      ...osExistente, id: '66666666-6666-6666-6666-666666666666', created_at: agora as unknown as string,
+    };
     render(<OSClient itens={[osComDateReal]} clientes={[cliente]} produtos={[produto]} locais={[local]} criar={criar} apagar={apagar} />);
     expect(screen.getByText(formatarDataHora(agora))).toBeInTheDocument();
   });
