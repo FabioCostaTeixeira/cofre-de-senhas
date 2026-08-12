@@ -1,0 +1,59 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom/vitest';
+import { OSClient } from '@/components/OSClient';
+import type { LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
+
+const cliente: Terceiro = {
+  id: '11111111-1111-1111-1111-111111111111', nome: 'Cliente Um', contato_responsavel: null,
+  email: null, telefone: null, cidade: null, uf: null, created_at: '2026-01-01T00:00:00Z',
+};
+const produto: Produto = {
+  id: '22222222-2222-2222-2222-222222222222', categoria_id: 'cat1', nome: 'Sessão de Estúdio',
+  descricao: null, atributos: {}, preco: 100, ativo: true, created_at: '2026-01-01T00:00:00Z',
+};
+const local: LocalGravacao = {
+  id: '33333333-3333-3333-3333-333333333333', nome: 'Estúdio Central', endereco: null, responsavel: null,
+  created_at: '2026-01-01T00:00:00Z',
+  estudios: [{
+    id: '44444444-4444-4444-4444-444444444444', local_id: '33333333-3333-3333-3333-333333333333',
+    nome: 'Sala A', created_at: '2026-01-01T00:00:00Z',
+  }],
+};
+const osExistente: OrdemServico = {
+  id: '55555555-5555-5555-5555-555555555555', cliente_id: cliente.id, cliente_nome: cliente.nome,
+  created_at: '2026-01-01T00:00:00Z',
+  itens: [{ produto_id: produto.id, produto_nome: produto.nome, quantidade: 2, pre_agendar: true }],
+};
+
+const criar = vi.fn();
+const apagar = vi.fn();
+
+afterEach(() => cleanup());
+
+describe('OSClient', () => {
+  it('lista ordens de serviço com cliente e itens resumidos', () => {
+    render(<OSClient itens={[osExistente]} clientes={[cliente]} produtos={[produto]} locais={[local]} criar={criar} apagar={apagar} />);
+    expect(screen.getByText('Cliente Um')).toBeInTheDocument();
+    expect(screen.getByText('2x Sessão de Estúdio (pré-agendado)')).toBeInTheDocument();
+  });
+
+  it('adicionar item cria nova linha, e marcar pré-agendar expande campos de data/horário', () => {
+    render(<OSClient itens={[]} clientes={[cliente]} produtos={[produto]} locais={[local]} criar={criar} apagar={apagar} />);
+    expect(screen.queryByLabelText('Produto 2')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('+ Adicionar item'));
+    expect(screen.getByLabelText('Produto 2')).toBeInTheDocument();
+
+    expect(screen.queryByLabelText('Data 1')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Pré-agendar item 1'));
+    expect(screen.getByLabelText('Data 1')).toBeInTheDocument();
+  });
+
+  it('cancelar chama apagar com o id da ordem de serviço', async () => {
+    apagar.mockResolvedValueOnce({});
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<OSClient itens={[osExistente]} clientes={[cliente]} produtos={[produto]} locais={[local]} criar={criar} apagar={apagar} />);
+    fireEvent.click(screen.getByText('Cancelar'));
+    await vi.waitFor(() => expect(apagar).toHaveBeenCalledWith(osExistente.id));
+  });
+});
