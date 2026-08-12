@@ -1166,4 +1166,196 @@ descreve('integração com o banco real', () => {
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
+
+  it('avulso e combo: expande itens corretamente e calcula preço total', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const combos = await import('@/lib/db/combos');
+    const ct = await import('@/lib/db/contratacoes');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-contratacao-1`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-contratacao-1`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoAId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produtoA`, descricao: null, atributos: {}, preco: 100, ativo: true,
+    });
+    const produtoBId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produtoB`, descricao: null, atributos: {}, preco: 50, ativo: true,
+    });
+    const comboId = await combos.createCombo({
+      nome: `${marca}-combo`, descricao: null, preco: 300, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoAId, quantidade: 2 }, { tipo: 'produto', valor: produtoBId, quantidade: 1 }],
+    });
+
+    // Avulso: 3x produtoA, preço = 100 * 3.
+    const avulsoId = await ct.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoAId, combo_id: null, plano_id: null, quantidade: 3,
+    });
+    const lista1 = await ct.listContratacoes();
+    const avulso = lista1.find((c) => c.id === avulsoId)!;
+    expect(avulso.preco_total).toBe(300);
+    expect(avulso.data_validade).toBeNull();
+    expect(avulso.itens).toEqual([
+      { produto_id: produtoAId, produto_nome: `${marca}-produtoA`, quantidade_total: 3, quantidade_consumida: 0 },
+    ]);
+
+    // Combo comprado 2x: itens do combo (2x produtoA, 1x produtoB) multiplicados por 2.
+    const comboContratId = await ct.createContratacao({
+      cliente_id: clienteId, tipo: 'combo', produto_id: null, combo_id: comboId, plano_id: null, quantidade: 2,
+    });
+    const lista2 = await ct.listContratacoes();
+    const comboContrat = lista2.find((c) => c.id === comboContratId)!;
+    expect(comboContrat.preco_total).toBe(600);
+    const itensOrdenados = [...comboContrat.itens].sort((a, b) => a.produto_nome.localeCompare(b.produto_nome));
+    expect(itensOrdenados).toEqual([
+      { produto_id: produtoAId, produto_nome: `${marca}-produtoA`, quantidade_total: 4, quantidade_consumida: 0 },
+      { produto_id: produtoBId, produto_nome: `${marca}-produtoB`, quantidade_total: 2, quantidade_consumida: 0 },
+    ]);
+
+    await sql`delete from contratacoes where id in (${avulsoId}, ${comboContratId})`;
+    await sql`delete from combo_itens where combo_id = ${comboId}`;
+    await sql`delete from combos where id = ${comboId}`;
+    await sql`delete from produtos where id in (${produtoAId}, ${produtoBId})`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('plano pacote_fechado expande produto direto e combo aninhado, soma repetidos e calcula validade; assinatura não expira', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const combos = await import('@/lib/db/combos');
+    const planos = await import('@/lib/db/planos');
+    const ct = await import('@/lib/db/contratacoes');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-contratacao-2`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-contratacao-2`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoAId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produtoA2`, descricao: null, atributos: {}, preco: 100, ativo: true,
+    });
+    const produtoBId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produtoB2`, descricao: null, atributos: {}, preco: 50, ativo: true,
+    });
+    // Combo com 2x produtoA — usado dentro do plano, pra testar expansão de 2 níveis.
+    const comboId = await combos.createCombo({
+      nome: `${marca}-combo2`, descricao: null, preco: 250, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoAId, quantidade: 2 }],
+    });
+    // Plano pacote_fechado: 1x produtoA direto + 1x comboId (que expande em 2x produtoA) → total produtoA = 3.
+    const planoFechadoId = await planos.createPlano({
+      nome: `${marca}-plano-fechado`, descricao: null, tipo_cobranca: 'pacote_fechado',
+      validade_dias: 30, ciclo: null, preco: 500, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoAId, quantidade: 1 }, { tipo: 'combo', valor: comboId, quantidade: 1 }],
+    });
+    const planoAssinaturaId = await planos.createPlano({
+      nome: `${marca}-plano-assinatura`, descricao: null, tipo_cobranca: 'assinatura',
+      validade_dias: null, ciclo: 'mensal', preco: 200, ativo: true,
+      itens: [{ tipo: 'produto', valor: produtoBId, quantidade: 3 }],
+    });
+
+    const fechadoId = await ct.createContratacao({
+      cliente_id: clienteId, tipo: 'plano', produto_id: null, combo_id: null, plano_id: planoFechadoId, quantidade: 1,
+    });
+    const listaFechado = await ct.listContratacoes();
+    const fechado = listaFechado.find((c) => c.id === fechadoId)!;
+    expect(fechado.itens).toEqual([
+      { produto_id: produtoAId, produto_nome: `${marca}-produtoA2`, quantidade_total: 3, quantidade_consumida: 0 },
+    ]);
+    const esperado = new Date();
+    esperado.setDate(esperado.getDate() + 30);
+    expect(fechado.data_validade).toBe(esperado.toISOString().slice(0, 10));
+
+    const assinaturaId = await ct.createContratacao({
+      cliente_id: clienteId, tipo: 'plano', produto_id: null, combo_id: null, plano_id: planoAssinaturaId, quantidade: 1,
+    });
+    const listaAssinatura = await ct.listContratacoes();
+    const assinatura = listaAssinatura.find((c) => c.id === assinaturaId)!;
+    expect(assinatura.data_validade).toBeNull();
+    expect(assinatura.itens).toEqual([
+      { produto_id: produtoBId, produto_nome: `${marca}-produtoB2`, quantidade_total: 3, quantidade_consumida: 0 },
+    ]);
+
+    await sql`delete from contratacoes where id in (${fechadoId}, ${assinaturaId})`;
+    await sql`delete from plano_itens where plano_id in (${planoFechadoId}, ${planoAssinaturaId})`;
+    await sql`delete from planos where id in (${planoFechadoId}, ${planoAssinaturaId})`;
+    await sql`delete from combo_itens where combo_id = ${comboId}`;
+    await sql`delete from combos where id = ${comboId}`;
+    await sql`delete from produtos where id in (${produtoAId}, ${produtoBId})`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('contratação de item inativo é rejeitada', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const ct = await import('@/lib/db/contratacoes');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-contratacao-3`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-contratacao-3`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-inativo`, descricao: null, atributos: {}, preco: 10, ativo: false,
+    });
+
+    await expect(ct.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 1,
+    })).rejects.toThrow(ct.ItemInativoError);
+
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('cancelamento faz soft-delete sem alterar quantidade_consumida', async () => {
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const ct = await import('@/lib/db/contratacoes');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-contratacao-4`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-contratacao-4`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-cancelamento`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+
+    const id = await ct.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 5,
+    });
+    // Simula consumo parcial que a futura OS faria.
+    await sql`update contratacao_itens set quantidade_consumida = 2 where contratacao_id = ${id}`;
+
+    await ct.softDeleteContratacao(id);
+    const lista = await ct.listContratacoes();
+    const cancelada = lista.find((c) => c.id === id)!;
+    expect(cancelada.cancelada).toBe(true);
+    expect(cancelada.itens[0].quantidade_consumida).toBe(2);
+    expect(cancelada.itens[0].quantidade_total).toBe(5);
+
+    await expect(ct.softDeleteContratacao(id)).rejects.toThrow();
+
+    await sql`delete from contratacoes where id = ${id}`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
 });
