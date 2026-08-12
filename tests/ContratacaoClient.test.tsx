@@ -24,7 +24,7 @@ const plano: Plano = {
 const contratacaoExistente: Contratacao = {
   id: '55555555-5555-5555-5555-555555555555', cliente_id: cliente.id, cliente_nome: cliente.nome,
   tipo: 'avulso', produto_id: produto.id, combo_id: null, plano_id: null, item_nome: produto.nome,
-  quantidade: 2, preco_total: 200, data_validade: null, cancelada: false, created_at: '2026-01-01T00:00:00Z',
+  quantidade: 2, preco_total: 200, data_validade: null, created_at: '2026-01-01T00:00:00Z',
   itens: [{ produto_id: produto.id, produto_nome: produto.nome, quantidade_total: 2, quantidade_consumida: 0 }],
 };
 const clienteDois: Terceiro = {
@@ -34,7 +34,7 @@ const clienteDois: Terceiro = {
 const contratacaoClienteDois: Contratacao = {
   id: '77777777-7777-7777-7777-777777777777', cliente_id: clienteDois.id, cliente_nome: clienteDois.nome,
   tipo: 'avulso', produto_id: produto.id, combo_id: null, plano_id: null, item_nome: produto.nome,
-  quantidade: 1, preco_total: 100, data_validade: null, cancelada: false, created_at: '2026-01-02T00:00:00Z',
+  quantidade: 1, preco_total: 100, data_validade: null, created_at: '2026-01-02T00:00:00Z',
   itens: [{ produto_id: produto.id, produto_nome: produto.nome, quantidade_total: 1, quantidade_consumida: 0 }],
 };
 

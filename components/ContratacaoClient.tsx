@@ -124,7 +124,6 @@ function Lista({
             <th className="text-left p-2">Qtd</th>
             <th className="text-left p-2">Total</th>
             <th className="text-left p-2">Validade</th>
-            <th className="text-left p-2">Status</th>
             <th className="text-left p-2">Saldo</th>
             <th className="p-2" />
           </tr>
@@ -140,7 +139,6 @@ function Lista({
               <td className="p-2">
                 {c.data_validade ? `${c.data_validade.slice(8, 10)}/${c.data_validade.slice(5, 7)}/${c.data_validade.slice(0, 4)}` : '—'}
               </td>
-              <td className="p-2">{c.cancelada ? 'Cancelada' : 'Ativa'}</td>
               <td className="p-2">
                 {c.itens.map((i) => (
                   <div key={i.produto_id}>
@@ -149,14 +147,12 @@ function Lista({
                 ))}
               </td>
               <td className="p-2">
-                {!c.cancelada && (
-                  <button
-                    type="button" className="btn btn-danger" disabled={cancelando === c.id}
-                    onClick={() => void cancelarClique(c.id)}
-                  >
-                    Cancelar
-                  </button>
-                )}
+                <button
+                  type="button" className="btn btn-danger" disabled={cancelando === c.id}
+                  onClick={() => void cancelarClique(c.id)}
+                >
+                  Cancelar
+                </button>
               </td>
             </tr>
           ))}

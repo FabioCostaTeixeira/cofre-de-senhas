@@ -1345,11 +1345,16 @@ descreve('integração com o banco real', () => {
     await sql`update contratacao_itens set quantidade_consumida = 2 where contratacao_id = ${id}`;
 
     await ct.softDeleteContratacao(id);
+    // Cancelada some da lista (mesmo padrão de soft-delete do resto do sistema).
     const lista = await ct.listContratacoes();
-    const cancelada = lista.find((c) => c.id === id)!;
-    expect(cancelada.cancelada).toBe(true);
-    expect(cancelada.itens[0].quantidade_consumida).toBe(2);
-    expect(cancelada.itens[0].quantidade_total).toBe(5);
+    expect(lista.map((c) => c.id)).not.toContain(id);
+
+    // Mas o saldo consumido continua intacto no banco, preservando o histórico.
+    const itemRow = (await sql`
+      select quantidade_total, quantidade_consumida from contratacao_itens where contratacao_id = ${id}`) as
+      { quantidade_total: number; quantidade_consumida: number }[];
+    expect(itemRow[0].quantidade_consumida).toBe(2);
+    expect(itemRow[0].quantidade_total).toBe(5);
 
     await expect(ct.softDeleteContratacao(id)).rejects.toThrow();
 

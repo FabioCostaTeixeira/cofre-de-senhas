@@ -88,6 +88,12 @@ export async function createContratacao(dados: DadosContratacao): Promise<string
   return id;
 }
 
+/**
+ * Só contratações ativas — cancelada some da lista (mesmo padrão de soft-delete do
+ * resto do sistema: produto/combo/plano também somem da lista ao apagar). Histórico
+ * de canceladas fica pra um futuro módulo de relatórios/gestão financeira, que pode
+ * ler `contratacoes`/`contratacao_itens` diretamente sem esse filtro.
+ */
 export async function listContratacoes(): Promise<Contratacao[]> {
   return (await sql`
     select ct.id, ct.cliente_id, cl.nome as cliente_nome, ct.tipo,
@@ -95,7 +101,6 @@ export async function listContratacoes(): Promise<Contratacao[]> {
            coalesce(p.nome, c.nome, pl.nome) as item_nome,
            ct.quantidade, ct.preco_total::float8 as preco_total,
            ct.data_validade::text as data_validade,
-           (ct.deleted_at is not null) as cancelada,
            ct.created_at,
            coalesce(
              json_agg(
@@ -112,6 +117,7 @@ export async function listContratacoes(): Promise<Contratacao[]> {
       left join planos pl on pl.id = ct.plano_id
       left join contratacao_itens ci on ci.contratacao_id = ct.id
       left join produtos cp on cp.id = ci.produto_id
+     where ct.deleted_at is null
      group by ct.id, cl.nome, p.nome, c.nome, pl.nome
      order by ct.created_at desc`) as Contratacao[];
 }

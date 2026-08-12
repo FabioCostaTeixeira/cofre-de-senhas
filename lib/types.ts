@@ -301,7 +301,6 @@ export type Contratacao = {
   quantidade: number;
   preco_total: number;
   data_validade: string | null;
-  cancelada: boolean;
   created_at: string;
   itens: ContratacaoItemSaldo[];
 };
