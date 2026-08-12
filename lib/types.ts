@@ -313,3 +313,34 @@ export type DadosContratacao = {
   plano_id: string | null;
   quantidade: number;
 };
+
+export type OSItemLinha = {
+  produto_id: string;
+  produto_nome: string;
+  quantidade: number;
+  pre_agendar: boolean;
+};
+
+export type OrdemServico = {
+  id: string;
+  cliente_id: string;
+  cliente_nome: string;
+  created_at: string;
+  itens: OSItemLinha[];
+};
+
+export type DadosOSItem = {
+  produto_id: string;
+  quantidade: number;
+  pre_agendar: boolean;
+  data: string | null;
+  hora_inicio: string | null;
+  hora_fim: string | null;
+  local_id: string | null;
+  estudio_id: string | null;
+};
+
+export type DadosOS = {
+  cliente_id: string;
+  itens: DadosOSItem[];
+};
