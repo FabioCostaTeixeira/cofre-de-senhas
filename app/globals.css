@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0a0b0f;
-  --surface: #14161d;
-  --surface-2: #1b1e27;
+  --bg: #0f0a1f;
+  --surface: #1a1530;
+  --surface-2: #221c3d;
   --border: rgba(255, 255, 255, 0.08);
   --text: #e8eaf0;
   --text-dim: #9aa1b1;
-  --accent: #6c8cff;
+  --accent: #ff9400;
   --danger: #ff6b6b;
   --ok: #4ade80;
 }
@@ -15,7 +15,7 @@
 body {
   /* Gradiente de base: garante cor sob o vidro em qualquer ponto da tela,
      inclusive no centro, onde os cards costumam ficar. */
-  background: linear-gradient(155deg, #131b3f 0%, #0c1020 45%, #1a1030 100%);
+  background: linear-gradient(155deg, #271e5d 0%, #0f0a1f 45%, #1e1749 100%);
   background-attachment: fixed;
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -33,11 +33,11 @@ body::before {
   inset: -20%;
   z-index: -2;
   background:
-    radial-gradient(45rem 32rem at 14% 6%, rgba(108, 140, 255, 0.60), transparent 62%),
-    radial-gradient(40rem 30rem at 88% 10%, rgba(180, 108, 255, 0.50), transparent 60%),
-    radial-gradient(42rem 34rem at 52% 48%, rgba(88, 120, 255, 0.28), transparent 66%),
-    radial-gradient(38rem 30rem at 78% 92%, rgba(72, 214, 255, 0.30), transparent 60%),
-    radial-gradient(34rem 26rem at 8% 86%, rgba(255, 108, 180, 0.26), transparent 58%);
+    radial-gradient(45rem 32rem at 14% 6%, rgba(39, 30, 93, 0.65), transparent 62%),
+    radial-gradient(40rem 30rem at 88% 10%, rgba(255, 148, 0, 0.35), transparent 60%),
+    radial-gradient(42rem 34rem at 52% 48%, rgba(30, 23, 73, 0.30), transparent 66%),
+    radial-gradient(38rem 30rem at 78% 92%, rgba(208, 136, 36, 0.22), transparent 60%),
+    radial-gradient(34rem 26rem at 8% 86%, rgba(255, 148, 0, 0.18), transparent 58%);
   filter: blur(40px);
   pointer-events: none;
 }
@@ -133,9 +133,9 @@ body::after {
   transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 .input:focus {
-  border-color: rgba(108, 140, 255, 0.75);
+  border-color: rgba(255, 148, 0, 0.75);
   background: rgba(10, 12, 20, 0.6);
-  box-shadow: 0 0 0 3px rgba(108, 140, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(255, 148, 0, 0.18);
 }
 .input::placeholder { color: rgba(232, 234, 240, 0.35); }
 
@@ -155,13 +155,13 @@ body::after {
   border-color: rgba(255, 255, 255, 0.24);
 }
 .btn-primary {
-  background: linear-gradient(140deg, #8aa2ff, var(--accent));
+  background: linear-gradient(140deg, #ffb347, var(--accent));
   border-color: transparent;
   color: #0a0b0f;
   font-weight: 600;
-  box-shadow: 0 6px 20px rgba(108, 140, 255, 0.35);
+  box-shadow: 0 6px 20px rgba(255, 148, 0, 0.35);
 }
-.btn-primary:hover:not(:disabled) { background: linear-gradient(140deg, #9db1ff, #7d99ff); }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(140deg, #ffc266, #ff8500); }
 .btn-danger { color: var(--danger); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
