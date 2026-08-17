@@ -2,6 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** concluído (2026-08-17) — todas as 4 tasks implementadas, revisadas (task + branch) e
+com achados corrigidos. Commits: `a1c0d34`..`cbcf9bc` em cima de `e86eac8`.
+
 **Goal:** Aplicar a paleta, tipografia, logo e nome da 4nexus ao app, hoje com identidade visual
 genérica sem relação com a marca.
 
@@ -43,7 +46,7 @@ de ícones).
   consumidos por toda a UI via `var(--accent)` etc. (nenhuma outra task ou arquivo precisa saber
   o hex — só o nome do token).
 
-- [ ] **Step 1: Trocar os tokens de cor em `:root`**
+- [x] **Step 1: Trocar os tokens de cor em `:root`**
 
 Em `app/globals.css`, substituir:
 
@@ -77,7 +80,7 @@ por:
 }
 ```
 
-- [ ] **Step 2: Trocar o gradiente de fundo do `body`**
+- [x] **Step 2: Trocar o gradiente de fundo do `body`**
 
 Substituir:
 
@@ -91,7 +94,7 @@ por:
   background: linear-gradient(155deg, #271e5d 0%, #0f0a1f 45%, #1e1749 100%);
 ```
 
-- [ ] **Step 3: Retintar os blobs de luz do fundo (`body::before`)**
+- [x] **Step 3: Retintar os blobs de luz do fundo (`body::before`)**
 
 Substituir:
 
@@ -115,7 +118,7 @@ por:
     radial-gradient(34rem 26rem at 8% 86%, rgba(255, 148, 0, 0.18), transparent 58%);
 ```
 
-- [ ] **Step 4: Trocar o gradiente do botão primário**
+- [x] **Step 4: Trocar o gradiente do botão primário**
 
 Substituir:
 
@@ -143,7 +146,7 @@ por:
 .btn-primary:hover:not(:disabled) { background: linear-gradient(140deg, #ffc266, #ff8500); }
 ```
 
-- [ ] **Step 5: Trocar o foco do input**
+- [x] **Step 5: Trocar o foco do input**
 
 Substituir:
 
@@ -165,7 +168,7 @@ por:
 }
 ```
 
-- [ ] **Step 6: Alinhar `viewport.themeColor` em `app/layout.tsx`**
+- [x] **Step 6: Alinhar `viewport.themeColor` em `app/layout.tsx`**
 
 Em `app/layout.tsx`, substituir:
 
@@ -183,13 +186,13 @@ export const viewport: Viewport = {
 };
 ```
 
-- [ ] **Step 7: Alinhar cores do manifest PWA**
+- [x] **Step 7: Alinhar cores do manifest PWA**
 
 Em `public/manifest.webmanifest`, substituir `"background_color": "#0a0b0f"` e
 `"theme_color": "#0a0b0f"` por `"background_color": "#0f0a1f"` e `"theme_color": "#0f0a1f"`.
 Não mexer em `name`/`short_name` aqui — isso é Task 3.
 
-- [ ] **Step 8: Verificar**
+- [x] **Step 8: Verificar**
 
 ```bash
 npx tsc --noEmit
@@ -198,7 +201,7 @@ npm test
 
 Expected: `tsc` sem erro, 283 testes passando.
 
-- [ ] **Step 9: Teste manual**
+- [x] **Step 9: Teste manual**
 
 ```bash
 npm run dev
@@ -209,7 +212,7 @@ genérico), botão "Entrar" laranja, campo de input com anel laranja ao focar. A
 logada e conferir que o link ativo do sidebar e os cards `.glass`/`.surface` continuam legíveis
 (sem regressão de contraste).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add app/globals.css app/layout.tsx public/manifest.webmanifest
@@ -230,7 +233,7 @@ git commit -m "Aplica paleta de cores da 4nexus (índigo + laranja)"
 - Produces: `--font-heading` e `--font-body` em `app/globals.css`, aplicáveis por qualquer CSS
   futuro sem precisar reimportar fonte.
 
-- [ ] **Step 1: Carregar Montserrat e Poppins via `next/font/google`**
+- [x] **Step 1: Carregar Montserrat e Poppins via `next/font/google`**
 
 Em `app/layout.tsx`, adicionar o import e as duas instâncias de fonte antes de `export const
 metadata`:
@@ -253,7 +256,7 @@ const poppins = Poppins({
 });
 ```
 
-- [ ] **Step 2: Aplicar as classes de variável no `<html>`**
+- [x] **Step 2: Aplicar as classes de variável no `<html>`**
 
 Substituir:
 
@@ -271,7 +274,7 @@ por:
     </html>
 ```
 
-- [ ] **Step 3: Usar as variáveis no CSS**
+- [x] **Step 3: Usar as variáveis no CSS**
 
 Em `app/globals.css`, substituir a linha de `font-family` do `body`:
 
@@ -293,7 +296,7 @@ h1, h2, h3 {
 }
 ```
 
-- [ ] **Step 4: Verificar**
+- [x] **Step 4: Verificar**
 
 ```bash
 npx tsc --noEmit
@@ -302,7 +305,7 @@ npm test
 
 Expected: `tsc` sem erro, 283 testes passando.
 
-- [ ] **Step 5: Teste manual**
+- [x] **Step 5: Teste manual**
 
 ```bash
 npm run dev
@@ -313,7 +316,7 @@ carregaram como arquivo local (`/_next/static/media/...`), não como request pra
 `fonts.googleapis.com`. Título da tela de login deve visualmente estar em Montserrat (mais
 geométrica/bold que a fonte de sistema anterior).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/layout.tsx app/globals.css
@@ -334,7 +337,7 @@ git commit -m "Aplica tipografia da 4nexus (Montserrat + Poppins)"
   delas nesta ordem por conveniência de revisão incremental — pode ser feita em paralelo se
   preferir.
 
-- [ ] **Step 1: Trocar o título da página**
+- [x] **Step 1: Trocar o título da página**
 
 Em `app/layout.tsx`, dentro de `export const metadata`, substituir:
 
@@ -348,7 +351,7 @@ por:
   title: '4Nexus Administrativo',
 ```
 
-- [ ] **Step 2: Trocar o texto da tela de login**
+- [x] **Step 2: Trocar o texto da tela de login**
 
 Em `app/login/page.tsx`, substituir:
 
@@ -362,7 +365,7 @@ por:
           <h1 className="text-xl font-semibold">4Nexus Administrativo</h1>
 ```
 
-- [ ] **Step 3: Trocar o nome no manifest PWA**
+- [x] **Step 3: Trocar o nome no manifest PWA**
 
 Em `public/manifest.webmanifest`, substituir:
 
@@ -378,7 +381,7 @@ por:
   "short_name": "4Nexus",
 ```
 
-- [ ] **Step 4: Verificar**
+- [x] **Step 4: Verificar**
 
 ```bash
 npx tsc --noEmit
@@ -389,7 +392,7 @@ Expected: `tsc` sem erro, 283 testes passando. Se algum teste comparar o texto `
 literal, corrigir o teste para o texto novo (nenhum teste hoje faz isso, conferido antes de este
 plano ser escrito — mas confirmar no resultado do `npm test`).
 
-- [ ] **Step 5: Teste manual**
+- [x] **Step 5: Teste manual**
 
 ```bash
 npm run dev
@@ -398,7 +401,7 @@ npm run dev
 Conferir: título da aba do navegador (`4Nexus Administrativo`), `<h1>` da tela de login, e (se o
 navegador suportar "Instalar app") o nome sugerido na instalação do PWA.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/layout.tsx app/login/page.tsx public/manifest.webmanifest
@@ -434,7 +437,7 @@ visualmente, sem sobra de "n" e sem cortar o símbolo.
   entre tasks, não há dependência de código real.
 - Produces: nada consumido por outra task.
 
-- [ ] **Step 1: Baixar o arquivo oficial da logo**
+- [x] **Step 1: Baixar o arquivo oficial da logo**
 
 ```bash
 mkdir -p public/brand
@@ -452,7 +455,7 @@ node -e "require('sharp')('public/brand/logo-source.png').metadata().then(m => c
 
 Expected: `320 132`.
 
-- [ ] **Step 2: Instalar `sharp` como devDependency**
+- [x] **Step 2: Instalar `sharp` como devDependency**
 
 ```bash
 npm install -D sharp
@@ -462,7 +465,7 @@ Expected: `package.json` ganha `"sharp": "^0.34.x"` em `devDependencies` (já ex
 dependência transitiva do Next, mas sem entrada própria no `package.json` — sem isso o script do
 Step 3 fica dependendo de um pacote que não está garantido no lockfile).
 
-- [ ] **Step 3: Escrever o script de geração de ícones**
+- [x] **Step 3: Escrever o script de geração de ícones**
 
 Criar `scripts/gerar-icones.mjs`:
 
@@ -505,7 +508,7 @@ main().catch((err) => {
 });
 ```
 
-- [ ] **Step 4: Rodar o script**
+- [x] **Step 4: Rodar o script**
 
 ```bash
 node scripts/gerar-icones.mjs
@@ -518,14 +521,14 @@ existem:
 ls app/icon.png app/apple-icon.png public/icon-192.png public/icon-512.png public/brand/logo-sidebar.png
 ```
 
-- [ ] **Step 5: Conferir visualmente o recorte do símbolo**
+- [x] **Step 5: Conferir visualmente o recorte do símbolo**
 
 Abrir `app/icon.png` num visualizador de imagem: deve mostrar só o "4" estilizado com o
 triângulo laranja, centralizado, sem pedaço do "n" de "nexus" grudado na borda direita (o recorte
 já foi validado contra este arquivo antes deste plano ser escrito — este step é conferência, não
 ajuste às cegas).
 
-- [ ] **Step 6: Remover os ícones antigos**
+- [x] **Step 6: Remover os ícones antigos**
 
 ```bash
 rm app/icon.svg public/icon.svg
@@ -536,7 +539,7 @@ Next.js só usa uma convenção de ícone por vez (`app/icon.*`) — manter `app
 órfã do mesmo SVG antigo (cor azul/roxa antiga, não referenciada em nenhum lugar do código —
 confirmado por busca antes deste plano ser atualizado); sem dono e sem uso, remover junto.
 
-- [ ] **Step 7: Trocar o texto "4NEXUS" pela logo no sidebar**
+- [x] **Step 7: Trocar o texto "4NEXUS" pela logo no sidebar**
 
 Em `components/SidebarShell.tsx`, adicionar o import no topo do arquivo:
 
@@ -571,7 +574,7 @@ por:
 Rail colapsado (`md:w-16`) continua sem logo — mesmo comportamento de hoje (só o botão de
 expandir/retrair fica visível ali), não é regressão.
 
-- [ ] **Step 8: Verificar**
+- [x] **Step 8: Verificar**
 
 ```bash
 npx tsc --noEmit
@@ -580,7 +583,7 @@ npm test
 
 Expected: `tsc` sem erro, 283 testes passando.
 
-- [ ] **Step 9: Teste manual completo**
+- [x] **Step 9: Teste manual completo**
 
 ```bash
 npm run dev
@@ -597,7 +600,7 @@ Conferir, em `http://localhost:3000`:
    diretamente no navegador e conferir que os campos `icons` apontam pros arquivos novos (mesmo
    nome de arquivo, conteúdo novo — sem mudança necessária no manifest em si).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add public/brand public/icon-192.png public/icon-512.png app/icon.png app/apple-icon.png scripts/gerar-icones.mjs components/SidebarShell.tsx package.json package-lock.json
