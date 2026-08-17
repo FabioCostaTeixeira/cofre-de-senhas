@@ -17,7 +17,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Cofre de Senhas',
+  title: '4Nexus Administrativo',
   description: 'Gerenciador de senhas da equipe',
   manifest: '/manifest.webmanifest',
   robots: { index: false, follow: false },

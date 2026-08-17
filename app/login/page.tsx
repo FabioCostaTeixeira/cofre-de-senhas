@@ -12,7 +12,7 @@ export default function LoginPage() {
     <main className="min-h-dvh grid place-items-center p-6">
       <form action={action} className="glass w-full max-w-sm p-8 space-y-5">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">Cofre de Senhas</h1>
+          <h1 className="text-xl font-semibold">4Nexus Administrativo</h1>
           <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
             Entre com suas credenciais
           </p>
