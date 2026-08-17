@@ -425,7 +425,7 @@ visualmente, sem sobra de "n" e sem cortar o símbolo.
 - Create: `scripts/gerar-icones.mjs`
 - Create (gerado pelo script): `public/brand/logo-sidebar.png`, `app/icon.png`,
   `app/apple-icon.png`, `public/icon-192.png` (sobrescrito), `public/icon-512.png` (sobrescrito)
-- Delete: `app/icon.svg`
+- Delete: `app/icon.svg`, `public/icon.svg`
 - Modify: `components/SidebarShell.tsx`
 
 **Interfaces:**
@@ -525,14 +525,16 @@ triângulo laranja, centralizado, sem pedaço do "n" de "nexus" grudado na borda
 já foi validado contra este arquivo antes deste plano ser escrito — este step é conferência, não
 ajuste às cegas).
 
-- [ ] **Step 6: Remover o ícone antigo**
+- [ ] **Step 6: Remover os ícones antigos**
 
 ```bash
-rm app/icon.svg
+rm app/icon.svg public/icon.svg
 ```
 
-Next.js só usa uma convenção de ícone por vez (`app/icon.*`) — manter os dois arquivos causaria
-ambiguidade sobre qual é servido.
+Next.js só usa uma convenção de ícone por vez (`app/icon.*`) — manter `app/icon.svg` junto do
+`app/icon.png` novo causaria ambiguidade sobre qual é servido. `public/icon.svg` é uma cópia
+órfã do mesmo SVG antigo (cor azul/roxa antiga, não referenciada em nenhum lugar do código —
+confirmado por busca antes deste plano ser atualizado); sem dono e sem uso, remover junto.
 
 - [ ] **Step 7: Trocar o texto "4NEXUS" pela logo no sidebar**
 
