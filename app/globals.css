@@ -18,8 +18,12 @@ body {
   background: linear-gradient(155deg, #271e5d 0%, #0f0a1f 45%, #1e1749 100%);
   background-attachment: fixed;
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   min-height: 100dvh;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-heading), var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
 /*
