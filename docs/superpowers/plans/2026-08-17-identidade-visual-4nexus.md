@@ -22,8 +22,11 @@ de ícones).
   significado (erro/sucesso/texto), não marca.
 - Nenhuma fonte carrega de CDN externo em runtime — `next/font/google` baixa e serve local no
   build.
-- Task 4 depende de arquivo(s) externo(s) da logo (ainda não recebido no momento em que este
-  plano foi escrito) — não pode começar sem isso. Tasks 1–3 são independentes e podem rodar antes.
+- Task 4 usa o arquivo oficial da logo, obtido em `https://4nexus.com.br/wp-content/uploads/2022/07/logo-4nx.png`
+  (declarado como logo da organização no JSON-LD/schema.org do próprio site — não uma URL
+  chutada). 320×132px, PNG com transparência. Resolução baixa pro ícone PWA de 512px (fica
+  levemente mole) — decisão consciente do cliente (2026-08-17): usar mesmo assim, trocável depois
+  se surgir um arquivo em alta resolução.
 - Spec de referência: `docs/superpowers/specs/2026-08-17-identidade-visual-4nexus-design.md`.
 
 ---
@@ -406,15 +409,19 @@ git commit -m "Renomeia produto para 4Nexus Administrativo"
 
 ## Task 4: Logo, favicon e ícones PWA
 
-**Bloqueada até o arquivo da logo ser recebido.** Este plano assume um único arquivo-fonte (a
-logo completa: símbolo + wordmark "4nexus" + tagline), salvo como PNG. O favicon/ícones PWA usam
-um recorte automático do lado esquerdo da imagem (onde fica o símbolo) — decisão explícita do
-cliente em vez de pedir um segundo arquivo já recortado. Se o recorte sair errado (símbolo não
-está exatamente no canto esquerdo, ou a proporção da imagem for muito larga), o Step 3 explica
-como ajustar sem precisar de arquivo novo.
+Usa o arquivo oficial da logo, obtido em
+`https://4nexus.com.br/wp-content/uploads/2022/07/logo-4nx.png` (declarado como logo da
+organização no JSON-LD/schema.org do próprio site — não uma URL adivinhada). 320×132px, PNG com
+transparência. As coordenadas de recorte do símbolo (pro favicon/ícones PWA, que precisam só do
+"4" estilizado com o triângulo laranja, sem o wordmark "nexus" nem a tag "CONTEÚDO PRA VOCÊ" —
+ilegíveis em 16-32px) foram calculadas antes deste plano ser escrito varrendo o canal alfa
+coluna a coluna: a tinta do "4" ocupa exatamente as colunas 36–76 (a de "n" começa em 78, só 1px
+de vão entre os dois) e as linhas 34–91. `{ left: 30, top: 28, width: 47, height: 69 }` usa essa
+bounding box com folga de ~6px nas bordas que não colam no "n" — testado e conferido
+visualmente, sem sobra de "n" e sem cortar o símbolo.
 
 **Files:**
-- Create: `public/brand/logo-source.png` (fornecido externamente, ver Step 1)
+- Create: `public/brand/logo-source.png` (baixado no Step 1)
 - Create: `scripts/gerar-icones.mjs`
 - Create (gerado pelo script): `public/brand/logo-sidebar.png`, `app/icon.png`,
   `app/apple-icon.png`, `public/icon-192.png` (sobrescrito), `public/icon-512.png` (sobrescrito)
@@ -427,16 +434,23 @@ como ajustar sem precisar de arquivo novo.
   entre tasks, não há dependência de código real.
 - Produces: nada consumido por outra task.
 
-- [ ] **Step 1: Obter e salvar o arquivo-fonte da logo**
+- [ ] **Step 1: Baixar o arquivo oficial da logo**
 
-Salvar o arquivo da logo (a imagem completa: losango + "4nexus" + "CONTEÚDO PRA VOCÊ") em:
-
+```bash
+mkdir -p public/brand
+curl -sL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" "https://4nexus.com.br/wp-content/uploads/2022/07/logo-4nx.png" -o public/brand/logo-source.png
 ```
-public/brand/logo-source.png
+
+O `-A` (User-Agent de navegador) é necessário — o site tem proteção anti-bot que bloqueia
+requests sem esse header (confirmado antes deste plano ser escrito: sem UA dá 403).
+
+Expected: arquivo `public/brand/logo-source.png` de ~10KB, 320×132px. Conferir:
+
+```bash
+node -e "require('sharp')('public/brand/logo-source.png').metadata().then(m => console.log(m.width, m.height))"
 ```
 
-Se o arquivo vier em outro formato (jpg, webp, etc.), converter para PNG antes de salvar (o
-script do Step 2 espera PNG especificamente, pra preservar transparência de forma previsível).
+Expected: `320 132`.
 
 - [ ] **Step 2: Instalar `sharp` como devDependency**
 
@@ -458,31 +472,27 @@ import path from 'node:path';
 
 const origem = path.join(process.cwd(), 'public', 'brand', 'logo-source.png');
 
-// A logo completa tem o símbolo (losango + play) à esquerda e o wordmark
-// "4nexus" à direita. Favicon/ícones PWA precisam só do símbolo — em 16-32px
-// o wordmark vira ruído ilegível. Sem um arquivo já recortado, assumimos que
-// o símbolo ocupa um quadrado no canto esquerdo da imagem, do tamanho da
-// altura total. Se o resultado em `app/icon.png` sair errado (cortando o
-// símbolo pela metade, ou pegando parte do texto), ajuste só `CROP_LARGURA`
-// abaixo — não precisa mexer no resto do script.
-const CROP_LARGURA = null; // null = usa a altura da imagem como largura do recorte
+// Recorte do símbolo (o "4" estilizado com o triângulo laranja, sem o "nexus"
+// nem a tag "CONTEÚDO PRA VOCÊ"). Calculado varrendo o canal alfa de
+// public/brand/logo-source.png (320x132px) coluna a coluna: a tinta do "4"
+// ocupa as colunas 36-76 e linhas 34-91; este retângulo é essa bounding box
+// com ~6px de folga nas bordas que não colam no "n" (só 1px de vão real).
+// Se o arquivo-fonte for trocado por um em resolução/proporção diferente,
+// este retângulo precisa ser recalculado.
+const RECORTE_SIMBOLO = { left: 30, top: 28, width: 47, height: 69 };
 
 async function main() {
-  const meta = await sharp(origem).metadata();
-  const ladoRecorte = CROP_LARGURA ?? meta.height;
+  const simbolo = (tamanho) =>
+    sharp(origem).extract(RECORTE_SIMBOLO)
+      .resize(tamanho, tamanho, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
 
-  const simbolo = () =>
-    sharp(origem).extract({ left: 0, top: 0, width: ladoRecorte, height: meta.height });
+  await simbolo(64).png().toFile(path.join(process.cwd(), 'app', 'icon.png'));
+  await simbolo(180).png().toFile(path.join(process.cwd(), 'app', 'apple-icon.png'));
+  await simbolo(192).png().toFile(path.join(process.cwd(), 'public', 'icon-192.png'));
+  await simbolo(512).png().toFile(path.join(process.cwd(), 'public', 'icon-512.png'));
 
-  await simbolo().resize(64, 64).png().toFile(path.join(process.cwd(), 'app', 'icon.png'));
-  await simbolo().resize(180, 180).png().toFile(path.join(process.cwd(), 'app', 'apple-icon.png'));
-  await simbolo().resize(192, 192).png()
-    .toFile(path.join(process.cwd(), 'public', 'icon-192.png'));
-  await simbolo().resize(512, 512).png()
-    .toFile(path.join(process.cwd(), 'public', 'icon-512.png'));
-
-  // Logo completa (símbolo + wordmark), redimensionada pro sidebar — altura
-  // fixa, largura proporcional.
+  // Logo completa (símbolo + wordmark + tagline), redimensionada pro sidebar
+  // — altura fixa, largura proporcional (sem distorção).
   await sharp(origem).resize({ height: 80 }).png()
     .toFile(path.join(process.cwd(), 'public', 'brand', 'logo-sidebar.png'));
 
@@ -510,11 +520,10 @@ ls app/icon.png app/apple-icon.png public/icon-192.png public/icon-512.png publi
 
 - [ ] **Step 5: Conferir visualmente o recorte do símbolo**
 
-Abrir `app/icon.png` num visualizador de imagem. Se o símbolo (losango + play) estiver cortado
-pela metade ou pegando parte do texto "4nexus": editar `CROP_LARGURA` no script (Step 3) para um
-valor em pixels menor que `meta.height` (ex.: `const CROP_LARGURA = 300;` se a imagem for larga
-e o símbolo mais estreito que a altura), salvar, e repetir o Step 4. Repetir até o recorte ficar
-certo antes de seguir.
+Abrir `app/icon.png` num visualizador de imagem: deve mostrar só o "4" estilizado com o
+triângulo laranja, centralizado, sem pedaço do "n" de "nexus" grudado na borda direita (o recorte
+já foi validado contra este arquivo antes deste plano ser escrito — este step é conferência, não
+ajuste às cegas).
 
 - [ ] **Step 6: Remover o ícone antigo**
 
