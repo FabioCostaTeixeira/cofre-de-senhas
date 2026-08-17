@@ -245,7 +245,7 @@ export function SidebarShell({
         }`}
       >
         <div className="flex items-center gap-2 p-4">
-          <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-8 w-auto" priority />
+          <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-8 w-auto flex-1 object-contain object-left" priority />
           <button className="btn" onClick={() => setGavetaAberta(false)} aria-label="Fechar menu">
             <X size={16} />
           </button>

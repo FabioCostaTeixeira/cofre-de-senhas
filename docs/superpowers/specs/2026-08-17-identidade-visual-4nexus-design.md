@@ -69,8 +69,9 @@ de hoje (declaração direta no seletor, sem tocar componente por componente).
 ## 5. Logo, favicon e nome
 
 - **Sidebar** (`components/SidebarShell.tsx`): as 3 ocorrências do texto literal `"4NEXUS"`
-  (header desktop, topbar mobile, gaveta mobile) viram a logo real — ícone sozinho quando
-  colapsado (rail de 4rem não cabe o wordmark), ícone + wordmark quando expandido.
+  (header desktop, topbar mobile, gaveta mobile) viram a logo real — rail colapsado (4rem) segue
+  sem marca nenhuma, só o botão de expandir/colapsar (igual já era antes), ícone + wordmark
+  quando expandido.
 - **Favicon + PWA**: `app/icon.svg`, `app/apple-icon.png`, `public/icon-192.png`,
   `public/icon-512.png` regenerados a partir do arquivo real da logo.
 - **Nome do produto**: `"4Nexus Administrativo"` em `<title>` (`app/layout.tsx`), no `<h1>` da
@@ -80,12 +81,14 @@ de hoje (declaração direta no seletor, sem tocar componente por componente).
 - **Tela de login**: sem mudança estrutural — herda cor/fonte novas automaticamente por já usar
   `.glass`/`.input`/`.btn`. Não ganha logo/hero própria (fora do escopo escolhido pelo cliente).
 
-## 6. Pendência bloqueante
+## 6. Logo
 
-Arquivo real da logo (PNG ou SVG, alta resolução / fundo transparente) ainda não recebido — só
-foi visto renderizado no chat, sem acesso aos pixels/vetores originais. **Favicon, ícones PWA e
-logo do sidebar não podem ser implementados sem esse arquivo.** Paleta e tipografia (seções 3 e
-4) não dependem dele e podem seguir de forma independente.
+O arquivo real da logo foi localizado e aplicado: é a logo oficial declarada no próprio JSON-LD
+(schema.org) do site institucional (`4nexus.com.br`) —
+`https://4nexus.com.br/wp-content/uploads/2022/07/logo-4nx.png`. Baixado e aplicado na
+implementação (ver [docs/superpowers/plans/2026-08-17-identidade-visual-4nexus.md](../plans/2026-08-17-identidade-visual-4nexus.md),
+Task 4). Ressalva que segue válida: a fonte é de baixa resolução (320×132px), então o ícone PWA
+de 512px fica um pouco mais suave/borrado que o ideal — decisão consciente, não pendência.
 
 ## 7. Fora de escopo (spec futura)
 
@@ -102,8 +105,10 @@ logo do sidebar não podem ser implementados sem esse arquivo.** Paleta e tipogr
 - `app/login/page.tsx` — texto do `<h1>`
 - `public/manifest.webmanifest` — `name`, `short_name`
 - `components/SidebarShell.tsx` — logo no lugar do texto `"4NEXUS"`
-- `app/icon.svg`, `app/apple-icon.png`, `public/icon-192.png`, `public/icon-512.png` — regerados
-  a partir do arquivo da logo (bloqueado pela seção 6)
+- Novo: `app/icon.png`, `app/apple-icon.png`, `public/icon-192.png`, `public/icon-512.png` —
+  gerado/regenerados a partir do arquivo da logo
+- Removidos: `app/icon.svg` e `public/icon.svg` (duplicata órfã encontrada durante a
+  implementação) — substituídos pelo `app/icon.png` gerado a partir da logo real
 - Novo: `public/brand/` (ou equivalente) para guardar o arquivo-fonte da logo
 
 ## 9. Teste

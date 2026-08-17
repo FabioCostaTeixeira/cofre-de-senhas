@@ -66,8 +66,8 @@ describe('AgendaClient', () => {
     vi.setSystemTime(new Date('2026-08-27T12:00:00'));
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
     const colunas = screen.getAllByTestId('agenda-coluna-dia');
-    expect(colunas[3]).toHaveStyle({ backgroundColor: 'rgba(108, 140, 255, 0.06)' });
-    expect(colunas[0]).not.toHaveStyle({ backgroundColor: 'rgba(108, 140, 255, 0.06)' });
+    expect(colunas[3]).toHaveStyle({ backgroundColor: 'rgba(255, 148, 0, 0.06)' });
+    expect(colunas[0]).not.toHaveStyle({ backgroundColor: 'rgba(255, 148, 0, 0.06)' });
     vi.useRealTimers();
   });
   it('clicar numa célula vazia abre o modal de criação com data e horário pré-preenchidos', () => {

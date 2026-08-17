@@ -313,7 +313,7 @@ export function AgendaClient({
             key={dia}
             className="relative border-x"
             data-testid="agenda-coluna-dia"
-            style={{ borderColor: 'var(--border)', backgroundColor: dia === hoje ? 'rgba(108, 140, 255, 0.06)' : undefined }}
+            style={{ borderColor: 'var(--border)', backgroundColor: dia === hoje ? 'rgba(255, 148, 0, 0.06)' : undefined }}
           >
             {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div
               key={bloco}
