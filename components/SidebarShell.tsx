@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, ChevronLeft, ChevronRight, Lock, LogOut, Menu, X } from 'lucide-react';
@@ -207,7 +208,7 @@ export function SidebarShell({
         }`}
       >
         <div className={`flex items-center gap-2 ${colapsado ? 'p-2 justify-center' : 'p-4'}`}>
-          {!colapsado && <span className="font-semibold flex-1 truncate">4NEXUS</span>}
+          {!colapsado && <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-8 w-auto flex-1 object-contain object-left" priority />}
           <button
             className={colapsado ? 'btn btn-icone' : 'btn'}
             onClick={alternarColapso}
@@ -224,7 +225,7 @@ export function SidebarShell({
       </aside>
 
       <div className="glass fixed inset-x-4 top-4 z-30 flex items-center justify-between px-4 py-3 md:hidden">
-        <span className="font-semibold">4NEXUS</span>
+        <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-8 w-auto" priority />
         <button className="btn" onClick={() => setGavetaAberta(true)} aria-label="Abrir menu">
           <Menu size={18} />
         </button>
@@ -244,7 +245,7 @@ export function SidebarShell({
         }`}
       >
         <div className="flex items-center gap-2 p-4">
-          <span className="font-semibold flex-1 truncate">4NEXUS</span>
+          <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-8 w-auto" priority />
           <button className="btn" onClick={() => setGavetaAberta(false)} aria-label="Fechar menu">
             <X size={16} />
           </button>
