@@ -205,7 +205,7 @@ export function AgendaClient({
   };
 
   return <div className="space-y-4">
-    <div className="flex items-end gap-4 flex-wrap">
+    <div className="flex items-end justify-center gap-4 flex-wrap">
       <h1 className="text-xl font-semibold self-center">Agenda</h1>
       <label className="block space-y-1">
         <span className="text-sm">Local de gravação</span>
@@ -306,7 +306,7 @@ export function AgendaClient({
           style={{ top: (agora / 15) * ALTURA_BLOCO_PX, height: 2, backgroundColor: 'var(--danger)', zIndex: 10 }}
         />
         <div aria-hidden="true" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
-          {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div key={bloco} className="text-[10px] leading-none text-right pr-1" style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}>{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
+          {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div key={bloco} className="text-base leading-none text-right pr-1" style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}>{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
         </div>
         <div ref={gridRef} className="grid grid-cols-7 gap-1" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
           {dias.map((dia) => <div

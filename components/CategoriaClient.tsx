@@ -162,7 +162,17 @@ export function CategoriaClient({
         </tbody>
       </table>
       {itens.length === 0 && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhuma categoria cadastrada.</p>}
-      {aberto && <ModalEdicao key={aberto.id} item={aberto} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />}
+      {aberto && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
+        >
+          <div className="w-full max-w-2xl">
+            <ModalEdicao key={aberto.id} item={aberto} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
