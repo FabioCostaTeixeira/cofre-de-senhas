@@ -29,7 +29,20 @@ export interface ModalFormProps {
    */
   action?: (formData: FormData) => void | Promise<void>;
   isLoading?: boolean;
+  /**
+   * Panel width. Defaults to 'md' (448px, `max-w-md`) for backward
+   * compatibility. Use '2xl' (672px, `max-w-2xl`) for dense forms with
+   * multi-column rows (e.g. `ItemRepetidor` lists, attribute grids) — this
+   * matches the width the old manual edit overlays used before being
+   * migrated to `ModalForm`.
+   */
+  maxWidth?: 'md' | '2xl';
 }
+
+const MAX_WIDTH_CLASSES: Record<'md' | '2xl', string> = {
+  md: 'max-w-md',
+  '2xl': 'max-w-2xl',
+};
 
 export function ModalForm({
   title,
@@ -40,6 +53,7 @@ export function ModalForm({
   onSubmit,
   action,
   isLoading = false,
+  maxWidth = 'md',
 }: ModalFormProps) {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -67,11 +81,11 @@ export function ModalForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm py-8"
       onClick={handleClose}
     >
       <div
-        className="glass w-full max-w-md p-8 space-y-6 rounded-2xl"
+        className={`glass w-full ${MAX_WIDTH_CLASSES[maxWidth]} max-h-[90vh] overflow-y-auto p-8 space-y-6 rounded-2xl`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
