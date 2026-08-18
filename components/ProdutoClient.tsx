@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { mascararMoeda, soDigitos } from '@/lib/documentos';
 import type { AtributoMolde, CategoriaProduto, Produto, ValorAtributo } from '@/lib/types';
+import { ModalForm } from '@/components/ModalForm';
 
 export type ProdutoState = { error?: string; ok?: string };
 const inicial: ProdutoState = {};
@@ -95,41 +96,28 @@ function CamposComuns({
   );
 }
 
-function FormularioNovo({ categorias, criar, isModalOpen }: { categorias: CategoriaProduto[]; criar: Acao; isModalOpen: boolean }) {
+function FormularioNovo({
+  categorias, criar, isOpen, onClose,
+}: { categorias: CategoriaProduto[]; criar: Acao; isOpen: boolean; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? '');
   const [atributos, setAtributos] = useState<Record<string, ValorAtributo>>({});
   const [preco, setPreco] = useState('');
-  const [detalhesAberto, setDetalhesAberto] = useState(true);
 
   useEffect(() => {
-    if (state.ok) { setAtributos({}); setPreco(''); }
-  }, [state.ok]);
-
-  useEffect(() => {
-    if (isModalOpen) setDetalhesAberto(false);
-  }, [isModalOpen]);
-
-  if (isModalOpen) return null;
+    if (state.ok) { setAtributos({}); setPreco(''); onClose(); }
+  }, [state.ok, onClose]);
 
   return (
-    <div className="glass p-5">
-      <div className="cursor-pointer font-semibold mb-4" onClick={() => setDetalhesAberto(!detalhesAberto)}>
-        Novo produto
-      </div>
-      {detalhesAberto && (
-        <form action={action} className="space-y-4">
-          <CamposComuns
-            categorias={categorias} categoriaId={categoriaId} onCategoriaId={setCategoriaId}
-            atributos={atributos} onAtributo={(chave, valor) => setAtributos({ ...atributos, [chave]: valor })}
-            preco={preco} onPreco={setPreco}
-          />
-          {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-          {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
-          <button className="btn btn-primary" disabled={pending}>Cadastrar</button>
-        </form>
-      )}
-    </div>
+    <ModalForm title="Novo Produto" isOpen={isOpen} onClose={onClose} action={action} isLoading={pending} submitLabel="Criar">
+      <CamposComuns
+        categorias={categorias} categoriaId={categoriaId} onCategoriaId={setCategoriaId}
+        atributos={atributos} onAtributo={(chave, valor) => setAtributos({ ...atributos, [chave]: valor })}
+        preco={preco} onPreco={setPreco}
+      />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+      {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
+    </ModalForm>
   );
 }
 
@@ -179,24 +167,17 @@ function ModalEdicao({
   }
 
   return (
-    <div className="glass p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="font-semibold flex-1">{item.nome}</h2>
-        <button type="button" className="btn" onClick={onFechar}>Fechar</button>
-      </div>
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="id" value={item.id} />
-        <CamposComuns
-          item={item} categorias={categorias} categoriaId={categoriaId} onCategoriaId={setCategoriaId}
-          atributos={atributos} onAtributo={(chave, valor) => setAtributos({ ...atributos, [chave]: valor })}
-          preco={preco} onPreco={setPreco}
-        />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        <button className="btn btn-primary" disabled={pending}>Salvar</button>
-      </form>
+    <ModalForm title="Editar Produto" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar">
+      <input type="hidden" name="id" value={item.id} />
+      <CamposComuns
+        item={item} categorias={categorias} categoriaId={categoriaId} onCategoriaId={setCategoriaId}
+        atributos={atributos} onAtributo={(chave, valor) => setAtributos({ ...atributos, [chave]: valor })}
+        preco={preco} onPreco={setPreco}
+      />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       <button type="button" className="btn btn-danger" onClick={() => void apagarClique()}>Apagar</button>
       {erroApagar && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erroApagar}</p>}
-    </div>
+    </ModalForm>
   );
 }
 
@@ -207,13 +188,19 @@ export function ProdutoClient({
   apagar: (id: string) => Promise<{ error?: string }>;
 }) {
   const [aberto, setAberto] = useState<Produto | null>(null);
+  const [novoAberto, setNovoAberto] = useState(false);
   const nomeCategoria = (id: string) => categorias.find((c) => c.id === id)?.nome ?? '—';
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Produtos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Produtos</h1>
+        {categorias.length > 0 && (
+          <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>Novo Produto</button>
+        )}
+      </div>
       {categorias.length === 0
         ? <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Cadastre uma categoria antes de criar um produto.</p>
-        : <FormularioNovo categorias={categorias} criar={criar} isModalOpen={aberto !== null} />}
+        : <FormularioNovo categorias={categorias} criar={criar} isOpen={novoAberto} onClose={() => setNovoAberto(false)} />}
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>
@@ -236,15 +223,7 @@ export function ProdutoClient({
       </table>
       {itens.length === 0 && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhum produto cadastrado.</p>}
       {aberto && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
-        >
-          <div className="w-full max-w-2xl">
-            <ModalEdicao key={aberto.id} item={aberto} categorias={categorias} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
-          </div>
-        </div>
+        <ModalEdicao key={aberto.id} item={aberto} categorias={categorias} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
       )}
     </div>
   );
