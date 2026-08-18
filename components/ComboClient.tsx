@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { calcularSomaItens, ItemRepetidor, type OpcaoItem } from '@/components/ItemRepetidor';
 import { mascararMoeda, soDigitos } from '@/lib/documentos';
 import type { Combo, ItemEntrada, Produto } from '@/lib/types';
+import { ModalForm } from '@/components/ModalForm';
 
 export type ComboState = { error?: string; ok?: string };
 const inicial: ComboState = {};
@@ -82,25 +83,21 @@ function CamposComuns({
   );
 }
 
-function FormularioNovo({ produtos, criar }: { produtos: Produto[]; criar: Acao }) {
+function FormularioNovo({ produtos, criar, isOpen, onClose }: { produtos: Produto[]; criar: Acao; isOpen: boolean; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [itens, setItens] = useState<ItemEntrada[]>([]);
   const [preco, setPreco] = useState('');
 
   useEffect(() => {
-    if (state.ok) { setItens([]); setPreco(''); }
-  }, [state.ok]);
+    if (state.ok) { setItens([]); setPreco(''); onClose(); }
+  }, [state.ok, onClose]);
 
   return (
-    <details className="glass p-5">
-      <summary className="cursor-pointer font-semibold">Novo combo</summary>
-      <form action={action} className="space-y-4 mt-4">
-        <CamposComuns produtos={produtos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
-        <button className="btn btn-primary" disabled={pending}>Cadastrar</button>
-      </form>
-    </details>
+    <ModalForm title="Novo Combo" isOpen={isOpen} onClose={onClose} action={action} isLoading={pending} submitLabel="Criar">
+      <CamposComuns produtos={produtos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+      {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
+    </ModalForm>
   );
 }
 
@@ -124,20 +121,13 @@ function ModalEdicao({
   }
 
   return (
-    <div className="glass p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="font-semibold flex-1">{item.nome}</h2>
-        <button type="button" className="btn" onClick={onFechar}>Fechar</button>
-      </div>
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="id" value={item.id} />
-        <CamposComuns item={item} produtos={produtos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        <button className="btn btn-primary" disabled={pending}>Salvar</button>
-      </form>
+    <ModalForm title="Editar Combo" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar">
+      <input type="hidden" name="id" value={item.id} />
+      <CamposComuns item={item} produtos={produtos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       <button type="button" className="btn btn-danger" onClick={() => void apagarClique()}>Apagar</button>
       {erroApagar && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erroApagar}</p>}
-    </div>
+    </ModalForm>
   );
 }
 
@@ -145,10 +135,14 @@ export function ComboClient({
   itens, produtos, criar, salvar, apagar,
 }: { itens: Combo[]; produtos: Produto[]; criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }> }) {
   const [aberto, setAberto] = useState<Combo | null>(null);
+  const [novoAberto, setNovoAberto] = useState(false);
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Combos</h1>
-      <FormularioNovo produtos={produtos} criar={criar} />
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Combos</h1>
+        <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>Novo Combo</button>
+      </div>
+      <FormularioNovo produtos={produtos} criar={criar} isOpen={novoAberto} onClose={() => setNovoAberto(false)} />
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>
@@ -171,15 +165,7 @@ export function ComboClient({
       </table>
       {itens.length === 0 && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhum combo cadastrado.</p>}
       {aberto && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
-        >
-          <div className="w-full max-w-2xl">
-            <ModalEdicao key={aberto.id} item={aberto} produtos={produtos} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
-          </div>
-        </div>
+        <ModalEdicao key={aberto.id} item={aberto} produtos={produtos} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
       )}
     </div>
   );
