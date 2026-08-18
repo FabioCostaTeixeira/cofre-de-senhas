@@ -83,6 +83,16 @@ export function AgendaClient({
     const id = setInterval(() => setAgora(minutosAgora()), 30000);
     return () => clearInterval(id);
   }, []);
+
+  // Foca a grade na hora atual ao carregar, para não abrir sempre em 00:00 e
+  // obrigar a rolar manualmente até o horário do dia.
+  useEffect(() => {
+    const horaAtual = String(new Date().getHours()).padStart(2, '0');
+    const elemento = document.getElementById(`agenda-hora-${horaAtual}`);
+    if (elemento && typeof elemento.scrollIntoView === 'function') {
+      elemento.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }
+  }, []);
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicioSemana, i));
   const hoje = hojeISO();
   const locaisComEstudio = locais.filter((local) => local.estudios.length > 0);
@@ -306,7 +316,12 @@ export function AgendaClient({
           style={{ top: (agora / 15) * ALTURA_BLOCO_PX, height: 2, backgroundColor: 'var(--danger)', zIndex: 10 }}
         />
         <div aria-hidden="true" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
-          {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div key={bloco} className="text-base leading-none text-right pr-1" style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}>{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
+          {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div
+            key={bloco}
+            id={bloco % 4 === 0 ? `agenda-hora-${hora(bloco * 15).slice(0, 2)}` : undefined}
+            className="text-base leading-none text-right pr-1"
+            style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}
+          >{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
         </div>
         <div ref={gridRef} className="grid grid-cols-7 gap-1" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
           {dias.map((dia) => <div
