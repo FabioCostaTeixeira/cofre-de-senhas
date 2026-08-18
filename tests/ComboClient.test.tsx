@@ -29,6 +29,7 @@ describe('ComboClient', () => {
 
   it('botão de soma sugerida preenche o campo preço com a soma dos itens', () => {
     render(<ComboClient itens={[]} produtos={[produto]} criar={criar} salvar={salvar} apagar={apagar} />);
+    fireEvent.click(screen.getByText('Novo Combo'));
     fireEvent.click(screen.getByText('Adicionar'));
     fireEvent.click(screen.getByText(/Usar soma sugerida/));
     expect(screen.getByLabelText('Preço (R$)')).toHaveValue('R$ 199,00');
