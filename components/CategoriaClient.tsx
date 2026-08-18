@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import type { AtributoMolde, CategoriaProduto, TipoAtributo } from '@/lib/types';
+import { ModalForm } from '@/components/ModalForm';
 
 export type CategoriaState = { error?: string; ok?: string };
 const inicial: CategoriaState = {};
@@ -76,24 +77,23 @@ function CamposComuns({
   );
 }
 
-function FormularioNovo({ criar }: { criar: Acao }) {
+function FormularioNovo({ criar, isOpen, onClose }: { criar: Acao; isOpen: boolean; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [molde, setMolde] = useState<AtributoMolde[]>([]);
 
   useEffect(() => {
-    if (state.ok) setMolde([]);
-  }, [state.ok]);
+    if (state.ok) {
+      setMolde([]);
+      onClose();
+    }
+  }, [state.ok, onClose]);
 
   return (
-    <details className="glass p-5">
-      <summary className="cursor-pointer font-semibold">Nova categoria</summary>
-      <form action={action} className="space-y-4 mt-4">
-        <CamposComuns molde={molde} onMolde={setMolde} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
-        <button className="btn btn-primary" disabled={pending}>Cadastrar</button>
-      </form>
-    </details>
+    <ModalForm title="Nova Categoria" isOpen={isOpen} onClose={onClose} action={action} isLoading={pending} submitLabel="Criar">
+      <CamposComuns molde={molde} onMolde={setMolde} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+      {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
+    </ModalForm>
   );
 }
 
@@ -116,20 +116,13 @@ function ModalEdicao({
   }
 
   return (
-    <div className="glass p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="font-semibold flex-1">{item.nome}</h2>
-        <button type="button" className="btn" onClick={onFechar}>Fechar</button>
-      </div>
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="id" value={item.id} />
-        <CamposComuns item={item} molde={molde} onMolde={setMolde} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        <button className="btn btn-primary" disabled={pending}>Salvar</button>
-      </form>
+    <ModalForm title="Editar Categoria" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar">
+      <input type="hidden" name="id" value={item.id} />
+      <CamposComuns item={item} molde={molde} onMolde={setMolde} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       <button type="button" className="btn btn-danger" onClick={() => void apagarClique()}>Apagar</button>
       {erroApagar && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erroApagar}</p>}
-    </div>
+    </ModalForm>
   );
 }
 
@@ -137,10 +130,14 @@ export function CategoriaClient({
   itens, criar, salvar, apagar,
 }: { itens: CategoriaProduto[]; criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }> }) {
   const [aberto, setAberto] = useState<CategoriaProduto | null>(null);
+  const [novoAberto, setNovoAberto] = useState(false);
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Categorias de Produto</h1>
-      <FormularioNovo criar={criar} />
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Categorias de Produto</h1>
+        <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>Nova Categoria</button>
+      </div>
+      <FormularioNovo criar={criar} isOpen={novoAberto} onClose={() => setNovoAberto(false)} />
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>
@@ -163,15 +160,7 @@ export function CategoriaClient({
       </table>
       {itens.length === 0 && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhuma categoria cadastrada.</p>}
       {aberto && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
-        >
-          <div className="w-full max-w-2xl">
-            <ModalEdicao key={aberto.id} item={aberto} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
-          </div>
-        </div>
+        <ModalEdicao key={aberto.id} item={aberto} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
       )}
     </div>
   );
