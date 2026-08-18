@@ -12,10 +12,22 @@ export interface ModalFormProps {
    * around `children`; wrapping children in another `<form>` produces
    * invalid nested-form HTML with unpredictable browser repair behavior
    * (wrong submit-button binding, inconsistent Enter-key submission).
+   * Works the same whether the form is wired via `onSubmit` or `action`.
    */
   children: React.ReactNode;
   submitLabel?: string;
+  /**
+   * Classic submit handler. Ignored if `action` is also provided.
+   */
   onSubmit?: (e: React.FormEvent) => void | Promise<void>;
+  /**
+   * React 19 Server Action / client action function, passed straight through
+   * to the native `<form action={...}>` prop. When provided, the `<form>`
+   * handles its own submission natively (no `preventDefault`/manual
+   * interception) and `onSubmit` is not attached to the element.
+   * If both `action` and `onSubmit` are passed, `action` wins.
+   */
+  action?: (formData: FormData) => void | Promise<void>;
   isLoading?: boolean;
 }
 
@@ -26,6 +38,7 @@ export function ModalForm({
   children,
   submitLabel = 'Salvar',
   onSubmit,
+  action,
   isLoading = false,
 }: ModalFormProps) {
   useEffect(() => {
@@ -78,7 +91,10 @@ export function ModalForm({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          {...(action ? { action } : { onSubmit: handleSubmit })}
+          className="space-y-4"
+        >
           {children}
           <div className="flex gap-3 justify-end pt-4">
             <button
