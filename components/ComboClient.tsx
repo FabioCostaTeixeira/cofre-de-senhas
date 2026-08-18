@@ -83,7 +83,7 @@ function CamposComuns({
   );
 }
 
-function FormularioNovo({ produtos, criar, isOpen, onClose }: { produtos: Produto[]; criar: Acao; isOpen: boolean; onClose: () => void }) {
+function FormularioNovo({ produtos, criar, onClose }: { produtos: Produto[]; criar: Acao; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [itens, setItens] = useState<ItemEntrada[]>([]);
   const [preco, setPreco] = useState('');
@@ -93,7 +93,7 @@ function FormularioNovo({ produtos, criar, isOpen, onClose }: { produtos: Produt
   }, [state.ok, onClose]);
 
   return (
-    <ModalForm title="Novo Combo" isOpen={isOpen} onClose={onClose} action={action} isLoading={pending} submitLabel="Criar">
+    <ModalForm title="Novo Combo" isOpen onClose={onClose} action={action} isLoading={pending} submitLabel="Criar" maxWidth="2xl">
       <CamposComuns produtos={produtos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco} />
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
@@ -121,7 +121,7 @@ function ModalEdicao({
   }
 
   return (
-    <ModalForm title="Editar Combo" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar">
+    <ModalForm title="Editar Combo" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar" maxWidth="2xl">
       <input type="hidden" name="id" value={item.id} />
       <CamposComuns item={item} produtos={produtos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco} />
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
@@ -142,7 +142,7 @@ export function ComboClient({
         <h1 className="text-xl font-semibold">Combos</h1>
         <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>Novo Combo</button>
       </div>
-      <FormularioNovo produtos={produtos} criar={criar} isOpen={novoAberto} onClose={() => setNovoAberto(false)} />
+      {novoAberto && <FormularioNovo produtos={produtos} criar={criar} onClose={() => setNovoAberto(false)} />}
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>

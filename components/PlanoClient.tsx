@@ -101,8 +101,8 @@ function CamposComuns({
 }
 
 function FormularioNovo({
-  produtos, combos, criar, isOpen, onClose,
-}: { produtos: Produto[]; combos: Combo[]; criar: Acao; isOpen: boolean; onClose: () => void }) {
+  produtos, combos, criar, onClose,
+}: { produtos: Produto[]; combos: Combo[]; criar: Acao; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [itens, setItens] = useState<ItemEntrada[]>([]);
   const [preco, setPreco] = useState('');
@@ -113,7 +113,7 @@ function FormularioNovo({
   }, [state.ok, onClose]);
 
   return (
-    <ModalForm title="Novo Plano" isOpen={isOpen} onClose={onClose} action={action} isLoading={pending} submitLabel="Criar">
+    <ModalForm title="Novo Plano" isOpen onClose={onClose} action={action} isLoading={pending} submitLabel="Criar" maxWidth="2xl">
       <CamposComuns
         produtos={produtos} combos={combos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco}
         tipoCobranca={tipoCobranca} onTipoCobranca={setTipoCobranca}
@@ -148,7 +148,7 @@ function ModalEdicao({
   }
 
   return (
-    <ModalForm title="Editar Plano" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar">
+    <ModalForm title="Editar Plano" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar" maxWidth="2xl">
       <input type="hidden" name="id" value={item.id} />
       <CamposComuns
         item={item} produtos={produtos} combos={combos} itens={itens} onItens={setItens} preco={preco} onPreco={setPreco}
@@ -175,7 +175,7 @@ export function PlanoClient({
         <h1 className="text-xl font-semibold">Planos</h1>
         <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>Novo Plano</button>
       </div>
-      <FormularioNovo produtos={produtos} combos={combos} criar={criar} isOpen={novoAberto} onClose={() => setNovoAberto(false)} />
+      {novoAberto && <FormularioNovo produtos={produtos} combos={combos} criar={criar} onClose={() => setNovoAberto(false)} />}
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>

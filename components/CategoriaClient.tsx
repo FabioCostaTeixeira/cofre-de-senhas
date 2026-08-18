@@ -77,7 +77,7 @@ function CamposComuns({
   );
 }
 
-function FormularioNovo({ criar, isOpen, onClose }: { criar: Acao; isOpen: boolean; onClose: () => void }) {
+function FormularioNovo({ criar, onClose }: { criar: Acao; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [molde, setMolde] = useState<AtributoMolde[]>([]);
 
@@ -89,7 +89,7 @@ function FormularioNovo({ criar, isOpen, onClose }: { criar: Acao; isOpen: boole
   }, [state.ok, onClose]);
 
   return (
-    <ModalForm title="Nova Categoria" isOpen={isOpen} onClose={onClose} action={action} isLoading={pending} submitLabel="Criar">
+    <ModalForm title="Nova Categoria" isOpen onClose={onClose} action={action} isLoading={pending} submitLabel="Criar" maxWidth="2xl">
       <CamposComuns molde={molde} onMolde={setMolde} />
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
@@ -116,7 +116,7 @@ function ModalEdicao({
   }
 
   return (
-    <ModalForm title="Editar Categoria" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar">
+    <ModalForm title="Editar Categoria" isOpen onClose={onFechar} action={action} isLoading={pending} submitLabel="Salvar" maxWidth="2xl">
       <input type="hidden" name="id" value={item.id} />
       <CamposComuns item={item} molde={molde} onMolde={setMolde} />
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
@@ -137,7 +137,7 @@ export function CategoriaClient({
         <h1 className="text-xl font-semibold">Categorias de Produto</h1>
         <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>Nova Categoria</button>
       </div>
-      <FormularioNovo criar={criar} isOpen={novoAberto} onClose={() => setNovoAberto(false)} />
+      {novoAberto && <FormularioNovo criar={criar} onClose={() => setNovoAberto(false)} />}
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>
