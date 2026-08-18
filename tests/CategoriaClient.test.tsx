@@ -25,6 +25,7 @@ describe('CategoriaClient', () => {
 
   it('adicionar linha no molde do formulário novo cria um campo de chave', () => {
     render(<CategoriaClient itens={[]} criar={criar} salvar={salvar} apagar={apagar} />);
+    fireEvent.click(screen.getByText('Nova Categoria'));
     fireEvent.click(screen.getByText('+ Adicionar atributo'));
     expect(screen.getByText('Chave')).toBeInTheDocument();
   });
