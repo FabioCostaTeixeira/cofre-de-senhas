@@ -29,4 +29,24 @@ describe('CategoriaClient', () => {
     fireEvent.click(screen.getByText('+ Adicionar atributo'));
     expect(screen.getByText('Chave')).toBeInTheDocument();
   });
+
+  it('reabre o modal de criação depois de um sucesso anterior (regressão Finding 1)', async () => {
+    const criarComSucesso = vi.fn().mockResolvedValue({ ok: 'Categoria criada com sucesso' });
+    render(<CategoriaClient itens={[]} criar={criarComSucesso} salvar={salvar} apagar={apagar} />);
+
+    // Abre, preenche o campo obrigatório e submete com sucesso.
+    fireEvent.click(screen.getByText('Nova Categoria'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('dialog').querySelector('input[name="nome"]') as HTMLInputElement, {
+      target: { value: 'Gravação' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar' }));
+
+    // O modal fecha sozinho depois do sucesso.
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // Reabre: precisa mostrar o modal de novo, não fechar sozinho imediatamente.
+    fireEvent.click(screen.getByText('Nova Categoria'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
 });
