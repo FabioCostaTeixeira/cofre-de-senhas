@@ -30,6 +30,7 @@ describe('ProdutoClient', () => {
     render(
       <ProdutoClient itens={[]} categorias={[gravacao, corte]} criar={criar} salvar={salvar} apagar={apagar} />,
     );
+    fireEvent.click(screen.getByText('Novo Produto'));
     expect(screen.getByText('Câmeras *')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Categoria'), { target: { value: corte.id } });
     expect(screen.queryByText('Câmeras *')).not.toBeInTheDocument();
