@@ -22,6 +22,7 @@ afterEach(() => cleanup());
 describe('PlanoClient', () => {
   it('escolher pacote_fechado mostra campo de validade; assinatura esconde', () => {
     render(<PlanoClient itens={[]} produtos={[produto]} combos={[combo]} criar={criar} salvar={salvar} apagar={apagar} />);
+    fireEvent.click(screen.getByText('Novo Plano'));
     fireEvent.change(screen.getByLabelText('Tipo de cobrança'), { target: { value: 'pacote_fechado' } });
     expect(screen.getByLabelText('Validade (dias)')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Tipo de cobrança'), { target: { value: 'assinatura' } });
@@ -30,6 +31,7 @@ describe('PlanoClient', () => {
 
   it('repetidor de itens mistura opção de produto e de combo', () => {
     render(<PlanoClient itens={[]} produtos={[produto]} combos={[combo]} criar={criar} salvar={salvar} apagar={apagar} />);
+    fireEvent.click(screen.getByText('Novo Plano'));
     const select = screen.getByLabelText('Item');
     const rotulos = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
     expect(rotulos).toEqual(['Gravação', 'Combo cortes']);
