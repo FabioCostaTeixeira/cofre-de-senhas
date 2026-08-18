@@ -6,6 +6,13 @@ export interface ModalFormProps {
   title: string;
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * Plain form-field markup (labels, inputs, buttons, etc.) — NOT a nested
+   * `<form>` element. `ModalForm` already renders its own `<form>` wrapper
+   * around `children`; wrapping children in another `<form>` produces
+   * invalid nested-form HTML with unpredictable browser repair behavior
+   * (wrong submit-button binding, inconsistent Enter-key submission).
+   */
   children: React.ReactNode;
   submitLabel?: string;
   onSubmit?: (e: React.FormEvent) => void | Promise<void>;
@@ -23,7 +30,7 @@ export function ModalForm({
 }: ModalFormProps) {
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !isLoading) {
         onClose();
       }
     };
@@ -31,14 +38,24 @@ export function ModalForm({
       window.addEventListener('keydown', handleEsc);
     }
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isLoading]);
 
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    if (isLoading) return;
+    onClose();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit?.(e);
+  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="glass w-full max-w-md p-8 space-y-6 rounded-2xl"
@@ -52,7 +69,7 @@ export function ModalForm({
             {title}
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-white/10 rounded-lg transition"
             aria-label="Fechar"
             type="button"
@@ -61,12 +78,12 @@ export function ModalForm({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {children}
           <div className="flex gap-3 justify-end pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 rounded-lg hover:bg-white/10 transition"
             >
               Cancelar
