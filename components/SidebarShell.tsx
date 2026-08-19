@@ -207,15 +207,15 @@ export function SidebarShell({
           colapsado ? 'md:w-16' : 'md:w-60'
         }`}
       >
-        <div className={`flex items-center gap-2 ${colapsado ? 'p-2 justify-center' : 'p-4'}`}>
-          {!colapsado && <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-12 w-auto flex-1 object-contain object-left" priority />}
+        <div className={`flex flex-col gap-2 ${colapsado ? 'p-2 items-center' : 'p-4'}`}>
           <button
-            className={colapsado ? 'btn btn-icone' : 'btn'}
+            className={colapsado ? 'btn btn-icone' : 'btn self-end'}
             onClick={alternarColapso}
             aria-label={colapsado ? 'Expandir menu' : 'Retrair menu'}
           >
             {colapsado ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
+          {!colapsado && <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={240} height={80} className="h-24 w-auto object-contain object-left brightness-125 contrast-110" priority />}
         </div>
         <NavGroups
           groups={groups} colapsado={colapsado} pathname={pathname}
@@ -225,7 +225,7 @@ export function SidebarShell({
       </aside>
 
       <div className="glass fixed inset-x-4 top-4 z-30 flex items-center justify-between px-4 py-3 md:hidden">
-        <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-12 w-auto" priority />
+        <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={240} height={80} className="h-24 w-auto brightness-125 contrast-110" priority />
         <button className="btn" onClick={() => setGavetaAberta(true)} aria-label="Abrir menu">
           <Menu size={18} />
         </button>
@@ -245,7 +245,7 @@ export function SidebarShell({
         }`}
       >
         <div className="flex items-center gap-2 p-4">
-          <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={120} height={40} className="h-12 w-auto flex-1 object-contain object-left" priority />
+          <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={240} height={80} className="h-24 w-auto flex-1 object-contain object-left brightness-125 contrast-110" priority />
           <button className="btn" onClick={() => setGavetaAberta(false)} aria-label="Fechar menu">
             <X size={16} />
           </button>

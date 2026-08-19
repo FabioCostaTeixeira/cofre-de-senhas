@@ -23,8 +23,29 @@ async function main() {
   await simbolo(512).png().toFile(path.join(process.cwd(), 'public', 'icon-512.png'));
 
   // Logo completa (símbolo + wordmark + tagline), redimensionada pro sidebar
-  // — altura fixa, largura proporcional (sem distorção).
-  await sharp(origem).resize({ height: 80 }).png()
+  // — altura fixa, largura proporcional (sem distorção). O wordmark/tagline
+  // originais são índigo escuro (#271E5D), ilegível sobre o fundo escuro do
+  // app — repinta esses pixels de branco, preservando o triângulo laranja
+  // (que tem R > B, ao contrário do índigo onde B > R) e o canal alfa
+  // original (mantém o anti-aliasing das bordas).
+  const { data, info } = await sharp(origem)
+    .resize({ height: 80 })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  for (let i = 0; i < data.length; i += info.channels) {
+    const r = data[i];
+    const b = data[i + 2];
+    const alpha = data[i + info.channels - 1];
+    if (alpha > 0 && b > r) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+    }
+  }
+
+  await sharp(data, { raw: info }).png()
     .toFile(path.join(process.cwd(), 'public', 'brand', 'logo-sidebar.png'));
 
   console.log('Ícones gerados a partir de', origem);
