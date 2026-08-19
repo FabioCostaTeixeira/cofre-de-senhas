@@ -5,31 +5,55 @@ import {
 } from '@/lib/dashboard-calc';
 
 describe('periodoParaIntervalo', () => {
+  // Os `hoje` injetados aqui usam `Date.UTC(...)` (instante absoluto), não
+  // `new Date(ano, mes, dia)` (hora local do processo que roda o teste) — assim o
+  // teste vale igual não importa o fuso horário da máquina que roda `vitest`, e
+  // exercita de verdade a conversão pra Brasília feita dentro da função (Brasília é
+  // sempre UTC-3, sem horário de verão desde 2019).
+
   it('hoje: intervalo de 1 dia, [hoje, amanhã)', () => {
-    const r = periodoParaIntervalo('hoje', new Date(2026, 7, 19)); // 19/ago/2026, quarta
+    // 19/ago/2026 09:00 Brasília = 12:00 UTC. Quarta-feira.
+    const r = periodoParaIntervalo('hoje', new Date(Date.UTC(2026, 7, 19, 12, 0, 0)));
     expect(r).toEqual({ inicio: '2026-08-19', fim: '2026-08-20', dias: 1 });
   });
 
   it('semana: segunda a domingo da semana corrente, 7 dias', () => {
     // 19/ago/2026 é uma quarta-feira (dia 3). Segunda dessa semana: 17/ago.
-    const r = periodoParaIntervalo('semana', new Date(2026, 7, 19));
+    const r = periodoParaIntervalo('semana', new Date(Date.UTC(2026, 7, 19, 12, 0, 0)));
     expect(r).toEqual({ inicio: '2026-08-17', fim: '2026-08-24', dias: 7 });
   });
 
   it('semana: domingo pertence à semana que termina nele, não à seguinte', () => {
     // 23/ago/2026 é domingo. Segunda dessa semana: 17/ago (mesma semana do teste acima).
-    const r = periodoParaIntervalo('semana', new Date(2026, 7, 23));
+    const r = periodoParaIntervalo('semana', new Date(Date.UTC(2026, 7, 23, 12, 0, 0)));
     expect(r).toEqual({ inicio: '2026-08-17', fim: '2026-08-24', dias: 7 });
   });
 
   it('mes: do dia 1 ao dia 1 do mês seguinte, dias = tamanho do mês', () => {
-    const r = periodoParaIntervalo('mes', new Date(2026, 7, 19)); // agosto tem 31 dias
+    // agosto tem 31 dias
+    const r = periodoParaIntervalo('mes', new Date(Date.UTC(2026, 7, 19, 12, 0, 0)));
     expect(r).toEqual({ inicio: '2026-08-01', fim: '2026-09-01', dias: 31 });
   });
 
   it('mes: fevereiro (28 dias em 2026, não bissexto)', () => {
-    const r = periodoParaIntervalo('mes', new Date(2026, 1, 10));
+    const r = periodoParaIntervalo('mes', new Date(Date.UTC(2026, 1, 10, 12, 0, 0)));
     expect(r).toEqual({ inicio: '2026-02-01', fim: '2026-03-01', dias: 28 });
+  });
+
+  it('hoje: às 23h30 de Brasília, que já é o dia seguinte em UTC, "hoje" continua sendo o dia de Brasília', () => {
+    // 20/ago/2026 02:30 UTC = 19/ago/2026 23:30 Brasília (UTC-3). Um cálculo feito em
+    // cima de getters locais/UTC do servidor (bug original) devolveria 20/ago aqui;
+    // o correto, em Brasília, ainda é 19/ago.
+    const r = periodoParaIntervalo('hoje', new Date(Date.UTC(2026, 7, 20, 2, 30, 0)));
+    expect(r).toEqual({ inicio: '2026-08-19', fim: '2026-08-20', dias: 1 });
+  });
+
+  it('semana: perto da meia-noite de Brasília, dia da semana usado é o de Brasília, não o de UTC', () => {
+    // 24/ago/2026 (segunda) 02:30 UTC = 23/ago/2026 (domingo) 23:30 Brasília. Em UTC
+    // seria segunda (início de nova semana); em Brasília ainda é domingo da semana
+    // anterior (17/ago–24/ago, mesma dos dois testes de "semana" acima).
+    const r = periodoParaIntervalo('semana', new Date(Date.UTC(2026, 7, 24, 2, 30, 0)));
+    expect(r).toEqual({ inicio: '2026-08-17', fim: '2026-08-24', dias: 7 });
   });
 });
 

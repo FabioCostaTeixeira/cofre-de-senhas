@@ -6,26 +6,48 @@ function paraISO(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+const FUSO = 'America/Sao_Paulo';
+
+const formatoYMD = new Intl.DateTimeFormat('en-CA', {
+  timeZone: FUSO, year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
 /**
- * `hoje` é injetável pra testar; em produção sempre `new Date()`. Segue a mesma
- * convenção de `hojeISO()` em components/AgendaClient.tsx: monta a data local com
- * `new Date(ano, mes, dia)` e usa `toISOString().slice(0, 10)` só pra formatar
- * como string — não há troca de fuso aqui porque os três campos (ano/mês/dia) já
- * vêm de `getFullYear`/`getMonth`/`getDate`, que são locais.
+ * Extrai ano/mês/dia de `hoje` já convertidos pro fuso de Brasília. Necessário porque
+ * `hoje.getFullYear()`/`getMonth()`/`getDate()` são sempre locais ao relógio do processo
+ * que roda o código — em produção, o servidor da Vercel roda em UTC (mesmo motivo por
+ * trás do fuso fixo em `lib/formato.ts`), então usar esses getters direto faria "Hoje"
+ * virar amanhã já às 21h de Brasília. `Intl.DateTimeFormat` com `timeZone` explícito é a
+ * única forma de ler ano/mês/dia num fuso arbitrário a partir de um `Date`; o locale
+ * `en-CA` formata direto como `YYYY-MM-DD`, o que facilita o parse. `mes` retorna
+ * 0-indexado pra bater com a convenção de `Date.getMonth()`/`new Date(ano, mes, dia)`.
+ */
+function anoMesDiaBrasilia(hoje: Date): { ano: number; mes: number; dia: number } {
+  const [anoStr, mesStr, diaStr] = formatoYMD.format(hoje).split('-');
+  return { ano: Number(anoStr), mes: Number(mesStr) - 1, dia: Number(diaStr) };
+}
+
+/**
+ * `hoje` é injetável pra testar; em produção sempre `new Date()`. As datas de contorno
+ * (início/fim de "hoje"/"semana"/"mês") são calculadas em cima do ano/mês/dia de
+ * Brasília, não do fuso local do processo — ver `anoMesDiaBrasilia` acima. Um segundo
+ * `Date` é reconstruído a partir desses três números (`new Date(ano, mes, dia)`) pra
+ * poder usar `.getDay()`/aritmética de dias normalmente: um `Date` só expõe
+ * `getDay()`/`getMonth()`/`getDate()` no fuso local do runtime, nunca num fuso IANA
+ * arbitrário diretamente — daí a necessidade dos dois passos.
  */
 export function periodoParaIntervalo(periodo: Periodo, hoje: Date = new Date()): IntervaloPeriodo {
-  const ano = hoje.getFullYear();
-  const mes = hoje.getMonth();
-  const dia = hoje.getDate();
+  const { ano, mes, dia } = anoMesDiaBrasilia(hoje);
+  const hojeBrasilia = new Date(ano, mes, dia);
 
   if (periodo === 'hoje') {
-    const inicio = new Date(ano, mes, dia);
+    const inicio = hojeBrasilia;
     const fim = new Date(ano, mes, dia + 1);
     return { inicio: paraISO(inicio), fim: paraISO(fim), dias: 1 };
   }
 
   if (periodo === 'semana') {
-    const diaSemana = hoje.getDay(); // 0=domingo..6=sábado
+    const diaSemana = hojeBrasilia.getDay(); // 0=domingo..6=sábado, já em Brasília
     const deltaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
     const inicio = new Date(ano, mes, dia + deltaSegunda);
     const fim = new Date(ano, mes, dia + deltaSegunda + 7);
