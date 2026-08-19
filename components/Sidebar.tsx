@@ -18,10 +18,10 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
       icon: <LayoutDashboard size={18} className={iconClass} />,
       items: [{ href: '/', label: 'Painel', icon: <LayoutDashboard size={18} className={iconClass} /> }],
     },
-    // Cadastros primeiro: hub de dados compartilhados (usuário, cliente, e o que
+    // Pessoas primeiro: hub de dados compartilhados (usuário, cliente, e o que
     // vier depois) — vive dentro do próprio Cofre, sem gate de module_access.
     {
-      label: 'Cadastros',
+      label: 'Pessoas',
       icon: <UserSquare2 size={18} className={iconClass} />,
       items: [
         { href: '/usuarios', label: 'Usuários', icon: <Users size={18} className={iconClass} /> },
