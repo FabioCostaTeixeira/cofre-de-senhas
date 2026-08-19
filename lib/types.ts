@@ -314,6 +314,10 @@ export type DadosContratacao = {
   quantidade: number;
 };
 
+/** Mesma forma de `Contratacao`, mais `cancelada` — só usado na visão de histórico por
+ *  cliente (`listContratacoesDoCliente`), que não filtra `deleted_at`. */
+export type ContratacaoDoCliente = Contratacao & { cancelada: boolean };
+
 export type OSItemLinha = {
   produto_id: string;
   produto_nome: string;

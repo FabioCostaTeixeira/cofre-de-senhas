@@ -5,7 +5,7 @@ import { assertUuid } from '@/lib/validation';
 import { getCombo } from '@/lib/db/combos';
 import { getPlano } from '@/lib/db/planos';
 import { getProduto } from '@/lib/db/produtos';
-import type { Contratacao, DadosContratacao } from '@/lib/types';
+import type { Contratacao, ContratacaoDoCliente, DadosContratacao } from '@/lib/types';
 
 export class ItemInativoError extends Error {
   constructor(mensagem: string) {
@@ -120,6 +120,41 @@ export async function listContratacoes(): Promise<Contratacao[]> {
      where ct.deleted_at is null
      group by ct.id, cl.nome, p.nome, c.nome, pl.nome
      order by ct.created_at desc`) as Contratacao[];
+}
+
+/**
+ * Histórico completo de um cliente, inclusive contratações canceladas (`cancelada:
+ * true` quando `deleted_at` não é nulo) — diferente de `listContratacoes`, que só
+ * mostra ativas. Usado no modal de cliente (aba Compras), não na lista principal.
+ */
+export async function listContratacoesDoCliente(clienteId: string): Promise<ContratacaoDoCliente[]> {
+  assertUuid(clienteId);
+  return (await sql`
+    select ct.id, ct.cliente_id, cl.nome as cliente_nome, ct.tipo,
+           ct.produto_id, ct.combo_id, ct.plano_id,
+           coalesce(p.nome, c.nome, pl.nome) as item_nome,
+           ct.quantidade, ct.preco_total::float8 as preco_total,
+           ct.data_validade::text as data_validade,
+           ct.created_at,
+           (ct.deleted_at is not null) as cancelada,
+           coalesce(
+             json_agg(
+               json_build_object(
+                 'produto_id', ci.produto_id, 'produto_nome', cp.nome,
+                 'quantidade_total', ci.quantidade_total, 'quantidade_consumida', ci.quantidade_consumida
+               ) order by cp.nome
+             ) filter (where ci.id is not null), '[]'
+           ) as itens
+      from contratacoes ct
+      join clientes cl on cl.id = ct.cliente_id
+      left join produtos p on p.id = ct.produto_id
+      left join combos c on c.id = ct.combo_id
+      left join planos pl on pl.id = ct.plano_id
+      left join contratacao_itens ci on ci.contratacao_id = ct.id
+      left join produtos cp on cp.id = ci.produto_id
+     where ct.cliente_id = ${clienteId}
+     group by ct.id, cl.nome, p.nome, c.nome, pl.nome
+     order by ct.created_at desc`) as ContratacaoDoCliente[];
 }
 
 export async function softDeleteContratacao(id: string): Promise<void> {

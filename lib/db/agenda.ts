@@ -63,6 +63,27 @@ export async function listAgendamentosDoEstudio(estudioId: string): Promise<Agen
      order by a.data, a.hora_inicio`) as Agendamento[];
 }
 
+/**
+ * Histórico completo de agendamentos de um cliente, em todos os studios, inclusive
+ * `status = 'cancelado'` (cancelado é um status, não uma exclusão — o registro
+ * continua existindo). Só exclui de fato apagados (`deleted_at`). Usado no modal de
+ * cliente (aba Agendamento).
+ */
+export async function listAgendamentosDoCliente(clienteId: string): Promise<Agendamento[]> {
+  assertUuid(clienteId);
+  return (await sql`
+    select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
+           a.categoria_produto_id, cp.nome as categoria_nome, a.status,
+           a.data::text as data, a.hora_inicio::text as hora_inicio, a.hora_fim::text as hora_fim,
+           a.created_at
+      from agendamentos a
+      join clientes cl on cl.id = a.cliente_id
+      join estudios e on e.id = a.estudio_id
+      join categorias_produto cp on cp.id = a.categoria_produto_id
+     where a.cliente_id = ${clienteId} and a.deleted_at is null
+     order by a.data desc, a.hora_inicio desc`) as Agendamento[];
+}
+
 export async function createAgendamento(dados: DadosAgendamento): Promise<string> {
   assertUuid(dados.cliente_id);
   assertUuid(dados.local_id);
