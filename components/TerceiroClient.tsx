@@ -1,6 +1,8 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import { useActionState, useEffect, useState } from 'react';
+import { ModalForm } from '@/components/ModalForm';
 import { mascararTelefone, soDigitos } from '@/lib/documentos';
 import { formatarDataHora } from '@/lib/formato';
 import type { Terceiro } from '@/lib/types';
@@ -33,11 +35,11 @@ export function TerceiroClient({
 }) {
   const rotulos = ROTULOS[tipo];
   const [aberto, setAberto] = useState<Terceiro | null>(null);
+  const [novoAberto, setNovoAberto] = useState(false);
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{rotulos.titulo}</h1>
-      <FormularioNovo rotulos={rotulos} criar={criar} />
 
       <table className="w-full text-sm">
         <thead>
@@ -73,6 +75,18 @@ export function TerceiroClient({
           onFechar={() => setAberto(null)}
         />
       )}
+      {novoAberto && (
+        <FormularioNovo rotulos={rotulos} criar={criar} onClose={() => setNovoAberto(false)} />
+      )}
+
+      <button
+        type="button"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full p-0 cursor-pointer transition-colors btn-primary"
+        onClick={() => setNovoAberto(true)}
+        aria-label={rotulos.novo}
+      >
+        <Plus size={24} />
+      </button>
     </div>
   );
 }
@@ -118,32 +132,28 @@ function CamposComuns({
 }
 
 function FormularioNovo({
-  rotulos, criar,
+  rotulos, criar, onClose,
 }: {
   rotulos: (typeof ROTULOS)[keyof typeof ROTULOS];
   criar: Acao;
+  onClose: () => void;
 }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [telefoneDigitos, setTelefoneDigitos] = useState('');
 
-  // O React reseta o `<form>` nativo sozinho após a Server Action ter sucesso,
-  // o que limpa os campos não controlados (defaultValue) — mas telefone é
-  // controlado por este estado, então precisa ser zerado à mão aqui, senão
-  // fica o único campo que "sobrevive" ao cadastro.
+  // Sucesso: fecha o modal sozinho, mesmo padrão dos outros ModalForm de criação.
   useEffect(() => {
-    if (state.ok) setTelefoneDigitos('');
-  }, [state.ok]);
+    if (state.ok) onClose();
+  }, [state.ok, onClose]);
 
   return (
-    <details className="glass p-5">
-      <summary className="cursor-pointer font-semibold">{rotulos.novo}</summary>
-      <form action={action} className="space-y-4 mt-4">
-        <CamposComuns telefoneDigitos={telefoneDigitos} onTelefone={setTelefoneDigitos} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
-        <button className="btn btn-primary" disabled={pending}>Cadastrar</button>
-      </form>
-    </details>
+    <ModalForm
+      title={rotulos.novo} isOpen onClose={onClose} action={action} isLoading={pending}
+      submitLabel="Cadastrar"
+    >
+      <CamposComuns telefoneDigitos={telefoneDigitos} onTelefone={setTelefoneDigitos} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+    </ModalForm>
   );
 }
 
@@ -173,24 +183,18 @@ function ModalEdicao({
   }
 
   return (
-    <div className="glass p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="font-semibold flex-1">{item.nome}</h2>
-        <button type="button" className="btn" onClick={onFechar}>Fechar</button>
-      </div>
+    <ModalForm
+      title={item.nome} isOpen onClose={onFechar} action={action} isLoading={pending}
+      submitLabel="Salvar"
+    >
       <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
         Cadastrado em {formatarDataHora(item.created_at)}
       </p>
-
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="id" value={item.id} />
-        <CamposComuns item={item} telefoneDigitos={telefoneDigitos} onTelefone={setTelefoneDigitos} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        <button className="btn btn-primary" disabled={pending}>Salvar</button>
-      </form>
-
+      <input type="hidden" name="id" value={item.id} />
+      <CamposComuns item={item} telefoneDigitos={telefoneDigitos} onTelefone={setTelefoneDigitos} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       <button type="button" className="btn btn-danger" onClick={() => void apagarClique()}>Apagar</button>
       {erroApagar && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erroApagar}</p>}
-    </div>
+    </ModalForm>
   );
 }

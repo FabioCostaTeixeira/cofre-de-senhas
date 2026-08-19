@@ -22,7 +22,7 @@ describe('TerceiroClient', () => {
       <TerceiroClient tipo="cliente" itens={[item]} criar={criar} salvar={salvar} apagar={apagar} />,
     );
     expect(screen.getByText('Clientes')).toBeInTheDocument();
-    expect(screen.getByText('Novo cliente')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Novo cliente' })).toBeInTheDocument();
   });
 
   it('tipo fornecedor mostra os rótulos de fornecedor', () => {
@@ -30,7 +30,17 @@ describe('TerceiroClient', () => {
       <TerceiroClient tipo="fornecedor" itens={[item]} criar={criar} salvar={salvar} apagar={apagar} />,
     );
     expect(screen.getByText('Fornecedores')).toBeInTheDocument();
-    expect(screen.getByText('Novo fornecedor')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Novo fornecedor' })).toBeInTheDocument();
+  });
+
+  it('clicar no botão flutuante abre o modal de cadastro', () => {
+    render(
+      <TerceiroClient tipo="cliente" itens={[]} criar={criar} salvar={salvar} apagar={apagar} />,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo cliente' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Novo cliente' })).toBeInTheDocument();
   });
 
   it('clicar na linha abre o modal com os dados preenchidos', () => {
