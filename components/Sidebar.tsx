@@ -1,4 +1,4 @@
-import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, FolderKanban, Home, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
+import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, FolderKanban, Home, LayoutDashboard, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
 import { canManageAgenda, canManageContratacoes, canManageLocaisGravacao, canManageOrdensServico, canManageProdutos, canManageTerceiros } from '@/lib/authz';
 import { listModulesOfUser } from '@/lib/db/queries';
@@ -13,6 +13,11 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
 
   const iconClass = 'shrink-0';
   const groups: SidebarGroup[] = [
+    {
+      label: 'Painel',
+      icon: <LayoutDashboard size={18} className={iconClass} />,
+      items: [{ href: '/', label: 'Painel', icon: <LayoutDashboard size={18} className={iconClass} /> }],
+    },
     // Cadastros primeiro: hub de dados compartilhados (usuário, cliente, e o que
     // vier depois) — vive dentro do próprio Cofre, sem gate de module_access.
     {
@@ -85,7 +90,7 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
       label: 'Cofre de Senhas',
       icon: <Vault size={18} className={iconClass} />,
       items: [
-        { href: '/', label: 'Salas', icon: <Home size={18} className={iconClass} /> },
+        { href: '/senhas', label: 'Salas', icon: <Home size={18} className={iconClass} /> },
         ...(actor.role === 'master'
           ? [
               {
