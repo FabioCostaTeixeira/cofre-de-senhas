@@ -1349,6 +1349,14 @@ descreve('integração com o banco real', () => {
     const lista = await ct.listContratacoes();
     expect(lista.map((c) => c.id)).not.toContain(id);
 
+    // Mas continua visível no histórico do cliente, marcada como cancelada — é essa a
+    // visão que substitui o acesso perdido pela lista principal (ver módulo de
+    // relatórios/gestão financeira, ainda não construído).
+    const historico = await ct.listContratacoesDoCliente(clienteId);
+    const doCliente = historico.find((c) => c.id === id);
+    expect(doCliente).toBeDefined();
+    expect(doCliente?.cancelada).toBe(true);
+
     // Mas o saldo consumido continua intacto no banco, preservando o histórico.
     const itemRow = (await sql`
       select quantidade_total, quantidade_consumida from contratacao_itens where contratacao_id = ${id}`) as

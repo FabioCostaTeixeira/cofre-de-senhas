@@ -1,11 +1,11 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import { useActionState, useEffect, useState } from 'react';
+import { Fragment, useActionState, useEffect, useState } from 'react';
 import { ModalForm } from '@/components/ModalForm';
 import { mascararTelefone, soDigitos } from '@/lib/documentos';
 import { formatarDataHora } from '@/lib/formato';
-import type { Terceiro } from '@/lib/types';
+import type { Agendamento, ContratacaoDoCliente, StatusAgendamento, Terceiro, TipoContratacao } from '@/lib/types';
 
 export type TerceiroState = { error?: string; ok?: string };
 
@@ -20,18 +20,28 @@ const ROTULOS = {
   },
 } as const;
 
+const ROTULOS_TIPO: Record<TipoContratacao, string> = {
+  avulso: 'Avulso', combo: 'Combo', plano: 'Plano',
+};
+
+const ROTULOS_STATUS_AGENDAMENTO: Record<StatusAgendamento, string> = {
+  agendado: 'Agendado', pre_agendado: 'Pré-agendado', gravando: 'Gravando',
+  concluido: 'Concluído', cancelado: 'Cancelado',
+};
+
 const inicial: TerceiroState = {};
 
 type Acao = (prev: TerceiroState, fd: FormData) => Promise<TerceiroState>;
 
 export function TerceiroClient({
-  tipo, itens, criar, salvar, apagar,
+  tipo, itens, criar, salvar, apagar, buscarDadosCliente,
 }: {
   tipo: 'cliente' | 'fornecedor';
   itens: Terceiro[];
   criar: Acao;
   salvar: Acao;
   apagar: (id: string) => Promise<{ error?: string }>;
+  buscarDadosCliente?: (clienteId: string) => Promise<DadosHistoricoCliente | { error: string }>;
 }) {
   const rotulos = ROTULOS[tipo];
   const [aberto, setAberto] = useState<Terceiro | null>(null);
@@ -72,7 +82,7 @@ export function TerceiroClient({
       {aberto && (
         <ModalEdicao
           key={aberto.id} item={aberto} rotulos={rotulos} salvar={salvar} apagar={apagar}
-          onFechar={() => setAberto(null)}
+          onFechar={() => setAberto(null)} buscarDadosCliente={buscarDadosCliente}
         />
       )}
       {novoAberto && (
@@ -99,7 +109,7 @@ function CamposComuns({
   onTelefone: (digitos: string) => void;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-3">
       <label className="block space-y-1">
         <span className="text-sm">Nome completo</span>
         <input name="nome" className="input" defaultValue={item?.nome ?? ''} required />
@@ -149,7 +159,7 @@ function FormularioNovo({
   return (
     <ModalForm
       title={rotulos.novo} isOpen onClose={onClose} action={action} isLoading={pending}
-      submitLabel="Cadastrar"
+      submitLabel="Cadastrar" maxWidth="2xl"
     >
       <CamposComuns telefoneDigitos={telefoneDigitos} onTelefone={setTelefoneDigitos} />
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
@@ -157,14 +167,166 @@ function FormularioNovo({
   );
 }
 
+function AbaCompras({ contratacoes }: { contratacoes: ContratacaoDoCliente[] }) {
+  const [expandido, setExpandido] = useState<string | null>(null);
+
+  if (contratacoes.length === 0) {
+    return <p className="text-sm py-4" style={{ color: 'var(--text-dim)' }}>Nenhuma contratação.</p>;
+  }
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr style={{ color: 'var(--text-dim)' }}>
+          <th className="text-left p-2">Tipo</th>
+          <th className="text-left p-2">Item</th>
+          <th className="text-left p-2">Qtd</th>
+          <th className="text-left p-2">Total</th>
+          <th className="text-left p-2">Data</th>
+          <th className="text-left p-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {contratacoes.map((c) => (
+          <Fragment key={c.id}>
+            <tr className="cursor-pointer" onClick={() => setExpandido(expandido === c.id ? null : c.id)}>
+              <td className="p-2">{ROTULOS_TIPO[c.tipo]}</td>
+              <td className="p-2">{c.item_nome}</td>
+              <td className="p-2">{c.quantidade}</td>
+              <td className="p-2">R$ {c.preco_total.toFixed(2)}</td>
+              <td className="p-2">
+                {c.created_at.slice(8, 10)}/{c.created_at.slice(5, 7)}/{c.created_at.slice(0, 4)}
+              </td>
+              <td className="p-2">{c.cancelada ? 'Cancelada' : 'Ativa'}</td>
+            </tr>
+            {expandido === c.id && c.itens.length > 0 && (
+              <tr>
+                <td colSpan={6} className="p-2">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ color: 'var(--text-dim)' }}>
+                        <th className="text-left p-1">Produto</th>
+                        <th className="text-left p-1">Total</th>
+                        <th className="text-left p-1">Consumido</th>
+                        <th className="text-left p-1">Disponível</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.itens.map((i) => (
+                        <tr key={i.produto_id}>
+                          <td className="p-1">{i.produto_nome}</td>
+                          <td className="p-1">{i.quantidade_total}</td>
+                          <td className="p-1">{i.quantidade_consumida}</td>
+                          <td className="p-1">{i.quantidade_total - i.quantidade_consumida}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            )}
+          </Fragment>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function AbaAgendamento({ agendamentos }: { agendamentos: Agendamento[] }) {
+  if (agendamentos.length === 0) {
+    return <p className="text-sm py-4" style={{ color: 'var(--text-dim)' }}>Nenhum agendamento.</p>;
+  }
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr style={{ color: 'var(--text-dim)' }}>
+          <th className="text-left p-2">Produto</th>
+          <th className="text-left p-2">Studio</th>
+          <th className="text-left p-2">Data</th>
+          <th className="text-left p-2">Início</th>
+          <th className="text-left p-2">Fim</th>
+          <th className="text-left p-2">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {agendamentos.map((a) => (
+          <tr key={a.id}>
+            <td className="p-2">{a.categoria_nome}</td>
+            <td className="p-2">{a.estudio_nome}</td>
+            <td className="p-2">{a.data.slice(8, 10)}/{a.data.slice(5, 7)}/{a.data.slice(0, 4)}</td>
+            <td className="p-2">{a.hora_inicio.slice(0, 5)}</td>
+            <td className="p-2">{a.hora_fim.slice(0, 5)}</td>
+            <td className="p-2">{ROTULOS_STATUS_AGENDAMENTO[a.status]}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+type DadosHistoricoCliente = { contratacoes: ContratacaoDoCliente[]; agendamentos: Agendamento[] };
+
+function HistoricoCliente({
+  clienteId, buscarDadosCliente,
+}: {
+  clienteId: string;
+  buscarDadosCliente: (clienteId: string) => Promise<DadosHistoricoCliente | { error: string }>;
+}) {
+  const [aba, setAba] = useState<'compras' | 'agendamento'>('compras');
+  const [dados, setDados] = useState<DadosHistoricoCliente | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    setDados(null);
+    setErro(null);
+    void buscarDadosCliente(clienteId).then((r) => {
+      if (cancelado) return;
+      if ('error' in r) setErro(r.error);
+      else setDados(r);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [clienteId, buscarDadosCliente]);
+
+  return (
+    <div className="space-y-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className={aba === 'compras' ? 'btn btn-primary' : 'btn'}
+          onClick={() => setAba('compras')}
+        >
+          Compras
+        </button>
+        <button
+          type="button"
+          className={aba === 'agendamento' ? 'btn btn-primary' : 'btn'}
+          onClick={() => setAba('agendamento')}
+        >
+          Agendamento
+        </button>
+      </div>
+
+      {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+      {!erro && !dados && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Carregando...</p>}
+      {dados && aba === 'compras' && <AbaCompras contratacoes={dados.contratacoes} />}
+      {dados && aba === 'agendamento' && <AbaAgendamento agendamentos={dados.agendamentos} />}
+    </div>
+  );
+}
+
 function ModalEdicao({
-  item, rotulos, salvar, apagar, onFechar,
+  item, rotulos, salvar, apagar, onFechar, buscarDadosCliente,
 }: {
   item: Terceiro;
   rotulos: (typeof ROTULOS)[keyof typeof ROTULOS];
   salvar: Acao;
   apagar: (id: string) => Promise<{ error?: string }>;
   onFechar: () => void;
+  buscarDadosCliente?: (clienteId: string) => Promise<DadosHistoricoCliente | { error: string }>;
 }) {
   const [state, action, pending] = useActionState(salvar, inicial);
   const [telefoneDigitos, setTelefoneDigitos] = useState(item.telefone ?? '');
@@ -185,7 +347,7 @@ function ModalEdicao({
   return (
     <ModalForm
       title={item.nome} isOpen onClose={onFechar} action={action} isLoading={pending}
-      submitLabel="Salvar"
+      submitLabel="Salvar" maxWidth="2xl"
     >
       <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
         Cadastrado em {formatarDataHora(item.created_at)}
@@ -195,6 +357,9 @@ function ModalEdicao({
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       <button type="button" className="btn btn-danger" onClick={() => void apagarClique()}>Apagar</button>
       {erroApagar && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erroApagar}</p>}
+      {buscarDadosCliente && (
+        <HistoricoCliente clienteId={item.id} buscarDadosCliente={buscarDadosCliente} />
+      )}
     </ModalForm>
   );
 }

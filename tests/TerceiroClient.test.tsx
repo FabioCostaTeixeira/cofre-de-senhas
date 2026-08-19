@@ -58,4 +58,55 @@ describe('TerceiroClient', () => {
     );
     expect(screen.getByText('Nenhum fornecedor cadastrado.')).toBeInTheDocument();
   });
+
+  it('modal de cliente mostra as abas Compras e Agendamento', async () => {
+    const buscarDadosCliente = vi.fn().mockResolvedValue({
+      contratacoes: [], agendamentos: [],
+    });
+    render(
+      <TerceiroClient
+        tipo="cliente" itens={[item]} criar={criar} salvar={salvar} apagar={apagar}
+        buscarDadosCliente={buscarDadosCliente}
+      />,
+    );
+    fireEvent.click(screen.getByText('ACME Ltda'));
+    expect(screen.getByRole('button', { name: 'Compras' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Agendamento' })).toBeInTheDocument();
+    expect(buscarDadosCliente).toHaveBeenCalledWith(item.id);
+  });
+
+  it('modal de fornecedor não mostra abas', () => {
+    render(
+      <TerceiroClient tipo="fornecedor" itens={[item]} criar={criar} salvar={salvar} apagar={apagar} />,
+    );
+    fireEvent.click(screen.getByText('ACME Ltda'));
+    expect(screen.queryByRole('button', { name: 'Compras' })).not.toBeInTheDocument();
+  });
+
+  it('troca de aba mostra o conteúdo certo', async () => {
+    const buscarDadosCliente = vi.fn().mockResolvedValue({
+      contratacoes: [{
+        id: 'ct1', cliente_id: item.id, cliente_nome: item.nome, tipo: 'avulso',
+        produto_id: 'p1', combo_id: null, plano_id: null, item_nome: 'Gravação Padrão',
+        quantidade: 1, preco_total: 100, data_validade: null, created_at: '2026-08-01T00:00:00Z',
+        cancelada: false, itens: [],
+      }],
+      agendamentos: [{
+        id: 'ag1', cliente_id: item.id, cliente_nome: item.nome, local_id: 'l1',
+        estudio_id: 'e1', estudio_nome: 'Estúdio A', categoria_produto_id: 'cat1',
+        categoria_nome: 'Gravação Padrão', status: 'concluido', data: '2026-08-01',
+        hora_inicio: '09:00:00', hora_fim: '10:00:00', created_at: '2026-08-01T00:00:00Z',
+      }],
+    });
+    render(
+      <TerceiroClient
+        tipo="cliente" itens={[item]} criar={criar} salvar={salvar} apagar={apagar}
+        buscarDadosCliente={buscarDadosCliente}
+      />,
+    );
+    fireEvent.click(screen.getByText('ACME Ltda'));
+    expect(await screen.findByText('Gravação Padrão')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Agendamento' }));
+    expect(await screen.findByText('Estúdio A')).toBeInTheDocument();
+  });
 });
