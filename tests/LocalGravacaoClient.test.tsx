@@ -34,4 +34,12 @@ describe('LocalGravacaoClient', () => {
     render(<LocalGravacaoClient itens={[]} criar={criar} salvar={salvar} apagar={apagar} />);
     expect(screen.getByText('Nenhum local de gravação cadastrado.')).toBeInTheDocument();
   });
+
+  it('clicar no botão flutuante abre o modal de cadastro', () => {
+    render(<LocalGravacaoClient itens={[]} criar={criar} salvar={salvar} apagar={apagar} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Novo local de gravação' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Novo local de gravação' })).toBeInTheDocument();
+  });
 });

@@ -1,7 +1,9 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import { useActionState, useEffect, useState } from 'react';
 import { EstudiosRepetidor } from '@/components/EstudiosRepetidor';
+import { ModalForm } from '@/components/ModalForm';
 import type { DadosLocal, LocalGravacao } from '@/lib/types';
 
 export type LocalGravacaoState = { error?: string; ok?: string };
@@ -33,24 +35,22 @@ function CamposComuns({
   );
 }
 
-function FormularioNovo({ criar }: { criar: Acao }) {
+function FormularioNovo({ criar, onClose }: { criar: Acao; onClose: () => void }) {
   const [state, action, pending] = useActionState(criar, inicial);
   const [estudios, setEstudios] = useState<EstudioEntrada[]>([]);
 
   useEffect(() => {
-    if (state.ok) setEstudios([]);
-  }, [state.ok]);
+    if (state.ok) onClose();
+  }, [state.ok, onClose]);
 
   return (
-    <details className="glass p-5">
-      <summary className="cursor-pointer font-semibold">Novo local de gravação</summary>
-      <form action={action} className="space-y-4 mt-4">
-        <CamposComuns estudios={estudios} onEstudios={setEstudios} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        {state.ok && <p className="text-sm" style={{ color: 'var(--ok)' }}>{state.ok}</p>}
-        <button className="btn btn-primary" disabled={pending}>Cadastrar</button>
-      </form>
-    </details>
+    <ModalForm
+      title="Novo local de gravação" isOpen onClose={onClose} action={action} isLoading={pending}
+      submitLabel="Cadastrar" maxWidth="2xl"
+    >
+      <CamposComuns estudios={estudios} onEstudios={setEstudios} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+    </ModalForm>
   );
 }
 
@@ -75,20 +75,16 @@ function ModalEdicao({
   }
 
   return (
-    <div className="glass p-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="font-semibold flex-1">{item.nome}</h2>
-        <button type="button" className="btn" onClick={onFechar}>Fechar</button>
-      </div>
-      <form action={action} className="space-y-4">
-        <input type="hidden" name="id" value={item.id} />
-        <CamposComuns item={item} estudios={estudios} onEstudios={setEstudios} />
-        {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
-        <button className="btn btn-primary" disabled={pending}>Salvar</button>
-      </form>
+    <ModalForm
+      title={item.nome} isOpen onClose={onFechar} action={action} isLoading={pending}
+      submitLabel="Salvar" maxWidth="2xl"
+    >
+      <input type="hidden" name="id" value={item.id} />
+      <CamposComuns item={item} estudios={estudios} onEstudios={setEstudios} />
+      {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
       <button type="button" className="btn btn-danger" onClick={() => void apagarClique()}>Apagar</button>
       {erroApagar && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erroApagar}</p>}
-    </div>
+    </ModalForm>
   );
 }
 
@@ -96,10 +92,10 @@ export function LocalGravacaoClient({
   itens, criar, salvar, apagar,
 }: { itens: LocalGravacao[]; criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }> }) {
   const [aberto, setAberto] = useState<LocalGravacao | null>(null);
+  const [novoAberto, setNovoAberto] = useState(false);
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Locais de Gravação</h1>
-      <FormularioNovo criar={criar} />
       <table className="w-full text-sm">
         <thead>
           <tr style={{ color: 'var(--text-dim)' }}>
@@ -124,6 +120,16 @@ export function LocalGravacaoClient({
       {aberto && (
         <ModalEdicao key={aberto.id} item={aberto} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)} />
       )}
+      {novoAberto && <FormularioNovo criar={criar} onClose={() => setNovoAberto(false)} />}
+
+      <button
+        type="button"
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full p-0 cursor-pointer transition-colors btn-primary"
+        onClick={() => setNovoAberto(true)}
+        aria-label="Novo local de gravação"
+      >
+        <Plus size={24} />
+      </button>
     </div>
   );
 }
