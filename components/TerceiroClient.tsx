@@ -195,7 +195,7 @@ function AbaCompras({ contratacoes }: { contratacoes: ContratacaoDoCliente[] }) 
               <td className="p-2">{c.quantidade}</td>
               <td className="p-2">R$ {c.preco_total.toFixed(2)}</td>
               <td className="p-2">
-                {c.created_at.slice(8, 10)}/{c.created_at.slice(5, 7)}/{c.created_at.slice(0, 4)}
+                {formatarDataHora(c.created_at)}
               </td>
               <td className="p-2">{c.cancelada ? 'Cancelada' : 'Ativa'}</td>
             </tr>
@@ -281,11 +281,15 @@ function HistoricoCliente({
     let cancelado = false;
     setDados(null);
     setErro(null);
-    void buscarDadosCliente(clienteId).then((r) => {
-      if (cancelado) return;
-      if ('error' in r) setErro(r.error);
-      else setDados(r);
-    });
+    void buscarDadosCliente(clienteId)
+      .then((r) => {
+        if (cancelado) return;
+        if ('error' in r) setErro(r.error);
+        else setDados(r);
+      })
+      .catch(() => {
+        if (!cancelado) setErro('Não foi possível carregar o histórico.');
+      });
     return () => {
       cancelado = true;
     };
@@ -310,10 +314,12 @@ function HistoricoCliente({
         </button>
       </div>
 
-      {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
-      {!erro && !dados && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Carregando...</p>}
-      {dados && aba === 'compras' && <AbaCompras contratacoes={dados.contratacoes} />}
-      {dados && aba === 'agendamento' && <AbaAgendamento agendamentos={dados.agendamentos} />}
+      <div className="max-h-64 overflow-y-auto">
+        {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+        {!erro && !dados && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Carregando...</p>}
+        {dados && aba === 'compras' && <AbaCompras contratacoes={dados.contratacoes} />}
+        {dados && aba === 'agendamento' && <AbaAgendamento agendamentos={dados.agendamentos} />}
+      </div>
     </div>
   );
 }

@@ -88,7 +88,7 @@ describe('TerceiroClient', () => {
       contratacoes: [{
         id: 'ct1', cliente_id: item.id, cliente_nome: item.nome, tipo: 'avulso',
         produto_id: 'p1', combo_id: null, plano_id: null, item_nome: 'Gravação Padrão',
-        quantidade: 1, preco_total: 100, data_validade: null, created_at: '2026-08-01T00:00:00Z',
+        quantidade: 1, preco_total: 100, data_validade: null, created_at: new Date('2026-08-01T00:00:00Z'),
         cancelada: false, itens: [],
       }],
       agendamentos: [{
@@ -108,5 +108,17 @@ describe('TerceiroClient', () => {
     expect(await screen.findByText('Gravação Padrão')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Agendamento' }));
     expect(await screen.findByText('Estúdio A')).toBeInTheDocument();
+  });
+
+  it('erro ao buscar histórico mostra mensagem de erro', async () => {
+    const buscarDadosCliente = vi.fn().mockRejectedValue(new Error('boom'));
+    render(
+      <TerceiroClient
+        tipo="cliente" itens={[item]} criar={criar} salvar={salvar} apagar={apagar}
+        buscarDadosCliente={buscarDadosCliente}
+      />,
+    );
+    fireEvent.click(screen.getByText('ACME Ltda'));
+    expect(await screen.findByText('Não foi possível carregar o histórico.')).toBeInTheDocument();
   });
 });
