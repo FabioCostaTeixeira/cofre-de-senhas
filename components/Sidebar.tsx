@@ -1,4 +1,4 @@
-import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, FolderKanban, Home, LayoutDashboard, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
+import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, FolderKanban, Home, Kanban, LayoutDashboard, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
 import { canManageAgenda, canManageContratacoes, canManageLocaisGravacao, canManageOrdensServico, canManageProdutos, canManageTerceiros } from '@/lib/authz';
 import { listModulesOfUser } from '@/lib/db/queries';
@@ -17,6 +17,13 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
       label: 'Painel',
       icon: <LayoutDashboard size={18} className={iconClass} />,
       items: [{ href: '/', label: 'Painel', icon: <LayoutDashboard size={18} className={iconClass} /> }],
+    },
+    // Working: gestão de tarefas internas da 4Nexus. Hub interno como Painel/Pessoas —
+    // sem gate de module_access, todo usuário logado vê.
+    {
+      label: 'Working',
+      icon: <Kanban size={18} className={iconClass} />,
+      items: [{ href: '/working/planejamento', label: 'Planejamento', icon: <Kanban size={18} className={iconClass} /> }],
     },
     // Pessoas primeiro: hub de dados compartilhados (usuário, cliente, e o que
     // vier depois) — vive dentro do próprio Cofre, sem gate de module_access.
