@@ -19,4 +19,14 @@ describe('KanbanBoard', () => {
     render(<KanbanBoard />);
     expect(screen.getAllByText('Nenhuma tarefa')).toHaveLength(COLUNAS_KANBAN.length);
   });
+
+  // Os ids são o contrato que a próxima rodada (cards) vai persistir no banco —
+  // renomear um rótulo é livre, mudar um id quebraria dado já gravado. Sem esta
+  // asserção um id pode mudar com a suíte toda verde, porque hoje ele só é usado
+  // como `key` de React.
+  it('mantém os identificadores estáveis das colunas', () => {
+    expect(COLUNAS_KANBAN.map((c) => c.id)).toEqual([
+      'roadmap', 'a_fazer', 'executando', 'block', 'homologacao_cliente', 'concluido',
+    ]);
+  });
 });
