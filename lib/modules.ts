@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { FolderKanban } from 'lucide-react';
+// import { FolderKanban } from 'lucide-react';
 
 /**
  * Módulos externos disponíveis pra conceder acesso na tela de usuário. O Cofre em
@@ -16,6 +16,8 @@ export type ModuleDef = {
   icon: LucideIcon;
 };
 
+// Gestão de Projetos comentada a pedido do cliente (2026-08-20): não deve mais
+// aparecer no sidebar nem ser acessível daqui. Descomentar pra reativar.
 export const MODULES: ModuleDef[] = [
-  { key: 'gestao', groupLabel: 'Gestão', label: 'Gestão de Projetos', href: '/gestao', icon: FolderKanban },
+  // { key: 'gestao', groupLabel: 'Gestão', label: 'Gestão de Projetos', href: '/gestao', icon: FolderKanban },
 ];
