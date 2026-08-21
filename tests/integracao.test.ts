@@ -1955,5 +1955,100 @@ descreve('integração com o banco real', () => {
       await tf.softDeleteTarefa(primeiraId);
       await limparCarteira(c);
     });
+
+    it('duas criações concorrentes com saldo para 1 só: uma vence, a outra perde com SaldoIndisponivelError', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('concorrencia', 1);
+
+      const dados = {
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição concorrente', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      };
+
+      // `allSettled`, não `all`: se as duas caírem na mesma promise resolvida/rejeitada,
+      // `all` mascararia o resultado da outra assim que a primeira rejeitasse.
+      const resultados = await Promise.allSettled([tf.createTarefa(dados), tf.createTarefa(dados)]);
+
+      const cumpridas = resultados.filter(
+        (r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled',
+      );
+      const rejeitadas = resultados.filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected',
+      );
+      expect(cumpridas).toHaveLength(1);
+      expect(rejeitadas).toHaveLength(1);
+      expect(rejeitadas[0].reason).toBeInstanceOf(tf.SaldoIndisponivelError);
+
+      // Só 1 unidade existia: o guard-in-where do CTE de reserva (não a checagem
+      // preliminar) é quem decide o empate — ver Finding 4 da revisão do Task 3.
+      const saldo = await saldoAtual(c.contratacaoItemId);
+      expect(saldo.quantidade_reservada).toBe(1);
+      expect(saldo.quantidade_consumida).toBe(0);
+
+      await limparCarteira(c);
+    });
+
+    it('apagar tarefa já convertida em consumo (Concluído) não libera reserva que não existe mais', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('apaga-consumida', 2);
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+
+      await tf.moverTarefa(tarefaId, 'concluido');
+      const apósConcluir = await saldoAtual(c.contratacaoItemId);
+      expect(apósConcluir.quantidade_reservada).toBe(0);
+      expect(apósConcluir.quantidade_consumida).toBe(1);
+
+      await tf.softDeleteTarefa(tarefaId);
+      const depois = await saldoAtual(c.contratacaoItemId);
+      expect(depois.quantidade_reservada).toBe(0);
+      expect(depois.quantidade_consumida).toBe(1);
+
+      await limparCarteira(c);
+    });
+
+    it('flag ajuste: liga saindo de Homologação, desliga chegando em Concluído, preserva nos demais casos', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('ajuste', 3);
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+
+      const lerAjuste = async () => {
+        const [linha] = (await sql`
+          select ajuste from tarefas where id = ${tarefaId}`) as { ajuste: boolean }[];
+        return linha.ajuste;
+      };
+
+      expect(await lerAjuste()).toBe(false);
+
+      // roadmap -> homologacao_cliente: chegar em Homologação não liga nada.
+      await tf.moverTarefa(tarefaId, 'homologacao_cliente');
+      expect(await lerAjuste()).toBe(false);
+
+      // homologacao_cliente -> a_fazer (não é Concluído): saiu de Homologação, liga.
+      await tf.moverTarefa(tarefaId, 'a_fazer');
+      expect(await lerAjuste()).toBe(true);
+
+      // a_fazer -> executando: fora dos dois casos especiais, preserva o que já estava.
+      // É esse o branch que uma implementação errada mais fácil regride silenciosamente.
+      await tf.moverTarefa(tarefaId, 'executando');
+      expect(await lerAjuste()).toBe(true);
+
+      // executando -> concluido: chegar em Concluído desliga, mesmo estando ligada.
+      await tf.moverTarefa(tarefaId, 'concluido');
+      expect(await lerAjuste()).toBe(false);
+
+      await tf.softDeleteTarefa(tarefaId);
+      await limparCarteira(c);
+    });
   });
 });

@@ -3,9 +3,27 @@ import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
 import type { DadosTarefa, Tarefa } from '@/lib/types';
 
+// Contrato pendente para a Task 4 (Agenda): hoje `tarefas.consumido` só é escrito por
+// este arquivo. Quando o agendamento passar a consumir saldo em nome de uma tarefa com
+// `agendamento_id`, a Task 4 precisa decidir se ele também escreve `consumido = true`
+// nessa tarefa. As duas leituras de `consumido` neste arquivo (`vaiDevolver` e o release
+// de `softDeleteTarefa`) já checam `!agendamento_id` primeiro, então qualquer valor que
+// a Task 4 deixar em `consumido` para uma tarefa vinculada a agendamento é ignorado por
+// este módulo — mas a Task 4 ainda precisa decidir o valor para consistência de leitura
+// (ex.: relatórios) e documentar aqui se mudar esse comportamento.
+
 export class SaldoIndisponivelError extends Error {
   constructor(produtoNome: string) {
     super(`Sem saldo disponível de "${produtoNome}" para este cliente.`);
+  }
+}
+
+/** A tarefa foi alterada (movida, apagada) por outra operação entre a leitura do
+ *  estado atual e a escrita — o guard na `where` barrou uma segunda atualização
+ *  concorrente sobre a mesma linha. Ver Finding 1 da revisão do Task 3. */
+export class TarefaDivergenteError extends Error {
+  constructor() {
+    super('A tarefa foi alterada por outra operação simultânea. Recarregue e tente novamente.');
   }
 }
 
@@ -55,7 +73,9 @@ export async function createTarefa(dados: DadosTarefa): Promise<string> {
            (ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida) as disponivel
       from contratacao_itens ci
       join produtos p on p.id = ci.produto_id
-     where ci.id = ${dados.contratacao_item_id}`) as
+      join contratacoes ct on ct.id = ci.contratacao_id
+     where ci.id = ${dados.contratacao_item_id}
+       and ct.cliente_id = ${dados.cliente_id} and ct.deleted_at is null`) as
     { produto_id: string; produto_nome: string; disponivel: number }[];
 
   const item = itens[0];
@@ -110,7 +130,10 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
   if (atual.coluna === coluna) return;
 
   const vaiConsumir = coluna === COLUNA_CONCLUIDO && !atual.agendamento_id && !atual.consumido;
-  const vaiDevolver = atual.coluna === COLUNA_CONCLUIDO && coluna !== COLUNA_CONCLUIDO && atual.consumido;
+  // Não devolve pelo card se quem consumiu foi o agendamento — mesma regra que impede
+  // `vaiConsumir` de debitar duas vezes, espelhada na direção inversa (Finding 3).
+  const vaiDevolver = atual.coluna === COLUNA_CONCLUIDO && coluna !== COLUNA_CONCLUIDO
+    && atual.consumido && !atual.agendamento_id;
 
   // Chegou em Concluído: limpa. Saiu de Homologação pra outra coluna: liga. Fora
   // desses dois casos, preserva o que já estava.
@@ -120,24 +143,67 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
 
   const novoConsumido = vaiConsumir ? true : vaiDevolver ? false : atual.consumido;
 
-  await sql.transaction([
-    sql`update tarefas
+  // A `where` do update de `tarefas` re-checa exatamente o estado que foi lido acima
+  // (coluna, consumido) — se outra chamada concorrente já mudou a linha entre o select
+  // e aqui, o CTE não afeta nenhuma linha, o `returning` fica vazio e o update de saldo
+  // (que só roda `from mov`) não toca em nada. Sem isso, duas chamadas concorrentes para
+  // a mesma tarefa podiam ler o mesmo estado "antes" e aplicar o efeito de saldo duas
+  // vezes (Finding 1). Consumir/devolver continua sendo UM update só em
+  // `contratacao_itens` — a constraint `contratacao_itens_saldo_check` é transiente se
+  // reservada e consumida forem mexidas em updates separados.
+  if (vaiConsumir) {
+    const efeito = (await sql`
+      with mov as (
+        update tarefas
            set coluna = ${coluna}, consumido = ${novoConsumido}, ajuste = ${novoAjuste},
                updated_at = now()
-         where id = ${id}`,
-    ...(vaiConsumir
-      ? [sql`update contratacao_itens
-                set quantidade_reservada = quantidade_reservada - 1,
-                    quantidade_consumida = quantidade_consumida + 1
-              where id = ${atual.contratacao_item_id}`]
-      : []),
-    ...(vaiDevolver
-      ? [sql`update contratacao_itens
-                set quantidade_reservada = quantidade_reservada + 1,
-                    quantidade_consumida = quantidade_consumida - 1
-              where id = ${atual.contratacao_item_id}`]
-      : []),
-  ]);
+         where id = ${id} and deleted_at is null
+           and coluna = ${atual.coluna} and consumido = ${atual.consumido}
+        returning contratacao_item_id
+      )
+      update contratacao_itens ci
+         set quantidade_reservada = quantidade_reservada - 1,
+             quantidade_consumida = quantidade_consumida + 1
+        from mov
+       where ci.id = mov.contratacao_item_id
+         and ci.quantidade_reservada >= 1
+      returning ci.id`) as { id: string }[];
+    if (!efeito[0]) throw new TarefaDivergenteError();
+    return;
+  }
+
+  if (vaiDevolver) {
+    const efeito = (await sql`
+      with mov as (
+        update tarefas
+           set coluna = ${coluna}, consumido = ${novoConsumido}, ajuste = ${novoAjuste},
+               updated_at = now()
+         where id = ${id} and deleted_at is null
+           and coluna = ${atual.coluna} and consumido = ${atual.consumido}
+        returning contratacao_item_id
+      )
+      update contratacao_itens ci
+         set quantidade_reservada = quantidade_reservada + 1,
+             quantidade_consumida = quantidade_consumida - 1
+        from mov
+       where ci.id = mov.contratacao_item_id
+         and ci.quantidade_consumida >= 1
+      returning ci.id`) as { id: string }[];
+    if (!efeito[0]) throw new TarefaDivergenteError();
+    return;
+  }
+
+  // Move entre duas colunas que não são Concluído (ou vice-versa sem efeito de saldo,
+  // ex.: tarefa com agendamento_id): sem CTE porque não há saldo pra mexer, mas o
+  // guard continua igual para não perder uma escrita concorrente de `ajuste`.
+  const efeito = (await sql`
+    update tarefas
+       set coluna = ${coluna}, consumido = ${novoConsumido}, ajuste = ${novoAjuste},
+           updated_at = now()
+     where id = ${id} and deleted_at is null
+       and coluna = ${atual.coluna} and consumido = ${atual.consumido}
+    returning id`) as { id: string }[];
+  if (!efeito[0]) throw new TarefaDivergenteError();
 }
 
 /** Reescreve a prioridade na ordem recebida (0, 1, 2...). Usado pelo drag dentro da
@@ -146,24 +212,50 @@ export async function reordenarTarefas(ids: string[]): Promise<void> {
   for (const id of ids) assertUuid(id);
   if (ids.length === 0) return;
   await sql.transaction(
-    ids.map((id, i) => sql`update tarefas set prioridade = ${i}, updated_at = now() where id = ${id}`),
+    ids.map((id, i) => sql`
+      update tarefas set prioridade = ${i}, updated_at = now()
+       where id = ${id} and deleted_at is null`),
   );
 }
 
-/** Apaga a tarefa e libera a reserva — mas não mexe em consumo já realizado. */
+/** Apaga a tarefa e libera a reserva — mas não mexe em consumo já realizado, nem em
+ *  reserva que o agendamento dela já converteu (Finding 3: `agendamento_id` preenchido
+ *  significa que quem controla o saldo é o agendamento, não este card). */
 export async function softDeleteTarefa(id: string): Promise<void> {
   assertUuid(id);
   const rows = (await sql`
-    select consumido, contratacao_item_id from tarefas
+    select consumido, agendamento_id, contratacao_item_id from tarefas
      where id = ${id} and deleted_at is null`) as
-    { consumido: boolean; contratacao_item_id: string }[];
-  if (!rows[0]) throw new NotFoundError();
+    { consumido: boolean; agendamento_id: string | null; contratacao_item_id: string }[];
+  const atual = rows[0];
+  if (!atual) throw new NotFoundError();
 
-  await sql.transaction([
-    sql`update tarefas set deleted_at = now() where id = ${id}`,
-    ...(rows[0].consumido
-      ? []
-      : [sql`update contratacao_itens set quantidade_reservada = quantidade_reservada - 1
-              where id = ${rows[0].contratacao_item_id}`]),
-  ]);
+  const vaiLiberar = !atual.consumido && !atual.agendamento_id;
+
+  // Mesmo raciocínio de guard-in-where do `moverTarefa`: a `where` do update de
+  // `tarefas` re-checa `consumido` como foi lido acima, então uma segunda chamada
+  // concorrente (dois cliques, um duplo delete) sobre a mesma tarefa nunca libera a
+  // mesma unidade de saldo duas vezes (Finding 1).
+  if (vaiLiberar) {
+    const efeito = (await sql`
+      with mov as (
+        update tarefas set deleted_at = now()
+         where id = ${id} and deleted_at is null and consumido = ${atual.consumido}
+        returning contratacao_item_id
+      )
+      update contratacao_itens ci
+         set quantidade_reservada = quantidade_reservada - 1
+        from mov
+       where ci.id = mov.contratacao_item_id
+         and ci.quantidade_reservada >= 1
+      returning ci.id`) as { id: string }[];
+    if (!efeito[0]) throw new TarefaDivergenteError();
+    return;
+  }
+
+  const efeito = (await sql`
+    update tarefas set deleted_at = now()
+     where id = ${id} and deleted_at is null and consumido = ${atual.consumido}
+    returning id`) as { id: string }[];
+  if (!efeito[0]) throw new TarefaDivergenteError();
 }
