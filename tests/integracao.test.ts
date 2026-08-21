@@ -1577,6 +1577,100 @@ descreve('integração com o banco real', () => {
     await sql`delete from clientes where id = ${clienteId}`;
   });
 
+  it('N criações concorrentes disputando a última unidade: quem perde não deixa OS, os_itens nem tarefa órfã', async () => {
+    // Regressão do achado Critical corrigido nesta rodada: a tentativa anterior de tratar
+    // saldo insuficiente com guard-in-where (`and quantidade_total - quantidade_reservada -
+    // quantidade_consumida >= ${d.quantidade}`, `returning id`) no UPDATE de
+    // `quantidade_reservada`, dentro do array passado a `sql.transaction`, não fazia a
+    // chamada perdedora abortar de verdade: um UPDATE que só casa zero linhas não é erro
+    // SQL, então não aborta o resto do batch (driver neon-http trata o array como statements
+    // independentes, não como uma transação onde um erro aborta tudo). O `insert into
+    // ordens_servico`, `os_itens`, `os_item_saldos`, `agendamentos` e principalmente `tarefas`
+    // do mesmo batch da chamada perdedora committavam normalmente — só depois da promise já
+    // ter resolvido é que o código lançava `SaldoInsuficienteError`, com o dado órfão já
+    // gravado para sempre. A correção restaura a atomicidade real: o UPDATE de reserva não
+    // tem guard, e é a constraint `contratacao_itens_saldo_check` (migração 012) que aborta
+    // a transação inteira quando a soma estoura — o catch em torno de `sql.transaction`
+    // traduz esse erro (code 23514, constraint do nome certo) em `SaldoInsuficienteError`.
+    //
+    // Este teste detecta o bug de fato (não é só teórico): rodado contra o código buggy
+    // restaurado deliberadamente (guard-in-where + `returning id` + checagem pós-transação),
+    // pegou a corrida e encontrou uma segunda linha em `ordens_servico` — dado fantasma de
+    // uma chamada que o chamador via como rejeitada. Como o driver neon-http é HTTP puro
+    // (sem transação compartilhada entre chamadas concorrentes, mesma limitação documentada
+    // no teste de corrida equivalente em `lib/db/tarefas.ts`), a corrida real nem sempre
+    // acontece em toda execução — é probabilística, não garantida a cada rodada. N=10 já foi
+    // suficiente para reproduzi-la de forma confiável nesta investigação.
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const contr = await import('@/lib/db/contratacoes');
+    const os = await import('@/lib/db/ordens-servico');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-os-corrida`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-os-corrida`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-os-corrida`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+    // Só 1 unidade de saldo — N chamadas concorrentes disputam a mesma última unidade.
+    const contratacaoId = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 1,
+    });
+
+    const dados = {
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 1, pre_agendar: false,
+        data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
+      }],
+    };
+
+    const N = 10;
+    const resultados = await Promise.allSettled(
+      Array.from({ length: N }, () => os.createOrdemServico(dados)),
+    );
+
+    const cumpridas = resultados.filter(
+      (r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled',
+    );
+    const rejeitadas = resultados.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    );
+    expect(cumpridas).toHaveLength(1);
+    expect(rejeitadas).toHaveLength(N - 1);
+    for (const r of rejeitadas) expect(r.reason).toBeInstanceOf(os.SaldoInsuficienteError);
+
+    // Caminho feliz: a única OS vencedora existe, com seu item e sua tarefa.
+    const osVencedoraId = cumpridas[0].value;
+    const osRows = (await sql`select id from ordens_servico where cliente_id = ${clienteId}`) as { id: string }[];
+    expect(osRows).toHaveLength(1);
+    expect(osRows[0].id).toBe(osVencedoraId);
+    const osItensRows = (await sql`select id from os_itens where os_id = ${osVencedoraId}`) as { id: string }[];
+    expect(osItensRows).toHaveLength(1);
+    const tarefasRows = (await sql`select id from tarefas where cliente_id = ${clienteId}`) as { id: string }[];
+    expect(tarefasRows).toHaveLength(1);
+
+    // Saldo nunca passa de 1 reservado, mesmo com N-1 tentativas concorrentes perdendo a corrida.
+    const saldo = (await sql`
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    expect(saldo[0].quantidade_reservada).toBe(1);
+    expect(saldo[0].quantidade_consumida).toBe(0);
+
+    await sql`delete from tarefas where cliente_id = ${clienteId}`;
+    await sql`delete from ordens_servico where cliente_id = ${clienteId}`;
+    await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
+    await sql`delete from contratacoes where id = ${contratacaoId}`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
   it('item pré-agendado cria agendamento pre_agendado; conflito de horário e bloqueio de estúdio rejeitam a OS inteira', async () => {
     const terceiros = await import('@/lib/db/terceiros');
     const cat = await import('@/lib/db/categorias-produto');

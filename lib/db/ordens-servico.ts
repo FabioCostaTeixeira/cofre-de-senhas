@@ -11,10 +11,34 @@ import type { DadosOS, OrdemServico } from '@/lib/types';
 // COLUNAS_KANBAN (lib/kanban.ts), nunca o rótulo — 'a_fazer' é um id válido lá.
 const COLUNA_INICIAL_TAREFA = 'a_fazer';
 
+const NOME_CONSTRAINT_SALDO = 'contratacao_itens_saldo_check';
+
 export class SaldoInsuficienteError extends Error {
-  constructor(produtoNome: string) {
-    super(`Saldo insuficiente de "${produtoNome}" para este cliente.`);
+  constructor(produtoNome?: string) {
+    super(
+      produtoNome
+        ? `Saldo insuficiente de "${produtoNome}" para este cliente.`
+        : 'Saldo insuficiente para um ou mais produtos desta OS.',
+    );
   }
+}
+
+/**
+ * A checagem item-a-item em `createOrdemServico` (loop de `buscarSaldoDisponivel`) é
+ * select-then-update: só pega a corrida entre chamadas concorrentes até certo ponto —
+ * quem perde a corrida só descobre quando a constraint `contratacao_itens_saldo_check`
+ * estoura dentro da própria transação (ver comentário grande sobre o UPDATE de
+ * `quantidade_reservada` mais abaixo). Formato do erro confirmado empiricamente contra
+ * o banco real (não documentado pelo driver): `NeonDbError` do `@neondatabase/serverless`
+ * expõe `.code` ('23514' = check_violation em Postgres) e `.constraint` (nome da
+ * constraint) como propriedades de topo, não aninhadas. Mensagem também conferida como
+ * fallback, caso o formato do erro mude entre versões do driver.
+ */
+function isViolacaoSaldoInsuficiente(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: unknown; constraint?: unknown; message?: unknown };
+  if (e.code === '23514' && e.constraint === NOME_CONSTRAINT_SALDO) return true;
+  return typeof e.message === 'string' && e.message.includes(NOME_CONSTRAINT_SALDO);
 }
 
 export class ConflitoAgendaError extends Error {
@@ -120,55 +144,67 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
     .map((item, i) => ({ item, i }))
     .filter(({ item }) => item.pre_agendar);
 
-  // Offset, dentro do array de resultados que `sql.transaction` devolve (um por
-  // statement, na mesma ordem de entrada), de onde começam os `returning` dos updates
-  // de reserva abaixo — é assim que o zero-rows de cada um é inspecionado depois.
-  const offsetReservas = 1 + agendamentosParaCriar.length + itensValidados.length + descontos.length;
-
-  const resultados = (await sql.transaction([
-    sql`insert into ordens_servico (id, cliente_id) values (${osId}, ${dados.cliente_id})`,
-    // Agendamentos precisam existir antes dos `os_itens` que os referenciam via
-    // `agendamento_id` (FK), então essa etapa vem antes da inserção dos itens.
-    ...agendamentosParaCriar.map(({ item, i }) => sql`
-        insert into agendamentos (id, cliente_id, local_id, estudio_id, categoria_produto_id, status, data, hora_inicio, hora_fim)
-        values (${agendamentoIds[i]}, ${dados.cliente_id}, ${item.local_id}, ${item.estudio_id}, ${item.categoria_produto_id},
-                'pre_agendado', ${item.data}, ${item.hora_inicio}, ${item.hora_fim})`),
-    ...itensValidados.map((item, i) => sql`
-      insert into os_itens (id, os_id, produto_id, quantidade, pre_agendar, agendamento_id)
-      values (${osItemIds[i]}, ${osId}, ${item.produto_id}, ${item.quantidade}, ${item.pre_agendar}, ${agendamentoIds[i]})`),
-    ...descontos.map((d) => sql`
-      insert into os_item_saldos (os_item_id, contratacao_item_id, quantidade)
-      values (${osItemIds[d.itemIndex]}, ${d.contratacao_item_id}, ${d.quantidade})`),
-    // A OS reserva na criação; consumo só acontece quando a tarefa (ou o agendamento
-    // dela) conclui — ver lib/db/tarefas.ts. Guard-in-where igual ao resto do módulo
-    // (mesmo shape de `createTarefa` em lib/db/tarefas.ts:93-111): `buscarSaldoDisponivel`
-    // roda fora da transação (select-then-update clássico), então duas OS concorrentes do
-    // mesmo produto podem ler o mesmo saldo disponível. O guard + `returning id` faz este
-    // update casar zero linhas em vez de estourar a constraint `contratacao_itens_saldo_check`
-    // com um `NeonDbError` cru; o zero-rows é convertido em `SaldoInsuficienteError` logo
-    // após a transação (ver `resultados[offsetReservas + i]` abaixo).
-    ...descontos.map((d) => sql`
-      update contratacao_itens set quantidade_reservada = quantidade_reservada + ${d.quantidade}
-       where id = ${d.contratacao_item_id}
-         and quantidade_total - quantidade_reservada - quantidade_consumida >= ${d.quantidade}
-      returning id`),
-    // Card = 1 unidade (Global Constraints): uma tarefa por unidade reservada, nunca uma
-    // por item. Um item de quantidade 3 que puxou 2 de uma contratação e 1 de outra gera
-    // 3 tarefas, cada uma com o `contratacao_item_id` de onde a unidade saiu. Tarefa nasce
-    // com `agendamento_id` quando o item é pré-agendado (senão null) e `consumido = false`
-    // sempre — é a Task 5 (agenda) que decide marcar `consumido` quando o agendamento
-    // conclui; a OS nunca antecipa isso.
-    ...descontos.flatMap((d) =>
-      Array.from({ length: d.quantidade }, () => sql`
-        insert into tarefas (cliente_id, produto_id, contratacao_item_id, agendamento_id, os_item_id, coluna)
-        values (${dados.cliente_id}, ${itensValidados[d.itemIndex].produto_id}, ${d.contratacao_item_id},
-                ${agendamentoIds[d.itemIndex]}, ${osItemIds[d.itemIndex]}, ${COLUNA_INICIAL_TAREFA})`)),
-  ])) as unknown[][];
-
-  for (let i = 0; i < descontos.length; i++) {
-    if (resultados[offsetReservas + i].length === 0) {
-      throw new SaldoInsuficienteError(itensValidados[descontos[i].itemIndex].produto_nome);
+  try {
+    await sql.transaction([
+      sql`insert into ordens_servico (id, cliente_id) values (${osId}, ${dados.cliente_id})`,
+      // Agendamentos precisam existir antes dos `os_itens` que os referenciam via
+      // `agendamento_id` (FK), então essa etapa vem antes da inserção dos itens.
+      ...agendamentosParaCriar.map(({ item, i }) => sql`
+          insert into agendamentos (id, cliente_id, local_id, estudio_id, categoria_produto_id, status, data, hora_inicio, hora_fim)
+          values (${agendamentoIds[i]}, ${dados.cliente_id}, ${item.local_id}, ${item.estudio_id}, ${item.categoria_produto_id},
+                  'pre_agendado', ${item.data}, ${item.hora_inicio}, ${item.hora_fim})`),
+      ...itensValidados.map((item, i) => sql`
+        insert into os_itens (id, os_id, produto_id, quantidade, pre_agendar, agendamento_id)
+        values (${osItemIds[i]}, ${osId}, ${item.produto_id}, ${item.quantidade}, ${item.pre_agendar}, ${agendamentoIds[i]})`),
+      ...descontos.map((d) => sql`
+        insert into os_item_saldos (os_item_id, contratacao_item_id, quantidade)
+        values (${osItemIds[d.itemIndex]}, ${d.contratacao_item_id}, ${d.quantidade})`),
+      // A OS reserva na criação; consumo só acontece quando a tarefa (ou o agendamento
+      // dela) conclui — ver lib/db/tarefas.ts. `buscarSaldoDisponivel` roda fora da
+      // transação (select-then-update clássico), então duas OS concorrentes do mesmo
+      // produto podem ler o mesmo saldo disponível.
+      //
+      // NÃO usar guard-in-where + `returning` aqui (tentado numa rodada anterior e
+      // revertido — achado Critical confirmado empiricamente): `sql.transaction` do
+      // driver neon-http roda os statements do array como um batch de comandos
+      // independentes, não como uma transação normal onde um erro aborta o resto. Um
+      // UPDATE que só casa zero linhas (guard falhou) NÃO é um erro SQL — não aborta o
+      // batch. Isso significa que, na corrida perdida, os outros statements do mesmo
+      // array (insert de ordens_servico, os_itens, os_item_saldos, agendamentos, e
+      // principalmente as tarefas) commitavam normalmente, mesmo sem a reserva ter sido
+      // de fato debitada. Resultado: OS e tarefas fantasmas gravadas permanentemente,
+      // mesmo o chamador recebendo `SaldoInsuficienteError`.
+      //
+      // A correção é deixar a constraint `contratacao_itens_saldo_check` (migração 012)
+      // fazer o trabalho: se a soma estourar, o UPDATE abaixo lança um erro real de
+      // Postgres (`NeonDbError`, code 23514) — isso SIM aborta o batch inteiro
+      // atomicamente (comportamento confirmado contra o banco real). O catch logo
+      // depois traduz esse erro em `SaldoInsuficienteError`.
+      ...descontos.map((d) => sql`
+        update contratacao_itens set quantidade_reservada = quantidade_reservada + ${d.quantidade}
+         where id = ${d.contratacao_item_id}`),
+      // Card = 1 unidade (Global Constraints): uma tarefa por unidade reservada, nunca uma
+      // por item. Um item de quantidade 3 que puxou 2 de uma contratação e 1 de outra gera
+      // 3 tarefas, cada uma com o `contratacao_item_id` de onde a unidade saiu. Tarefa nasce
+      // com `agendamento_id` quando o item é pré-agendado (senão null) e `consumido = false`
+      // sempre — é a Task 5 (agenda) que decide marcar `consumido` quando o agendamento
+      // conclui; a OS nunca antecipa isso.
+      ...descontos.flatMap((d) =>
+        Array.from({ length: d.quantidade }, () => sql`
+          insert into tarefas (cliente_id, produto_id, contratacao_item_id, agendamento_id, os_item_id, coluna)
+          values (${dados.cliente_id}, ${itensValidados[d.itemIndex].produto_id}, ${d.contratacao_item_id},
+                  ${agendamentoIds[d.itemIndex]}, ${osItemIds[d.itemIndex]}, ${COLUNA_INICIAL_TAREFA})`)),
+    ]);
+  } catch (err) {
+    if (isViolacaoSaldoInsuficiente(err)) {
+      // Diferente da checagem item-a-item anterior à transação, aqui a falha só é
+      // detectável depois que a constraint estoura — sem informação de qual produto
+      // especificamente ficou sem saldo (poderia ser qualquer um dos `descontos`).
+      // Mensagem genérica de propósito: reler saldo pós-transação pra recuperar o nome
+      // reintroduziria select-then-update, exatamente o padrão que causou este bug.
+      throw new SaldoInsuficienteError();
     }
+    throw err;
   }
 
   return osId;
