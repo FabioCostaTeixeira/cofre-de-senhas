@@ -1763,4 +1763,197 @@ descreve('integração com o banco real', () => {
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
+
+  describe('tarefas: reserva e consumo de saldo', () => {
+    /** Monta cliente + categoria + produto + contratação avulsa de `quantidade`, e
+     *  devolve o id do item de carteira já criado — base comum de todo teste do
+     *  ciclo de saldo das tarefas. */
+    async function montarCarteira(sufixo: string, quantidade: number) {
+      const terceiros = await import('@/lib/db/terceiros');
+      const cat = await import('@/lib/db/categorias-produto');
+      const prod = await import('@/lib/db/produtos');
+      const contr = await import('@/lib/db/contratacoes');
+
+      const clienteId = await terceiros.createTerceiro('clientes', {
+        nome: `${marca}-cliente-tarefa-${sufixo}`, contato_responsavel: null, email: null,
+        telefone: null, cidade: null, uf: null,
+      });
+      const categoriaId = await cat.createCategoria({
+        nome: `${marca}-categoria-tarefa-${sufixo}`, unidade_consumo: null, atributos_molde: [], ativo: true,
+      });
+      const produtoId = await prod.createProduto({
+        categoria_id: categoriaId, nome: `${marca}-produto-tarefa-${sufixo}`, descricao: null,
+        atributos: {}, preco: 10, ativo: true,
+      });
+      const contratacaoId = await contr.createContratacao({
+        cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null,
+        quantidade,
+      });
+      const [{ id: contratacaoItemId }] = (await sql`
+        select id from contratacao_itens where contratacao_id = ${contratacaoId}`) as { id: string }[];
+
+      return { clienteId, categoriaId, produtoId, contratacaoId, contratacaoItemId };
+    }
+
+    async function limparCarteira(c: {
+      clienteId: string; categoriaId: string; produtoId: string; contratacaoId: string;
+    }) {
+      await sql`delete from tarefas where cliente_id = ${c.clienteId}`;
+      await sql`delete from contratacao_itens where contratacao_id = ${c.contratacaoId}`;
+      await sql`delete from contratacoes where id = ${c.contratacaoId}`;
+      await sql`delete from produtos where id = ${c.produtoId}`;
+      await sql`delete from categorias_produto where id = ${c.categoriaId}`;
+      await sql`delete from clientes where id = ${c.clienteId}`;
+    }
+
+    async function saldoAtual(contratacaoItemId: string) {
+      const [linha] = (await sql`
+        select quantidade_total, quantidade_reservada, quantidade_consumida
+          from contratacao_itens where id = ${contratacaoItemId}`) as
+        { quantidade_total: number; quantidade_reservada: number; quantidade_consumida: number }[];
+      return linha;
+    }
+
+    it('criar tarefa reserva exatamente 1 do item de carteira', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('cria', 3);
+
+      const antes = await saldoAtual(c.contratacaoItemId);
+      expect(antes.quantidade_reservada).toBe(0);
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+
+      const depois = await saldoAtual(c.contratacaoItemId);
+      expect(depois.quantidade_reservada).toBe(1);
+      expect(depois.quantidade_consumida).toBe(0);
+
+      const lista = await tf.listTarefas();
+      expect(lista.map((t) => t.id)).toContain(tarefaId);
+
+      await limparCarteira(c);
+    });
+
+    it('mover para Concluído troca reserva por consumo; sair de Concluído desfaz', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('conclui', 3);
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+
+      await tf.moverTarefa(tarefaId, 'concluido');
+      const apósConcluir = await saldoAtual(c.contratacaoItemId);
+      expect(apósConcluir.quantidade_reservada).toBe(0);
+      expect(apósConcluir.quantidade_consumida).toBe(1);
+
+      await tf.moverTarefa(tarefaId, 'a_fazer');
+      const apósVoltar = await saldoAtual(c.contratacaoItemId);
+      expect(apósVoltar.quantidade_reservada).toBe(1);
+      expect(apósVoltar.quantidade_consumida).toBe(0);
+
+      await limparCarteira(c);
+    });
+
+    it('apagar (soft-delete) libera a reserva', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('apaga', 2);
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+      expect((await saldoAtual(c.contratacaoItemId)).quantidade_reservada).toBe(1);
+
+      await tf.softDeleteTarefa(tarefaId);
+      expect((await saldoAtual(c.contratacaoItemId)).quantidade_reservada).toBe(0);
+
+      const lista = await tf.listTarefas();
+      expect(lista.map((t) => t.id)).not.toContain(tarefaId);
+
+      await limparCarteira(c);
+    });
+
+    it('tarefa com agendamento_id indo para Concluído NÃO mexe no saldo (quem consome é o agendamento)', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const ag = await import('@/lib/db/agenda');
+      const lg = await import('@/lib/db/locais-gravacao');
+      const c = await montarCarteira('agendamento', 2);
+
+      const localId = await lg.createLocal({
+        nome: `${marca}-local-tarefa-agendamento`, endereco: null, responsavel: null,
+        estudios: [{ nome: 'Estúdio tarefa' }],
+      });
+      const [estudio] = (await lg.getLocal(localId))!.estudios;
+      const agendamentoId = await ag.createAgendamento({
+        cliente_id: c.clienteId, local_id: localId, estudio_id: estudio.id,
+        categoria_produto_id: c.categoriaId, status: 'agendado',
+        data: '2026-09-30', hora_inicio: '09:00', hora_fim: '10:00',
+      });
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'gravação', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+      // `createTarefa` não aceita `agendamento_id` — é o próprio módulo de Agenda (Task 4,
+      // fora deste escopo) quem vincularia. Aqui simulamos o vínculo direto na tarefa que
+      // acabamos de criar, só para exercitar o guard de `moverTarefa`.
+      await sql`update tarefas set agendamento_id = ${agendamentoId} where id = ${tarefaId}`;
+
+      const antes = await saldoAtual(c.contratacaoItemId);
+      expect(antes.quantidade_reservada).toBe(1);
+
+      await tf.moverTarefa(tarefaId, 'concluido');
+
+      const depois = await saldoAtual(c.contratacaoItemId);
+      expect(depois.quantidade_reservada).toBe(1);
+      expect(depois.quantidade_consumida).toBe(0);
+
+      const [linhaTarefa] = (await sql`select consumido from tarefas where id = ${tarefaId}`) as
+        { consumido: boolean }[];
+      expect(linhaTarefa.consumido).toBe(false);
+
+      // A tarefa referencia o agendamento via FK — precisa sumir antes dele.
+      await sql`delete from tarefas where id = ${tarefaId}`;
+      await sql`delete from agendamentos where id = ${agendamentoId}`;
+      await sql`delete from estudios where local_id = ${localId}`;
+      await sql`delete from locais_gravacao where id = ${localId}`;
+      await limparCarteira(c);
+    });
+
+    it('criar tarefa sem saldo disponível rejeita com SaldoIndisponivelError e não altera o saldo', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const c = await montarCarteira('semsaldo', 1);
+
+      // Esgota o único saldo disponível.
+      const primeiraId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição 1', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+
+      const antes = await saldoAtual(c.contratacaoItemId);
+      expect(antes.quantidade_reservada).toBe(1);
+
+      await expect(tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'edição 2', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      })).rejects.toThrow(tf.SaldoIndisponivelError);
+
+      const depois = await saldoAtual(c.contratacaoItemId);
+      expect(depois.quantidade_reservada).toBe(1);
+      expect(depois.quantidade_consumida).toBe(0);
+
+      await tf.softDeleteTarefa(primeiraId);
+      await limparCarteira(c);
+    });
+  });
 });
