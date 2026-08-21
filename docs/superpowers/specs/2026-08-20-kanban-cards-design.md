@@ -76,6 +76,7 @@ partir do deploy.
 | `deadline_cliente` | date null | governa a cor do card |
 | `deadline_tarefa` | date null | prazo interno, só exibido |
 | `ajuste` | boolean not null default false | voltou da homologação |
+| `consumido` | boolean not null default false | esta tarefa já virou consumo — impede debitar duas vezes e devolver o que não debitou |
 | `created_at` / `updated_at` / `deleted_at` | timestamptz | soft-delete, padrão do projeto |
 
 `coluna` guarda o **id** (`a_fazer`), nunca o rótulo — é o contrato que `lib/kanban.ts`

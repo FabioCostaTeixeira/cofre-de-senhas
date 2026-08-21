@@ -90,10 +90,14 @@ create index tarefas_os_item_idx on tarefas (os_item_id);
 - [ ] **Step 2:** Aplica a migration no banco
 
 ```bash
-node -e "require('dotenv').config({path:'.env.local'});const{neon}=require('@neondatabase/serverless');const fs=require('fs');neon(process.env.DATABASE_URL).query(fs.readFileSync('db/migrations/012_tarefas.sql','utf8')).then(()=>console.log('ok')).catch(e=>{console.error(e.message);process.exit(1)})"
+npm run migrate
 ```
 
-Se o driver não aceitar múltiplos statements numa chamada, roda os statements um a um.
+**Sempre pelo runner, nunca na mão.** `db/migrate.mjs` roda cada arquivo em transação e
+registra o nome em `_migrations`. Aplicar por fora deixa o objeto no banco sem a linha no
+ledger — e aí a próxima `npm run migrate` tenta reaplicar, estoura `column already
+exists`, dá rollback e sai com erro, travando toda migration seguinte.
+
 Confirma depois:
 
 ```bash

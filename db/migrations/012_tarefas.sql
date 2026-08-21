@@ -9,6 +9,17 @@
 alter table contratacao_itens
   add column quantidade_reservada int not null default 0 check (quantidade_reservada >= 0);
 
+-- Backstop do invariante que o módulo inteiro depende: disponivel = total - reservada -
+-- consumida nunca pode ficar negativo. A aritmética mora no código (lib/db/tarefas.ts,
+-- ordens-servico.ts, agenda.ts), e esse mesmo código já teve uma vez um bug de alocar a
+-- mesma unidade duas vezes (ver comentário "achado Critical 2" em ordens-servico.ts) —
+-- aqui o banco recusa em vez de vender saldo que o cliente não tem.
+-- Implica que "concluir" tem que ser UM update só (reservada -1, consumida +1 juntos):
+-- consumir antes de liberar estoura a soma no meio do caminho.
+alter table contratacao_itens
+  add constraint contratacao_itens_saldo_check
+  check (quantidade_reservada + quantidade_consumida <= quantidade_total);
+
 create table tarefas (
   id                   uuid primary key default gen_random_uuid(),
   cliente_id           uuid not null references clientes(id),
