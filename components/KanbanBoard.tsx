@@ -265,6 +265,14 @@ export function KanbanBoard({
           setErro(res.error);
           router.refresh();
         }
+      }).catch(() => {
+        // Falha inesperada (ex.: conexão com o banco caiu): a action rejeitou
+        // a promise em vez de devolver `{error}`, então nenhum `.then` acima
+        // roda. Reverte do mesmo jeito que o ramo de erro conhecido, senão o
+        // card fica preso na coluna errada até o usuário recarregar sozinho.
+        setTarefasState(anterior);
+        setErro('Não foi possível salvar a alteração.');
+        router.refresh();
       });
       return;
     }
@@ -293,6 +301,13 @@ export function KanbanBoard({
         setErro(res.error);
         router.refresh();
       }
+    }).catch(() => {
+      // Mesmo motivo do `.catch` em `moverTarefaAction` acima: falha por
+      // exceção (não `{error}`) não passa pelo `.then`, então reverte aqui
+      // também.
+      setTarefasState(anterior);
+      setErro('Não foi possível salvar a alteração.');
+      router.refresh();
     });
   }
 

@@ -1,8 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }));
+// Captura o `onDragEnd` real passado ao `DndContext` (via `globalThis`) sem
+// precisar simular um drag de ponteiro de verdade em jsdom — os testes de
+// regressão do `.catch` chamam esse callback direto, como o dnd-kit chamaria
+// depois de um drop.
+vi.mock('@dnd-kit/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@dnd-kit/core')>();
+  return {
+    ...actual,
+    DndContext: (props: { onDragEnd: (e: unknown) => void; children: unknown }) => {
+      (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd = props.onDragEnd;
+      return props.children;
+    },
+  };
+});
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TarefaCard } from '@/components/TarefaCard';
 import { COLUNAS_KANBAN } from '@/lib/kanban';
@@ -235,5 +249,70 @@ describe('KanbanBoard', () => {
     await screen.findByText('Falha ao buscar itens do cliente B.');
     expect(screen.queryByRole('option', { name: /Gravação \(3 disponível\)/ })).not.toBeInTheDocument();
     vi.restoreAllMocks();
+  });
+
+  it('moverTarefaAction rejeitando (não só devolvendo {error}) reverte a mudança otimista e avisa', async () => {
+    const t1 = tarefa({ id: 't1', cliente_nome: 'Cliente Move', coluna: 'a_fazer', prioridade: 0 });
+    const moverFalho = vi.fn(async () => { throw new Error('falha de conexão com o banco'); });
+    render(
+      <KanbanBoard
+        tarefas={[t1]} clientes={[cliente]} users={[usuario]}
+        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverFalho} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+
+    const executando = screen.getByRole('heading', { name: 'Executando' }).closest('section')!;
+    act(() => {
+      onDragEnd({
+        active: { id: 't1' },
+        over: { id: 'executando', data: { current: { coluna: 'executando' } } },
+      });
+    });
+
+    // Aplicação otimista: card já aparece na coluna nova antes da action resolver.
+    expect(within(executando).getByText('Cliente Move')).toBeInTheDocument();
+
+    // A action rejeita (não devolve {error}) — sem o `.catch`, nada reverteria.
+    await screen.findByText('Não foi possível salvar a alteração.');
+    const aFazer = screen.getByRole('heading', { name: 'A Fazer' }).closest('section')!;
+    expect(within(aFazer).getByText('Cliente Move')).toBeInTheDocument();
+    expect(within(executando).queryByText('Cliente Move')).not.toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('reordenarTarefasAction rejeitando (não só devolvendo {error}) reverte a ordem otimista e avisa', async () => {
+    const t1 = tarefa({ id: 't1', cliente_nome: 'Cliente Um', coluna: 'a_fazer', prioridade: 0 });
+    const t2 = tarefa({ id: 't2', cliente_nome: 'Cliente Dois', coluna: 'a_fazer', prioridade: 1 });
+    const reordenarFalho = vi.fn(async () => { throw new Error('falha de conexão com o banco'); });
+    render(
+      <KanbanBoard
+        tarefas={[t1, t2]} clientes={[cliente]} users={[usuario]}
+        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarFalho}
+      />,
+    );
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+    const aFazer = screen.getByRole('heading', { name: 'A Fazer' }).closest('section')!;
+
+    act(() => {
+      onDragEnd({
+        active: { id: 't1' },
+        over: { id: 't2', data: { current: { coluna: 'a_fazer' } } },
+      });
+    });
+
+    // Aplicação otimista: ordem já trocada antes da action resolver.
+    expect(within(aFazer).getAllByText(/^Cliente /).map((el) => el.textContent)).toEqual(
+      ['Cliente Dois', 'Cliente Um'],
+    );
+
+    // A action rejeita (não devolve {error}) — sem o `.catch`, a ordem ficaria errada.
+    await screen.findByText('Não foi possível salvar a alteração.');
+    expect(within(aFazer).getAllByText(/^Cliente /).map((el) => el.textContent)).toEqual(
+      ['Cliente Um', 'Cliente Dois'],
+    );
+    expect(refresh).toHaveBeenCalled();
   });
 });
