@@ -2370,5 +2370,132 @@ descreve('integração com o banco real', () => {
       await sql`delete from locais_gravacao where id = ${localId}`;
       await limparCarteira(c);
     });
+
+    it('agendamento com 3 tarefas vinculadas, em 2 contratacao_itens distintos, agrega por item ao consumir e devolver', async () => {
+      // Cobre a agregação `count(*) as qtd` / `group by contratacao_item_id` de
+      // `agenda.ts` (statementConsumirTarefasDoAgendamento/statementDevolverTarefasDoAgendamento)
+      // — código não exercitado pelo teste anterior deste bloco, que usa só 1 tarefa. Com 1
+      // tarefa, uma mutação que trocasse `agregado.qtd` por `1` passaria despercebida; aqui
+      // não, porque cada `contratacao_item_id` precisa mudar pela quantidade certa de
+      // tarefas vinculadas a ELE (2 no item A, 1 no item B), não um total genérico.
+      const tf = await import('@/lib/db/tarefas');
+      const ag = await import('@/lib/db/agenda');
+      const lg = await import('@/lib/db/locais-gravacao');
+      const terceiros = await import('@/lib/db/terceiros');
+      const cat = await import('@/lib/db/categorias-produto');
+      const prod = await import('@/lib/db/produtos');
+      const contr = await import('@/lib/db/contratacoes');
+
+      const clienteId = await terceiros.createTerceiro('clientes', {
+        nome: `${marca}-cliente-agenda-multi`, contato_responsavel: null, email: null,
+        telefone: null, cidade: null, uf: null,
+      });
+      const categoriaId = await cat.createCategoria({
+        nome: `${marca}-categoria-agenda-multi`, unidade_consumo: null, atributos_molde: [], ativo: true,
+      });
+      const produtoId = await prod.createProduto({
+        categoria_id: categoriaId, nome: `${marca}-produto-agenda-multi`, descricao: null,
+        atributos: {}, preco: 10, ativo: true,
+      });
+
+      // Duas contratações do mesmo cliente/produto — saldo pra 2 numa, pra 1 na outra —
+      // geram dois `contratacao_item_id` distintos pro mesmo produto, mesmo padrão de
+      // carteira com múltiplos itens já usado em outros testes deste arquivo (FIFO).
+      const contratacaoAId = await contr.createContratacao({
+        cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null,
+        quantidade: 2,
+      });
+      const contratacaoBId = await contr.createContratacao({
+        cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null,
+        quantidade: 1,
+      });
+      const [{ id: itemAId }] = (await sql`
+        select id from contratacao_itens where contratacao_id = ${contratacaoAId}`) as { id: string }[];
+      const [{ id: itemBId }] = (await sql`
+        select id from contratacao_itens where contratacao_id = ${contratacaoBId}`) as { id: string }[];
+
+      const localId = await lg.createLocal({
+        nome: `${marca}-local-agenda-multi`, endereco: null, responsavel: null,
+        estudios: [{ nome: 'Estúdio agenda multi' }],
+      });
+      const [estudio] = (await lg.getLocal(localId))!.estudios;
+      const agendamentoId = await ag.createAgendamento({
+        cliente_id: clienteId, local_id: localId, estudio_id: estudio.id,
+        categoria_produto_id: categoriaId, status: 'agendado',
+        data: '2026-10-12', hora_inicio: '09:00', hora_fim: '10:00',
+      });
+
+      // 3 tarefas vinculadas ao mesmo agendamento: 2 puxando do item A, 1 do item B.
+      const tarefaA1 = await tf.createTarefa({
+        cliente_id: clienteId, responsavel_id: null, contratacao_item_id: itemAId,
+        tarefa: 'gravação multi A1', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+      const tarefaA2 = await tf.createTarefa({
+        cliente_id: clienteId, responsavel_id: null, contratacao_item_id: itemAId,
+        tarefa: 'gravação multi A2', coluna: 'roadmap', prioridade: 1,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+      const tarefaB1 = await tf.createTarefa({
+        cliente_id: clienteId, responsavel_id: null, contratacao_item_id: itemBId,
+        tarefa: 'gravação multi B1', coluna: 'roadmap', prioridade: 2,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+      await sql`
+        update tarefas set agendamento_id = ${agendamentoId}
+         where id in (${tarefaA1}, ${tarefaA2}, ${tarefaB1})`;
+
+      const lerConsumido = async (ids: string[]) => (await sql`
+        select id, consumido from tarefas where id = any(${ids})`) as
+        { id: string; consumido: boolean }[];
+
+      const itemAAntes = await saldoAtual(itemAId);
+      const itemBAntes = await saldoAtual(itemBId);
+      expect(itemAAntes.quantidade_reservada).toBe(2);
+      expect(itemBAntes.quantidade_reservada).toBe(1);
+
+      const dadosBase = {
+        cliente_id: clienteId, local_id: localId, estudio_id: estudio.id,
+        categoria_produto_id: categoriaId,
+        data: '2026-10-12', hora_inicio: '09:00', hora_fim: '10:00',
+      };
+
+      // Concluir: item A perde exatamente 2 de reserva/ganha 2 de consumo (não 1 — é
+      // isso que a mutação `agregado.qtd` -> `1` quebraria), item B perde exatamente 1.
+      await ag.updateAgendamento(agendamentoId, { ...dadosBase, status: 'concluido' });
+
+      const itemADepois = await saldoAtual(itemAId);
+      const itemBDepois = await saldoAtual(itemBId);
+      expect(itemADepois.quantidade_reservada).toBe(0);
+      expect(itemADepois.quantidade_consumida).toBe(2);
+      expect(itemBDepois.quantidade_reservada).toBe(0);
+      expect(itemBDepois.quantidade_consumida).toBe(1);
+
+      const consumidoDepois = await lerConsumido([tarefaA1, tarefaA2, tarefaB1]);
+      expect(consumidoDepois.every((t) => t.consumido)).toBe(true);
+
+      // Devolver: cada item volta pra reserva pela quantidade certa das tarefas dele.
+      await ag.updateAgendamento(agendamentoId, { ...dadosBase, status: 'agendado' });
+
+      const itemAVolta = await saldoAtual(itemAId);
+      const itemBVolta = await saldoAtual(itemBId);
+      expect(itemAVolta.quantidade_reservada).toBe(2);
+      expect(itemAVolta.quantidade_consumida).toBe(0);
+      expect(itemBVolta.quantidade_reservada).toBe(1);
+      expect(itemBVolta.quantidade_consumida).toBe(0);
+
+      const consumidoVolta = await lerConsumido([tarefaA1, tarefaA2, tarefaB1]);
+      expect(consumidoVolta.every((t) => !t.consumido)).toBe(true);
+
+      await sql`delete from tarefas where id in (${tarefaA1}, ${tarefaA2}, ${tarefaB1})`;
+      await sql`delete from agendamentos where id = ${agendamentoId}`;
+      await sql`delete from estudios where local_id = ${localId}`;
+      await sql`delete from locais_gravacao where id = ${localId}`;
+      await sql`delete from contratacao_itens where contratacao_id in (${contratacaoAId}, ${contratacaoBId})`;
+      await sql`delete from contratacoes where id in (${contratacaoAId}, ${contratacaoBId})`;
+      await sql`delete from produtos where id = ${produtoId}`;
+      await sql`delete from categorias_produto where id = ${categoriaId}`;
+      await sql`delete from clientes where id = ${clienteId}`;
+    });
   });
 });

@@ -107,26 +107,39 @@ export async function createAgendamento(dados: DadosAgendamento): Promise<string
 }
 
 /**
- * Consome pelas tarefas do agendamento: cada tarefa com `agendamento_id = agendamentoId`,
- * `deleted_at is null` e `consumido = false` devolve 1 de `quantidade_reservada` e soma 1 em
- * `quantidade_consumida` do `contratacao_item_id` dela, marcando `consumido = true`.
+ * Statement (não executado — devolve a query pra entrar num `sql.transaction([...])`)
+ * que consome pelas tarefas do agendamento: cada tarefa com `agendamento_id =
+ * agendamentoId`, `deleted_at is null` e `consumido = false` devolve 1 de
+ * `quantidade_reservada` e soma 1 em `quantidade_consumida` do `contratacao_item_id`
+ * dela, marcando `consumido = true`.
  *
  * O filtro `consumido = false` no `where` do update de `tarefas` é o guard-in-where que torna
  * a operação idempotente: chamar de novo para um agendamento que já estava concluído não
- * afeta nenhuma linha (todas já `consumido = true`), então não debita segunda vez. Tudo num
- * único statement (CTE encadeado: update de `tarefas` → agrega por `contratacao_item_id` →
- * update de `contratacao_itens`), atômico por ser um statement só — sem select-then-update.
+ * afeta nenhuma linha (todas já `consumido = true`), então não debita segunda vez. O `exists
+ * (select 1 from agendamentos where id = ... and deleted_at is null)` no mesmo `where` é o
+ * segundo guard-in-where: dentro do `sql.transaction` de `updateAgendamento`, este statement
+ * roda como comando independente do `update agendamentos` — o driver neon-http não aborta o
+ * batch por zero-rows, só por erro real de constraint — então a checagem de existência não
+ * pode depender da ordem/resultado do outro statement, tem que estar no próprio `where`
+ * (mesmo raciocínio do achado Critical documentado em lib/db/ordens-servico.ts:167-182).
+ * Tudo num único statement (CTE encadeado: update de `tarefas` → agrega por
+ * `contratacao_item_id` → update de `contratacao_itens`), atômico por ser um statement só —
+ * sem select-then-update.
  *
  * Contrato com `cancelarOrdemServico` (lib/db/ordens-servico.ts): marcar `consumido = true`
  * aqui é o que permite aquela função decidir, só por `!consumido`, se uma tarefa pré-agendada
  * ainda tem reserva pra devolver. Ver lib/db/tarefas.ts:6-15.
  */
-async function consumirTarefasDoAgendamento(agendamentoId: string): Promise<void> {
-  await sql`
+function statementConsumirTarefasDoAgendamento(agendamentoId: string) {
+  return sql`
     with mov as (
       update tarefas
          set consumido = true, updated_at = now()
        where agendamento_id = ${agendamentoId} and deleted_at is null and consumido = false
+         and exists (
+           select 1 from agendamentos
+            where id = ${agendamentoId} and deleted_at is null
+         )
       returning contratacao_item_id
     ), agregado as (
       select contratacao_item_id, count(*) as qtd from mov group by contratacao_item_id
@@ -139,17 +152,22 @@ async function consumirTarefasDoAgendamento(agendamentoId: string): Promise<void
 }
 
 /**
- * Simétrico a `consumirTarefasDoAgendamento`: tarefas do agendamento com `consumido = true`
- * voltam `quantidade_reservada + 1 / quantidade_consumida - 1` e `consumido = false`. O
- * filtro `consumido = true` no update de `tarefas` é o mesmo guard-in-where, na direção
- * inversa — chamar de novo para um agendamento que já não estava concluído é no-op.
+ * Simétrico a `statementConsumirTarefasDoAgendamento`: tarefas do agendamento com
+ * `consumido = true` voltam `quantidade_reservada + 1 / quantidade_consumida - 1` e
+ * `consumido = false`. Mesmos dois guards-in-where na direção inversa (`consumido = true` e
+ * `exists (... agendamentos ...)`) — chamar de novo para um agendamento que já não estava
+ * concluído, ou que não existe mais, é no-op.
  */
-async function devolverTarefasDoAgendamento(agendamentoId: string): Promise<void> {
-  await sql`
+function statementDevolverTarefasDoAgendamento(agendamentoId: string) {
+  return sql`
     with mov as (
       update tarefas
          set consumido = false, updated_at = now()
        where agendamento_id = ${agendamentoId} and deleted_at is null and consumido = true
+         and exists (
+           select 1 from agendamentos
+            where id = ${agendamentoId} and deleted_at is null
+         )
       returning contratacao_item_id
     ), agregado as (
       select contratacao_item_id, count(*) as qtd from mov group by contratacao_item_id
@@ -182,21 +200,32 @@ export async function updateAgendamento(id: string, dados: DadosAgendamento): Pr
   if (await existeConflito(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim, id)) {
     throw new ConflitoHorarioError();
   }
-  const rows = (await sql`
+  // Status do agendamento e consumo/devolução de saldo têm que ser um só round-trip HTTP —
+  // no driver neon-http, dois `await sql\`...\`` separados são dois autocommits
+  // independentes (achado Important da revisão da Task 5): se o segundo falhar (timeout,
+  // blip de rede, pool esgotado) depois do primeiro já ter commitado, o agendamento fica
+  // "Concluído" no banco mas `tarefas.consumido`/`quantidade_reservada` nunca são
+  // atualizados — saldo errado até alguém reeditar, e `cancelarOrdemServico` (que decide só
+  // por `!consumido`) libera reserva de um serviço já entregue. `sql.transaction([...])`
+  // resolve isso — os dois statements não dependem um do outro para decidir se rodam (o
+  // update de `agendamentos` sempre roda; o statement de saldo já é idempotente e correto
+  // sozinho via seu próprio guard-in-where, incluindo o `exists (... agendamentos ...)` que
+  // substitui a checagem de `NotFoundError` de antes, ver comentário das funções acima), só
+  // precisam commitar juntos ou nenhum dos dois.
+  const stmtAgendamento = sql`
     update agendamentos
        set cliente_id = ${dados.cliente_id}, local_id = ${dados.local_id}, estudio_id = ${dados.estudio_id},
            categoria_produto_id = ${dados.categoria_produto_id}, status = ${dados.status},
            data = ${dados.data}, hora_inicio = ${dados.hora_inicio}, hora_fim = ${dados.hora_fim},
            updated_at = now()
      where id = ${id} and deleted_at is null
-     returning id`) as { id: string }[];
-  if (!rows[0]) throw new NotFoundError();
+     returning id`;
+  const stmtSaldo = dados.status === 'concluido'
+    ? statementConsumirTarefasDoAgendamento(id)
+    : statementDevolverTarefasDoAgendamento(id);
 
-  if (dados.status === 'concluido') {
-    await consumirTarefasDoAgendamento(id);
-  } else {
-    await devolverTarefasDoAgendamento(id);
-  }
+  const [rows] = await sql.transaction([stmtAgendamento, stmtSaldo]) as [{ id: string }[], unknown];
+  if (!rows[0]) throw new NotFoundError();
 }
 
 /**
