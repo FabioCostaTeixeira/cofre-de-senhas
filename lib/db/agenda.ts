@@ -106,6 +106,69 @@ export async function createAgendamento(dados: DadosAgendamento): Promise<string
   return rows[0].id;
 }
 
+/**
+ * Consome pelas tarefas do agendamento: cada tarefa com `agendamento_id = agendamentoId`,
+ * `deleted_at is null` e `consumido = false` devolve 1 de `quantidade_reservada` e soma 1 em
+ * `quantidade_consumida` do `contratacao_item_id` dela, marcando `consumido = true`.
+ *
+ * O filtro `consumido = false` no `where` do update de `tarefas` é o guard-in-where que torna
+ * a operação idempotente: chamar de novo para um agendamento que já estava concluído não
+ * afeta nenhuma linha (todas já `consumido = true`), então não debita segunda vez. Tudo num
+ * único statement (CTE encadeado: update de `tarefas` → agrega por `contratacao_item_id` →
+ * update de `contratacao_itens`), atômico por ser um statement só — sem select-then-update.
+ *
+ * Contrato com `cancelarOrdemServico` (lib/db/ordens-servico.ts): marcar `consumido = true`
+ * aqui é o que permite aquela função decidir, só por `!consumido`, se uma tarefa pré-agendada
+ * ainda tem reserva pra devolver. Ver lib/db/tarefas.ts:6-15.
+ */
+async function consumirTarefasDoAgendamento(agendamentoId: string): Promise<void> {
+  await sql`
+    with mov as (
+      update tarefas
+         set consumido = true, updated_at = now()
+       where agendamento_id = ${agendamentoId} and deleted_at is null and consumido = false
+      returning contratacao_item_id
+    ), agregado as (
+      select contratacao_item_id, count(*) as qtd from mov group by contratacao_item_id
+    )
+    update contratacao_itens ci
+       set quantidade_reservada = quantidade_reservada - agregado.qtd,
+           quantidade_consumida = quantidade_consumida + agregado.qtd
+      from agregado
+     where ci.id = agregado.contratacao_item_id`;
+}
+
+/**
+ * Simétrico a `consumirTarefasDoAgendamento`: tarefas do agendamento com `consumido = true`
+ * voltam `quantidade_reservada + 1 / quantidade_consumida - 1` e `consumido = false`. O
+ * filtro `consumido = true` no update de `tarefas` é o mesmo guard-in-where, na direção
+ * inversa — chamar de novo para um agendamento que já não estava concluído é no-op.
+ */
+async function devolverTarefasDoAgendamento(agendamentoId: string): Promise<void> {
+  await sql`
+    with mov as (
+      update tarefas
+         set consumido = false, updated_at = now()
+       where agendamento_id = ${agendamentoId} and deleted_at is null and consumido = true
+      returning contratacao_item_id
+    ), agregado as (
+      select contratacao_item_id, count(*) as qtd from mov group by contratacao_item_id
+    )
+    update contratacao_itens ci
+       set quantidade_reservada = quantidade_reservada + agregado.qtd,
+           quantidade_consumida = quantidade_consumida - agregado.qtd
+      from agregado
+     where ci.id = agregado.contratacao_item_id`;
+}
+
+/**
+ * `dados.status === 'concluido'` consome pelas tarefas do agendamento (spec Task 5 §2);
+ * qualquer outro status devolve (§3). Roda em toda chamada, não só numa transição — a
+ * idempotência não vem de comparar status antigo x novo, vem só do `consumido = false`/`=
+ * true` no `where` de cada função acima (ver seus comentários). Isso também cobre o caso de
+ * editar um agendamento já concluído sem trocar o status: continua rodando
+ * `consumirTarefasDoAgendamento`, que é no-op porque não sobra tarefa com `consumido = false`.
+ */
 export async function updateAgendamento(id: string, dados: DadosAgendamento): Promise<void> {
   assertUuid(id);
   assertUuid(dados.cliente_id);
@@ -128,6 +191,12 @@ export async function updateAgendamento(id: string, dados: DadosAgendamento): Pr
      where id = ${id} and deleted_at is null
      returning id`) as { id: string }[];
   if (!rows[0]) throw new NotFoundError();
+
+  if (dados.status === 'concluido') {
+    await consumirTarefasDoAgendamento(id);
+  } else {
+    await devolverTarefasDoAgendamento(id);
+  }
 }
 
 /**

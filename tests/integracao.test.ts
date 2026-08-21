@@ -2298,5 +2298,77 @@ descreve('integração com o banco real', () => {
       await tf.softDeleteTarefa(tarefaId);
       await limparCarteira(c);
     });
+
+    it('agendamento indo para Concluído consome pelas tarefas vinculadas; salvar de novo não duplica; sair de Concluído devolve', async () => {
+      const tf = await import('@/lib/db/tarefas');
+      const ag = await import('@/lib/db/agenda');
+      const lg = await import('@/lib/db/locais-gravacao');
+      const c = await montarCarteira('agenda-consome', 2);
+
+      const localId = await lg.createLocal({
+        nome: `${marca}-local-agenda-consome`, endereco: null, responsavel: null,
+        estudios: [{ nome: 'Estúdio agenda consome' }],
+      });
+      const [estudio] = (await lg.getLocal(localId))!.estudios;
+      const agendamentoId = await ag.createAgendamento({
+        cliente_id: c.clienteId, local_id: localId, estudio_id: estudio.id,
+        categoria_produto_id: c.categoriaId, status: 'agendado',
+        data: '2026-10-05', hora_inicio: '09:00', hora_fim: '10:00',
+      });
+
+      const tarefaId = await tf.createTarefa({
+        cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
+        tarefa: 'gravação agendada', coluna: 'roadmap', prioridade: 0,
+        deadline_cliente: null, deadline_tarefa: null,
+      });
+      // Mesmo artifício dos outros testes deste bloco: `createTarefa` não aceita
+      // `agendamento_id`, então o vínculo é simulado direto no banco.
+      await sql`update tarefas set agendamento_id = ${agendamentoId} where id = ${tarefaId}`;
+
+      const dadosBase = {
+        cliente_id: c.clienteId, local_id: localId, estudio_id: estudio.id,
+        categoria_produto_id: c.categoriaId,
+        data: '2026-10-05', hora_inicio: '09:00', hora_fim: '10:00',
+      };
+
+      const lerConsumido = async () => {
+        const [linha] = (await sql`select consumido from tarefas where id = ${tarefaId}`) as
+          { consumido: boolean }[];
+        return linha.consumido;
+      };
+
+      expect((await saldoAtual(c.contratacaoItemId)).quantidade_reservada).toBe(1);
+      expect(await lerConsumido()).toBe(false);
+
+      // Concluir consome: reserva vira consumo, tarefa marca `consumido = true`.
+      await ag.updateAgendamento(agendamentoId, { ...dadosBase, status: 'concluido' });
+      const apósConcluir = await saldoAtual(c.contratacaoItemId);
+      expect(apósConcluir.quantidade_reservada).toBe(0);
+      expect(apósConcluir.quantidade_consumida).toBe(1);
+      expect(await lerConsumido()).toBe(true);
+
+      // Salvar de novo o mesmo agendamento já concluído não pode debitar segunda vez — é
+      // o filtro `consumido = false` no update de `tarefas`, não a diferença entre status
+      // antigo e novo, que garante isso (updateAgendamento roda a rotina de consumo em
+      // toda chamada com status = 'concluido', não só numa transição).
+      await ag.updateAgendamento(agendamentoId, { ...dadosBase, status: 'concluido' });
+      const apósRepetir = await saldoAtual(c.contratacaoItemId);
+      expect(apósRepetir.quantidade_reservada).toBe(0);
+      expect(apósRepetir.quantidade_consumida).toBe(1);
+      expect(await lerConsumido()).toBe(true);
+
+      // Sair de Concluído devolve: consumo volta a ser reserva, tarefa desmarca.
+      await ag.updateAgendamento(agendamentoId, { ...dadosBase, status: 'agendado' });
+      const apósVoltar = await saldoAtual(c.contratacaoItemId);
+      expect(apósVoltar.quantidade_reservada).toBe(1);
+      expect(apósVoltar.quantidade_consumida).toBe(0);
+      expect(await lerConsumido()).toBe(false);
+
+      await sql`delete from tarefas where id = ${tarefaId}`;
+      await sql`delete from agendamentos where id = ${agendamentoId}`;
+      await sql`delete from estudios where local_id = ${localId}`;
+      await sql`delete from locais_gravacao where id = ${localId}`;
+      await limparCarteira(c);
+    });
   });
 });
