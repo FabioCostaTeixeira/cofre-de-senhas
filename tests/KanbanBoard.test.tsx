@@ -179,4 +179,49 @@ describe('KanbanBoard', () => {
     expect(buscarItens).toHaveBeenCalledWith('c1');
     vi.restoreAllMocks();
   });
+
+  it('o value da option de produto é o contratacao_item_id, não o produto_id', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const buscarItens = vi.fn(async () => ({
+      itens: [{ contratacao_item_id: 'ci1', produto_id: 'p1', produto_nome: 'Gravação', disponivel: 3 }],
+    }));
+    render(
+      <KanbanBoard
+        tarefas={[]} clientes={[cliente]} users={[usuario]}
+        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
+    const option = await screen.findByRole('option', { name: /Gravação \(3 disponível\)/ }) as HTMLOptionElement;
+    expect(option.value).toBe('ci1');
+    expect(option.value).not.toBe('p1');
+    vi.restoreAllMocks();
+  });
+
+  it('trocar de cliente reseta a lista de produtos, sem manter a option do cliente anterior', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const outroCliente: Terceiro = { ...cliente, id: 'c2', nome: 'Beta' };
+    const buscarItens = vi.fn(async (clienteId: string) => (
+      clienteId === 'c1'
+        ? { itens: [{ contratacao_item_id: 'ci1', produto_id: 'p1', produto_nome: 'Gravação', disponivel: 3 }] }
+        : { error: 'Falha ao buscar itens do cliente B.' }
+    ));
+    render(
+      <KanbanBoard
+        tarefas={[]} clientes={[cliente, outroCliente]} users={[usuario]}
+        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
+    expect(await screen.findByRole('option', { name: /Gravação \(3 disponível\)/ })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c2' } });
+    // A option antiga do cliente A não pode continuar disponível/submetível.
+    expect(screen.queryByRole('option', { name: /Gravação \(3 disponível\)/ })).not.toBeInTheDocument();
+    await screen.findByText('Falha ao buscar itens do cliente B.');
+    expect(screen.queryByRole('option', { name: /Gravação \(3 disponível\)/ })).not.toBeInTheDocument();
+    vi.restoreAllMocks();
+  });
 });

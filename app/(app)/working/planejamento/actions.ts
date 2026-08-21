@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireReadyUser } from '@/lib/auth/guards';
+import { NotFoundError } from '@/lib/authz';
 import { audit } from '@/lib/db/audit';
 import {
   SaldoIndisponivelError,
@@ -62,6 +63,7 @@ export async function criarTarefaAction(
     id = await createTarefa(dados);
   } catch (e) {
     if (e instanceof SaldoIndisponivelError) return { error: e.message };
+    if (e instanceof NotFoundError) return { error: 'Tarefa não encontrada.' };
     throw e;
   }
 
@@ -78,6 +80,7 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
     await moverTarefa(id, coluna);
   } catch (e) {
     if (e instanceof TarefaDivergenteError) return { error: e.message };
+    if (e instanceof NotFoundError) return { error: 'Tarefa não encontrada.' };
     throw e;
   }
 
@@ -100,7 +103,14 @@ export async function apagarTarefaAction(id: string): Promise<{ error?: string }
   const actor = await requireReadyUser();
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
-  await softDeleteTarefa(id);
+  try {
+    await softDeleteTarefa(id);
+  } catch (e) {
+    if (e instanceof TarefaDivergenteError) return { error: e.message };
+    if (e instanceof NotFoundError) return { error: 'Tarefa não encontrada.' };
+    throw e;
+  }
+
   await audit({ actorId: actor.id, action: 'delete', entityType: 'tarefa', entityId: id });
   revalidatePath(ROTA);
   return {};

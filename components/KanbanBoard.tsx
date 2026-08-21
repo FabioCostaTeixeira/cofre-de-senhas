@@ -40,19 +40,22 @@ function NovaTarefaModal({
   // Produto depende de cliente (spec §5): só carrega depois de escolher o cliente, e
   // reflete a carteira dele.
   useEffect(() => {
-    if (!clienteId) {
-      setItens([]);
-      setErroItens(null);
-      return;
-    }
+    // Limpa a lista já na troca de cliente (não só no erro): impede que o produto do
+    // cliente anterior fique selecionável enquanto a busca do novo cliente ainda não
+    // resolveu, ou se ela falhar.
+    setItens([]);
+    setErroItens(null);
+    if (!clienteId) return;
     let cancelado = false;
     setCarregandoItens(true);
-    setErroItens(null);
     buscarItens(clienteId)
       .then((r) => {
         if (cancelado) return;
         if ('error' in r) setErroItens(r.error);
         else setItens(r.itens);
+      })
+      .catch(() => {
+        if (!cancelado) setErroItens('Não foi possível carregar os produtos deste cliente.');
       })
       .finally(() => {
         if (!cancelado) setCarregandoItens(false);
