@@ -7,6 +7,10 @@ import { existeBloqueioNoHorario } from '@/lib/db/bloqueios';
 import { getProduto } from '@/lib/db/produtos';
 import type { DadosOS, OrdemServico } from '@/lib/types';
 
+// Coluna em que toda tarefa gerada por OS nasce. `tarefas.coluna` guarda o id de
+// COLUNAS_KANBAN (lib/kanban.ts), nunca o rótulo — 'a_fazer' é um id válido lá.
+const COLUNA_INICIAL_TAREFA = 'a_fazer';
+
 export class SaldoInsuficienteError extends Error {
   constructor(produtoNome: string) {
     super(`Saldo insuficiente de "${produtoNome}" para este cliente.`);
@@ -29,11 +33,12 @@ type SaldoLinha = { contratacao_item_id: string; disponivel: number };
 
 async function buscarSaldoDisponivel(clienteId: string, produtoId: string): Promise<SaldoLinha[]> {
   return (await sql`
-    select ci.id as contratacao_item_id, (ci.quantidade_total - ci.quantidade_consumida) as disponivel
+    select ci.id as contratacao_item_id,
+           (ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida) as disponivel
       from contratacao_itens ci
       join contratacoes ct on ct.id = ci.contratacao_id
      where ct.cliente_id = ${clienteId} and ct.deleted_at is null and ci.produto_id = ${produtoId}
-       and ci.quantidade_total > ci.quantidade_consumida
+       and ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida > 0
      order by ct.created_at asc`) as SaldoLinha[];
 }
 
@@ -127,9 +132,24 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
     ...descontos.map((d) => sql`
       insert into os_item_saldos (os_item_id, contratacao_item_id, quantidade)
       values (${osItemIds[d.itemIndex]}, ${d.contratacao_item_id}, ${d.quantidade})`),
+    // A OS reserva na criação; consumo só acontece quando a tarefa (ou o agendamento
+    // dela) conclui — ver lib/db/tarefas.ts. Guard-in-where igual ao resto do módulo:
+    // a constraint `contratacao_itens_saldo_check` (migração 012) é o backstop atômico,
+    // não um select-then-update.
     ...descontos.map((d) => sql`
-      update contratacao_itens set quantidade_consumida = quantidade_consumida + ${d.quantidade}
+      update contratacao_itens set quantidade_reservada = quantidade_reservada + ${d.quantidade}
        where id = ${d.contratacao_item_id}`),
+    // Card = 1 unidade (Global Constraints): uma tarefa por unidade reservada, nunca uma
+    // por item. Um item de quantidade 3 que puxou 2 de uma contratação e 1 de outra gera
+    // 3 tarefas, cada uma com o `contratacao_item_id` de onde a unidade saiu. Tarefa nasce
+    // com `agendamento_id` quando o item é pré-agendado (senão null) e `consumido = false`
+    // sempre — é a Task 5 (agenda) que decide marcar `consumido` quando o agendamento
+    // conclui; a OS nunca antecipa isso.
+    ...descontos.flatMap((d) =>
+      Array.from({ length: d.quantidade }, () => sql`
+        insert into tarefas (cliente_id, produto_id, contratacao_item_id, agendamento_id, os_item_id, coluna)
+        values (${dados.cliente_id}, ${itensValidados[d.itemIndex].produto_id}, ${d.contratacao_item_id},
+                ${agendamentoIds[d.itemIndex]}, ${osItemIds[d.itemIndex]}, ${COLUNA_INICIAL_TAREFA})`)),
   ]);
 
   return osId;
@@ -162,11 +182,17 @@ export async function cancelarOrdemServico(id: string): Promise<void> {
     select id from ordens_servico where id = ${id} and deleted_at is null`) as { id: string }[];
   if (!existe[0]) throw new NotFoundError();
 
-  const saldos = (await sql`
-    select os_item_saldos.contratacao_item_id as contratacao_item_id, os_item_saldos.quantidade as quantidade
-      from os_item_saldos
-      join os_itens on os_itens.id = os_item_saldos.os_item_id
-     where os_itens.os_id = ${id}`) as { contratacao_item_id: string; quantidade: number }[];
+  // Devolução tem que ser derivada do estado real das tarefas da OS, não de
+  // `os_itens.quantidade`/`os_item_saldos`: depois da Task 4 uma OS pode ter parte das
+  // unidades ainda reservada e parte já consumida (mover de tarefa é independente de
+  // cancelar OS). Tarefa com `consumido = true` já converteu reserva em consumo real —
+  // esse consumo não se desfaz por cancelamento de OS (mesmo princípio de 010_contratacoes.sql).
+  const tarefas = (await sql`
+    select t.id, t.contratacao_item_id, t.consumido
+      from tarefas t
+      join os_itens oi on oi.id = t.os_item_id
+     where oi.os_id = ${id} and t.deleted_at is null`) as
+    { id: string; contratacao_item_id: string; consumido: boolean }[];
 
   const agendamentos = (await sql`
     select agendamento_id from os_itens where os_id = ${id} and agendamento_id is not null`) as
@@ -174,9 +200,23 @@ export async function cancelarOrdemServico(id: string): Promise<void> {
 
   await sql.transaction([
     sql`update ordens_servico set deleted_at = now() where id = ${id}`,
-    ...saldos.map((s) => sql`
-      update contratacao_itens set quantidade_consumida = quantidade_consumida - ${s.quantidade}
-       where id = ${s.contratacao_item_id}`),
+    // Ainda não consumida: libera a reserva e soft-deleta num CTE só (guard-in-where,
+    // mesmo padrão de softDeleteTarefa em lib/db/tarefas.ts) — nunca select-then-update.
+    ...tarefas.filter((t) => !t.consumido).map((t) => sql`
+      with mov as (
+        update tarefas set deleted_at = now()
+         where id = ${t.id} and deleted_at is null and consumido = false
+        returning contratacao_item_id
+      )
+      update contratacao_itens ci
+         set quantidade_reservada = quantidade_reservada - 1
+        from mov
+       where ci.id = mov.contratacao_item_id
+      returning ci.id`),
+    // Já consumida: saldo fica como está, só soft-deleta o card.
+    ...tarefas.filter((t) => t.consumido).map((t) => sql`
+      update tarefas set deleted_at = now()
+       where id = ${t.id} and deleted_at is null and consumido = true`),
     ...agendamentos.map((a) => sql`
       update agendamentos set status = 'cancelado', updated_at = now() where id = ${a.agendamento_id}`),
   ]);

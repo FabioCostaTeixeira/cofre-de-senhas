@@ -1407,15 +1407,27 @@ descreve('integração com o banco real', () => {
     expect(osId).toBeTruthy();
 
     const itemContratacao1 = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacao1Id}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacao1Id}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
     const itemContratacao2 = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacao2Id}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacao2Id}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
     // Contratação 1 (mais antiga) tinha saldo 2 — esgota primeiro. Contratação 2 cobre o resto (2).
-    expect(itemContratacao1[0].quantidade_consumida).toBe(2);
-    expect(itemContratacao2[0].quantidade_consumida).toBe(2);
+    // OS agora RESERVA na criação (Task 4) — consumo só na conclusão do card.
+    expect(itemContratacao1[0].quantidade_reservada).toBe(2);
+    expect(itemContratacao1[0].quantidade_consumida).toBe(0);
+    expect(itemContratacao2[0].quantidade_reservada).toBe(2);
+    expect(itemContratacao2[0].quantidade_consumida).toBe(0);
 
+    // Uma tarefa por unidade reservada (card = 1 unidade): 4 unidades pedidas => 4 tarefas,
+    // nascendo em 'a_fazer' e não consumidas.
+    const tarefasGeradas = (await sql`
+      select coluna, consumido, contratacao_item_id from tarefas where cliente_id = ${clienteId}`) as
+      { coluna: string; consumido: boolean; contratacao_item_id: string }[];
+    expect(tarefasGeradas).toHaveLength(4);
+    expect(tarefasGeradas.every((t) => t.coluna === 'a_fazer' && t.consumido === false)).toBe(true);
+
+    await sql`delete from tarefas where cliente_id = ${clienteId}`;
     await sql`delete from ordens_servico where id = ${osId}`;
     await sql`delete from contratacao_itens where contratacao_id in (${contratacao1Id}, ${contratacao2Id})`;
     await sql`delete from contratacoes where id in (${contratacao1Id}, ${contratacao2Id})`;
@@ -1463,15 +1475,18 @@ descreve('integração com o banco real', () => {
     expect(osId).toBeTruthy();
 
     const itemA = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoAId}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoAId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
     const itemB = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoBId}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoBId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
     // A (mais antiga, saldo 2) esgota primeiro; B cobre o resto (2). Soma = 4, sem estourar A.
-    expect(itemA[0].quantidade_consumida).toBe(2);
-    expect(itemB[0].quantidade_consumida).toBe(2);
-    expect(itemA[0].quantidade_consumida + itemB[0].quantidade_consumida).toBe(4);
+    // Task 4: OS reserva, não consome.
+    expect(itemA[0].quantidade_reservada).toBe(2);
+    expect(itemB[0].quantidade_reservada).toBe(2);
+    expect(itemA[0].quantidade_reservada + itemB[0].quantidade_reservada).toBe(4);
+    expect(itemA[0].quantidade_consumida).toBe(0);
+    expect(itemB[0].quantidade_consumida).toBe(0);
 
     // Fecha a lacuna de "FIFO nunca afirma os_item_saldos diretamente": confere as linhas de
     // desconto geradas, uma por (os_item, contratacao_item).
@@ -1491,6 +1506,7 @@ descreve('integração com o banco real', () => {
     expect(saldos.some((s) => s.contratacao_item_id === itemContratacaoAId.id && s.quantidade === 2)).toBe(true);
     expect(saldos.some((s) => s.contratacao_item_id === itemContratacaoBId.id && s.quantidade === 2)).toBe(true);
 
+    await sql`delete from tarefas where cliente_id = ${clienteId}`;
     await sql`delete from ordens_servico where id = ${osId}`;
     await sql`delete from contratacao_itens where contratacao_id in (${contratacaoAId}, ${contratacaoBId})`;
     await sql`delete from contratacoes where id in (${contratacaoAId}, ${contratacaoBId})`;
@@ -1536,9 +1552,12 @@ descreve('integração com o banco real', () => {
     const osRows = (await sql`select id from ordens_servico where cliente_id = ${clienteId}`) as { id: string }[];
     expect(osRows).toHaveLength(0);
     const itemA = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    expect(itemA[0].quantidade_reservada).toBe(0);
     expect(itemA[0].quantidade_consumida).toBe(0);
+    const tarefasGeradas = (await sql`select id from tarefas where cliente_id = ${clienteId}`) as { id: string }[];
+    expect(tarefasGeradas).toHaveLength(0);
 
     await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
     await sql`delete from contratacoes where id = ${contratacaoId}`;
@@ -1605,9 +1624,19 @@ descreve('integração com o banco real', () => {
       }],
     })).rejects.toThrow(os.ConflitoAgendaError);
     const consumidoDepoisConflito = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
-      { quantidade_consumida: number }[];
-    expect(consumidoDepoisConflito[0].quantidade_consumida).toBe(1);
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    // Task 4: a OS reserva, não consome, na criação.
+    expect(consumidoDepoisConflito[0].quantidade_reservada).toBe(1);
+    expect(consumidoDepoisConflito[0].quantidade_consumida).toBe(0);
+
+    const tarefaGerada = (await sql`
+      select agendamento_id, coluna, consumido from tarefas where cliente_id = ${clienteId}`) as
+      { agendamento_id: string | null; coluna: string; consumido: boolean }[];
+    expect(tarefaGerada).toHaveLength(1);
+    expect(tarefaGerada[0].agendamento_id).toBe(agendamentoId);
+    expect(tarefaGerada[0].coluna).toBe('a_fazer');
+    expect(tarefaGerada[0].consumido).toBe(false);
 
     const bloqueioId = await bloqueios.createBloqueio({
       estudio_id: estudio.id, data: '2026-09-12', hora_inicio: '09:00', hora_fim: '12:00', motivo: 'manutenção',
@@ -1620,6 +1649,7 @@ descreve('integração com o banco real', () => {
       }],
     })).rejects.toThrow(os.ConflitoAgendaError);
 
+    await sql`delete from tarefas where cliente_id = ${clienteId}`;
     await sql`delete from ordens_servico where id = ${osId}`;
     await sql`delete from agendamentos where id in (${agendamentoId}, ${conflitanteId})`;
     await sql`delete from bloqueios_estudio where id = ${bloqueioId}`;
@@ -1680,12 +1710,15 @@ descreve('integração com o banco real', () => {
     const osRows = (await sql`select id from ordens_servico where cliente_id = ${clienteId}`) as { id: string }[];
     expect(osRows).toHaveLength(0);
     const item = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    expect(item[0].quantidade_reservada).toBe(0);
     expect(item[0].quantidade_consumida).toBe(0);
     const agRows = (await sql`
       select id from agendamentos where estudio_id = ${estudio.id} and data = '2026-09-20'`) as { id: string }[];
     expect(agRows).toHaveLength(0);
+    const tarefasRows = (await sql`select id from tarefas where cliente_id = ${clienteId}`) as { id: string }[];
+    expect(tarefasRows).toHaveLength(0);
 
     await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
     await sql`delete from contratacoes where id = ${contratacaoId}`;
@@ -1734,16 +1767,31 @@ descreve('integração com o banco real', () => {
       select agendamento_id from os_itens where os_id = ${osId}`) as { agendamento_id: string }[];
 
     const antes = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
-      { quantidade_consumida: number }[];
-    expect(antes[0].quantidade_consumida).toBe(2);
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    // Task 4: a OS reserva, não consome, na criação.
+    expect(antes[0].quantidade_reservada).toBe(2);
+    expect(antes[0].quantidade_consumida).toBe(0);
+
+    const tarefasAntes = (await sql`
+      select id, coluna, deleted_at from tarefas where cliente_id = ${clienteId}`) as
+      { id: string; coluna: string; deleted_at: string | null }[];
+    expect(tarefasAntes).toHaveLength(2);
+    expect(tarefasAntes.every((t) => t.deleted_at === null)).toBe(true);
 
     await os.cancelarOrdemServico(osId);
 
     const depois = (await sql`
-      select quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
-      { quantidade_consumida: number }[];
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    // Nenhuma das 2 tarefas foi consumida antes do cancelamento — a reserva inteira volta.
+    expect(depois[0].quantidade_reservada).toBe(0);
     expect(depois[0].quantidade_consumida).toBe(0);
+
+    const tarefasDepois = (await sql`
+      select id, deleted_at from tarefas where id = any(${tarefasAntes.map((t) => t.id)})`) as
+      { id: string; deleted_at: string | null }[];
+    expect(tarefasDepois.every((t) => t.deleted_at !== null)).toBe(true);
 
     const agDepois = (await sql`select status from agendamentos where id = ${agendamentoId}`) as { status: string }[];
     expect(agDepois[0].status).toBe('cancelado');
@@ -1753,12 +1801,89 @@ descreve('integração com o banco real', () => {
 
     await expect(os.cancelarOrdemServico(osId)).rejects.toThrow();
 
+    await sql`delete from tarefas where cliente_id = ${clienteId}`;
     await sql`delete from ordens_servico where id = ${osId}`;
     await sql`delete from agendamentos where id = ${agendamentoId}`;
     await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
     await sql`delete from contratacoes where id = ${contratacaoId}`;
     await sql`delete from estudios where local_id = ${localId}`;
     await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where id = ${produtoId}`;
+    await sql`delete from categorias_produto where id = ${categoriaId}`;
+    await sql`delete from clientes where id = ${clienteId}`;
+  });
+
+  it('cancelamento com tarefas parcialmente concluídas só devolve a reserva das que não consumiram', async () => {
+    // Ponto de atenção do brief (Task 4, item 6): depois desta task, uma OS pode ter parte
+    // das unidades ainda reservadas e parte já consumida (a tarefa foi movida para Concluído
+    // antes do cancelamento). Devolver `os_itens.quantidade` inteira cegamente creditaria
+    // saldo que não existe — a devolução tem que vir do estado real das tarefas.
+    const terceiros = await import('@/lib/db/terceiros');
+    const cat = await import('@/lib/db/categorias-produto');
+    const prod = await import('@/lib/db/produtos');
+    const contr = await import('@/lib/db/contratacoes');
+    const os = await import('@/lib/db/ordens-servico');
+    const tf = await import('@/lib/db/tarefas');
+
+    const clienteId = await terceiros.createTerceiro('clientes', {
+      nome: `${marca}-cliente-os-7`, contato_responsavel: null, email: null,
+      telefone: null, cidade: null, uf: null,
+    });
+    const categoriaId = await cat.createCategoria({
+      nome: `${marca}-categoria-os-7`, unidade_consumo: null, atributos_molde: [], ativo: true,
+    });
+    const produtoId = await prod.createProduto({
+      categoria_id: categoriaId, nome: `${marca}-produto-os-7`, descricao: null, atributos: {}, preco: 10, ativo: true,
+    });
+
+    const contratacaoId = await contr.createContratacao({
+      cliente_id: clienteId, tipo: 'avulso', produto_id: produtoId, combo_id: null, plano_id: null, quantidade: 3,
+    });
+
+    const osId = await os.createOrdemServico({
+      cliente_id: clienteId,
+      itens: [{
+        produto_id: produtoId, quantidade: 3, pre_agendar: false,
+        data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
+      }],
+    });
+
+    const tarefas = (await sql`
+      select id from tarefas where cliente_id = ${clienteId} order by created_at`) as { id: string }[];
+    expect(tarefas).toHaveLength(3);
+
+    // Conclui só a primeira tarefa: reserva vira consumo para essa unidade.
+    await tf.moverTarefa(tarefas[0].id, 'concluido');
+
+    const antes = (await sql`
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    expect(antes[0].quantidade_reservada).toBe(2);
+    expect(antes[0].quantidade_consumida).toBe(1);
+
+    await os.cancelarOrdemServico(osId);
+
+    // Só as 2 unidades ainda reservadas voltam; a unidade já consumida pela tarefa
+    // concluída não é revertida pelo cancelamento da OS.
+    const depois = (await sql`
+      select quantidade_reservada, quantidade_consumida from contratacao_itens where contratacao_id = ${contratacaoId}`) as
+      { quantidade_reservada: number; quantidade_consumida: number }[];
+    expect(depois[0].quantidade_reservada).toBe(0);
+    expect(depois[0].quantidade_consumida).toBe(1);
+
+    // As 3 tarefas da OS, consumida ou não, são soft-deletadas pelo cancelamento (brief: OS
+    // cancelada some da lista principal, e o card não fica órfão no quadro).
+    const tarefasDepois = (await sql`
+      select id, deleted_at, consumido from tarefas where id = any(${tarefas.map((t) => t.id)})`) as
+      { id: string; deleted_at: string | null; consumido: boolean }[];
+    expect(tarefasDepois).toHaveLength(3);
+    expect(tarefasDepois.every((t) => t.deleted_at !== null)).toBe(true);
+    expect(tarefasDepois.find((t) => t.id === tarefas[0].id)!.consumido).toBe(true);
+
+    await sql`delete from tarefas where cliente_id = ${clienteId}`;
+    await sql`delete from ordens_servico where id = ${osId}`;
+    await sql`delete from contratacao_itens where contratacao_id = ${contratacaoId}`;
+    await sql`delete from contratacoes where id = ${contratacaoId}`;
     await sql`delete from produtos where id = ${produtoId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
