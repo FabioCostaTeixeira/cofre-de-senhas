@@ -3,7 +3,9 @@ import { requireReadyUser } from '@/lib/auth/guards';
 import { listTarefas } from '@/lib/db/tarefas';
 import { listTerceiros } from '@/lib/db/terceiros';
 import { listUsers } from '@/lib/db/users';
-import { buscarItensDoClienteAction, criarTarefaAction } from './actions';
+import {
+  buscarItensDoClienteAction, criarTarefaAction, moverTarefaAction, reordenarTarefasAction,
+} from './actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +23,7 @@ export default async function PlanejamentoPage() {
       <KanbanBoard
         tarefas={tarefas} clientes={clientes} users={users}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />
     </main>
   );

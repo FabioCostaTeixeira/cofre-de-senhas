@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh }) }));
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TarefaCard } from '@/components/TarefaCard';
 import { COLUNAS_KANBAN } from '@/lib/kanban';
@@ -43,6 +45,8 @@ const usuario: User = {
 
 const criarTarefaAction = vi.fn(async () => ({}));
 const buscarItensDoClienteAction = vi.fn(async () => ({ itens: [] }));
+const moverTarefaAction = vi.fn(async () => ({}));
+const reordenarTarefasAction = vi.fn(async () => ({}));
 
 describe('TarefaCard — resumido e estendido', () => {
   it('resumido mostra cliente, responsável, prioridade e produto, sem os campos do estendido', () => {
@@ -92,6 +96,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
@@ -105,6 +110,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     expect(screen.getAllByText('Nenhuma tarefa')).toHaveLength(COLUNAS_KANBAN.length);
@@ -127,6 +133,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={tarefas} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     const colunaAFazer = screen.getByRole('heading', { name: 'A Fazer' }).closest('section')!;
@@ -142,6 +149,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'RoadMap' }));
@@ -155,6 +163,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'RoadMap' }));
@@ -171,6 +180,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
@@ -189,6 +199,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
@@ -211,6 +222,7 @@ describe('KanbanBoard', () => {
       <KanbanBoard
         tarefas={[]} clientes={[cliente, outroCliente]} users={[usuario]}
         criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
