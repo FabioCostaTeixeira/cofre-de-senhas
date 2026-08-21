@@ -1956,7 +1956,25 @@ descreve('integração com o banco real', () => {
       await limparCarteira(c);
     });
 
-    it('duas criações concorrentes com saldo para 1 só: uma vence, a outra perde com SaldoIndisponivelError', async () => {
+    it('N criações concorrentes com saldo para 1 só: uma vence, o resto perde com SaldoIndisponivelError e o saldo não passa de 1 reservado', async () => {
+      // NÃO pina o guard-in-where do CTE de reserva (`and quantidade_total -
+      // quantidade_reservada - quantidade_consumida >= 1`, lib/db/tarefas.ts ~linha 98).
+      // Isso foi tentado e não funciona neste driver: `sql` é neon-http — cada chamada é
+      // um round-trip HTTP isolado, sem transação compartilhada entre chamadas
+      // concorrentes. Empiricamente (`Promise.allSettled` disparando 10 e depois 50
+      // chamadas simultâneas de `createTarefa` contra uma disponibilidade de 1) a
+      // execução sempre serializa de ponta a ponta: exatamente 1 chamada conclui a leitura
+      // preliminar + CTE + insert antes de qualquer outra sequer terminar sua leitura
+      // preliminar, então as N-1 rejeições saem 100% das vezes por `origem: 'checagem'` —
+      // nunca `origem: 'corrida'`. Ou seja, o caminho pós-CTE (guard-in-where) parece
+      // inalcançável pela API pública neste ambiente/driver; ver relatório da Task 3 para
+      // o experimento completo (remover o guard, rodar, restaurar).
+      //
+      // O que este teste verifica de fato: sob N chamadas concorrentes reais (via
+      // `Promise.allSettled`, não `all`, para não mascarar o resultado de umas com o das
+      // outras), o resultado observável — 1 sucesso, resto rejeitado, saldo nunca excede a
+      // disponibilidade — se mantém. Isso cobre a checagem preliminar e a ausência de
+      // sobre-reserva, mas não substitui uma prova direta do guard-in-where.
       const tf = await import('@/lib/db/tarefas');
       const c = await montarCarteira('concorrencia', 1);
 
@@ -1966,9 +1984,10 @@ descreve('integração com o banco real', () => {
         deadline_cliente: null, deadline_tarefa: null,
       };
 
-      // `allSettled`, não `all`: se as duas caírem na mesma promise resolvida/rejeitada,
-      // `all` mascararia o resultado da outra assim que a primeira rejeitasse.
-      const resultados = await Promise.allSettled([tf.createTarefa(dados), tf.createTarefa(dados)]);
+      const N = 10;
+      const resultados = await Promise.allSettled(
+        Array.from({ length: N }, () => tf.createTarefa(dados)),
+      );
 
       const cumpridas = resultados.filter(
         (r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled',
@@ -1977,11 +1996,9 @@ descreve('integração com o banco real', () => {
         (r): r is PromiseRejectedResult => r.status === 'rejected',
       );
       expect(cumpridas).toHaveLength(1);
-      expect(rejeitadas).toHaveLength(1);
-      expect(rejeitadas[0].reason).toBeInstanceOf(tf.SaldoIndisponivelError);
+      expect(rejeitadas).toHaveLength(N - 1);
+      for (const r of rejeitadas) expect(r.reason).toBeInstanceOf(tf.SaldoIndisponivelError);
 
-      // Só 1 unidade existia: o guard-in-where do CTE de reserva (não a checagem
-      // preliminar) é quem decide o empate — ver Finding 4 da revisão do Task 3.
       const saldo = await saldoAtual(c.contratacaoItemId);
       expect(saldo.quantidade_reservada).toBe(1);
       expect(saldo.quantidade_consumida).toBe(0);

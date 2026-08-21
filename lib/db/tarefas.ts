@@ -13,8 +13,16 @@ import type { DadosTarefa, Tarefa } from '@/lib/types';
 // (ex.: relatórios) e documentar aqui se mudar esse comportamento.
 
 export class SaldoIndisponivelError extends Error {
-  constructor(produtoNome: string) {
+  /** De onde veio a rejeição: `checagem` é a leitura preliminar em `createTarefa`
+   *  (barato, evita bater no banco à toa, mas não é atômico); `corrida` é o
+   *  guard-in-where do CTE de reserva não afetando nenhuma linha — a fonte real de
+   *  verdade quando duas chamadas concorrentes disputam a última unidade
+   *  (ver 'duas criações concorrentes...' em tests/integracao.test.ts). */
+  readonly origem: 'checagem' | 'corrida';
+
+  constructor(produtoNome: string, origem: 'checagem' | 'corrida') {
     super(`Sem saldo disponível de "${produtoNome}" para este cliente.`);
+    this.origem = origem;
   }
 }
 
@@ -80,7 +88,7 @@ export async function createTarefa(dados: DadosTarefa): Promise<string> {
 
   const item = itens[0];
   if (!item) throw new NotFoundError();
-  if (item.disponivel < 1) throw new SaldoIndisponivelError(item.produto_nome);
+  if (item.disponivel < 1) throw new SaldoIndisponivelError(item.produto_nome, 'checagem');
 
   const rows = (await sql`
     with reserva as (
@@ -100,7 +108,7 @@ export async function createTarefa(dados: DadosTarefa): Promise<string> {
 
   // Sem linha => o CTE de reserva não afetou nada => alguém levou a última unidade
   // entre o select acima e este update.
-  if (!rows[0]) throw new SaldoIndisponivelError(item.produto_nome);
+  if (!rows[0]) throw new SaldoIndisponivelError(item.produto_nome, 'corrida');
   return rows[0].id;
 }
 
@@ -166,7 +174,6 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
              quantidade_consumida = quantidade_consumida + 1
         from mov
        where ci.id = mov.contratacao_item_id
-         and ci.quantidade_reservada >= 1
       returning ci.id`) as { id: string }[];
     if (!efeito[0]) throw new TarefaDivergenteError();
     return;
@@ -187,7 +194,6 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
              quantidade_consumida = quantidade_consumida - 1
         from mov
        where ci.id = mov.contratacao_item_id
-         and ci.quantidade_consumida >= 1
       returning ci.id`) as { id: string }[];
     if (!efeito[0]) throw new TarefaDivergenteError();
     return;
@@ -247,7 +253,6 @@ export async function softDeleteTarefa(id: string): Promise<void> {
          set quantidade_reservada = quantidade_reservada - 1
         from mov
        where ci.id = mov.contratacao_item_id
-         and ci.quantidade_reservada >= 1
       returning ci.id`) as { id: string }[];
     if (!efeito[0]) throw new TarefaDivergenteError();
     return;
