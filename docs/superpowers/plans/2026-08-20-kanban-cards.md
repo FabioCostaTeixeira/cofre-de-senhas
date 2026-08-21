@@ -168,7 +168,7 @@ Duas regras com bordas fáceis de errar, sem banco. Testadas isoladas.
 **Interfaces:**
 - Produces:
   - `type CorPrazo = 'verde' | 'amarelo' | 'vermelho' | 'neutro'`
-  - `function corPorDeadline(deadline: string | null, hoje?: Date): CorPrazo`
+  - `function corPorDeadline(deadline: string | Date | null, hoje?: Date): CorPrazo`
   - `function ordenarTarefas<T extends OrdenavelTarefa>(tarefas: T[]): T[]`
 
 - [ ] **Step 1:** Escreve `tests/tarefas-calc.test.ts`
@@ -344,7 +344,8 @@ export async function listTarefas(): Promise<Tarefa[]> {
     select t.id, t.cliente_id, cl.nome as cliente_nome, t.responsavel_id, u.name as responsavel_nome,
            t.produto_id, p.nome as produto_nome, t.contratacao_item_id, t.agendamento_id, t.os_item_id,
            t.tarefa, t.coluna, t.prioridade, t.deadline_cliente::text as deadline_cliente,
-           t.deadline_tarefa::text as deadline_tarefa, t.ajuste, t.consumido, t.created_at
+           t.deadline_tarefa::text as deadline_tarefa, t.ajuste, t.consumido,
+           t.created_at::text as created_at
       from tarefas t
       join clientes cl on cl.id = t.cliente_id
       join produtos p on p.id = t.produto_id

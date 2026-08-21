@@ -29,6 +29,22 @@ describe('corPorDeadline', () => {
     // 2026-08-21T02:00Z ainda é dia 20 em Brasília (UTC-3). Deadline 24 => 4 dias.
     expect(corPorDeadline('2026-08-24', new Date('2026-08-21T02:00:00Z'))).toBe('verde');
   });
+
+  it('dia 5 é verde (limite superior da faixa)', () => {
+    expect(corPorDeadline('2026-08-25', HOJE)).toBe('verde');
+  });
+
+  // O driver do Neon entrega coluna `date` como objeto Date, não string. Uma query
+  // sem `::text` cai aqui — .slice num Date estourava.
+  it('aceita deadline como Date, não só string', () => {
+    expect(corPorDeadline(new Date('2026-08-24T03:00:00Z'), HOJE)).toBe('verde');
+    expect(corPorDeadline(new Date('2026-08-21T03:00:00Z'), HOJE)).toBe('vermelho');
+  });
+
+  it('deadline malformado é neutro, não vermelho', () => {
+    // Vermelho é sinal acionável na tela; lixo não pode virar alarme falso.
+    expect(corPorDeadline('invalido', HOJE)).toBe('neutro');
+  });
 });
 
 describe('ordenarTarefas', () => {
@@ -65,5 +81,15 @@ describe('ordenarTarefas', () => {
     ];
     ordenarTarefas(entrada);
     expect(entrada.map((t) => t.id)).toEqual(['a', 'b']);
+  });
+
+  // Empate de ajuste E prioridade é o único caminho que chega no desempate por
+  // created_at — e é rotineiro, não exótico. Com Date, localeCompare estourava.
+  it('desempata por created_at mesmo quando ele chega como Date', () => {
+    const r = ordenarTarefas([
+      { id: 'novo', ...base, created_at: new Date('2026-08-15T00:00:00Z') },
+      { id: 'velho', ...base, created_at: new Date('2026-08-01T00:00:00Z') },
+    ]);
+    expect(r.map((t) => t.id)).toEqual(['velho', 'novo']);
   });
 });
