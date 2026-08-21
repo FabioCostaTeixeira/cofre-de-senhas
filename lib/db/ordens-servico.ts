@@ -44,6 +44,7 @@ async function buscarSaldoDisponivel(clienteId: string, produtoId: string): Prom
 
 type ItemValidado = {
   produto_id: string;
+  produto_nome: string;
   categoria_produto_id: string;
   quantidade: number;
   pre_agendar: boolean;
@@ -104,7 +105,7 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
     }
 
     itensValidados.push({
-      produto_id: item.produto_id, categoria_produto_id: produto.categoria_id,
+      produto_id: item.produto_id, produto_nome: produto.nome, categoria_produto_id: produto.categoria_id,
       quantidade: item.quantidade, pre_agendar: item.pre_agendar,
       data: item.data, hora_inicio: item.hora_inicio, hora_fim: item.hora_fim,
       local_id: item.local_id, estudio_id: item.estudio_id,
@@ -115,14 +116,20 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
   const osItemIds = itensValidados.map(() => randomUUID());
   const agendamentoIds = itensValidados.map((item) => (item.pre_agendar ? randomUUID() : null));
 
-  await sql.transaction([
+  const agendamentosParaCriar = itensValidados
+    .map((item, i) => ({ item, i }))
+    .filter(({ item }) => item.pre_agendar);
+
+  // Offset, dentro do array de resultados que `sql.transaction` devolve (um por
+  // statement, na mesma ordem de entrada), de onde começam os `returning` dos updates
+  // de reserva abaixo — é assim que o zero-rows de cada um é inspecionado depois.
+  const offsetReservas = 1 + agendamentosParaCriar.length + itensValidados.length + descontos.length;
+
+  const resultados = (await sql.transaction([
     sql`insert into ordens_servico (id, cliente_id) values (${osId}, ${dados.cliente_id})`,
     // Agendamentos precisam existir antes dos `os_itens` que os referenciam via
     // `agendamento_id` (FK), então essa etapa vem antes da inserção dos itens.
-    ...itensValidados
-      .map((item, i) => ({ item, i }))
-      .filter(({ item }) => item.pre_agendar)
-      .map(({ item, i }) => sql`
+    ...agendamentosParaCriar.map(({ item, i }) => sql`
         insert into agendamentos (id, cliente_id, local_id, estudio_id, categoria_produto_id, status, data, hora_inicio, hora_fim)
         values (${agendamentoIds[i]}, ${dados.cliente_id}, ${item.local_id}, ${item.estudio_id}, ${item.categoria_produto_id},
                 'pre_agendado', ${item.data}, ${item.hora_inicio}, ${item.hora_fim})`),
@@ -133,12 +140,18 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
       insert into os_item_saldos (os_item_id, contratacao_item_id, quantidade)
       values (${osItemIds[d.itemIndex]}, ${d.contratacao_item_id}, ${d.quantidade})`),
     // A OS reserva na criação; consumo só acontece quando a tarefa (ou o agendamento
-    // dela) conclui — ver lib/db/tarefas.ts. Guard-in-where igual ao resto do módulo:
-    // a constraint `contratacao_itens_saldo_check` (migração 012) é o backstop atômico,
-    // não um select-then-update.
+    // dela) conclui — ver lib/db/tarefas.ts. Guard-in-where igual ao resto do módulo
+    // (mesmo shape de `createTarefa` em lib/db/tarefas.ts:93-111): `buscarSaldoDisponivel`
+    // roda fora da transação (select-then-update clássico), então duas OS concorrentes do
+    // mesmo produto podem ler o mesmo saldo disponível. O guard + `returning id` faz este
+    // update casar zero linhas em vez de estourar a constraint `contratacao_itens_saldo_check`
+    // com um `NeonDbError` cru; o zero-rows é convertido em `SaldoInsuficienteError` logo
+    // após a transação (ver `resultados[offsetReservas + i]` abaixo).
     ...descontos.map((d) => sql`
       update contratacao_itens set quantidade_reservada = quantidade_reservada + ${d.quantidade}
-       where id = ${d.contratacao_item_id}`),
+       where id = ${d.contratacao_item_id}
+         and quantidade_total - quantidade_reservada - quantidade_consumida >= ${d.quantidade}
+      returning id`),
     // Card = 1 unidade (Global Constraints): uma tarefa por unidade reservada, nunca uma
     // por item. Um item de quantidade 3 que puxou 2 de uma contratação e 1 de outra gera
     // 3 tarefas, cada uma com o `contratacao_item_id` de onde a unidade saiu. Tarefa nasce
@@ -150,7 +163,13 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
         insert into tarefas (cliente_id, produto_id, contratacao_item_id, agendamento_id, os_item_id, coluna)
         values (${dados.cliente_id}, ${itensValidados[d.itemIndex].produto_id}, ${d.contratacao_item_id},
                 ${agendamentoIds[d.itemIndex]}, ${osItemIds[d.itemIndex]}, ${COLUNA_INICIAL_TAREFA})`)),
-  ]);
+  ])) as unknown[][];
+
+  for (let i = 0; i < descontos.length; i++) {
+    if (resultados[offsetReservas + i].length === 0) {
+      throw new SaldoInsuficienteError(itensValidados[descontos[i].itemIndex].produto_nome);
+    }
+  }
 
   return osId;
 }
@@ -202,6 +221,16 @@ export async function cancelarOrdemServico(id: string): Promise<void> {
     sql`update ordens_servico set deleted_at = now() where id = ${id}`,
     // Ainda não consumida: libera a reserva e soft-deleta num CTE só (guard-in-where,
     // mesmo padrão de softDeleteTarefa em lib/db/tarefas.ts) — nunca select-then-update.
+    // O filtro aqui é só `!t.consumido`, sem `!t.agendamento_id` (diferente de
+    // softDeleteTarefa) — de propósito: quem reservou foi a OS, então é ela quem libera,
+    // mesmo para tarefa vinculada a agendamento. Isso só é seguro porque a agenda marca
+    // `tarefas.consumido = true` ao consumir (contrato decidido pelo cliente, documentado
+    // em lib/db/tarefas.ts:6-13). Se a Task 5 (agenda) consumir sem marcar `consumido`,
+    // uma OS pré-agendada e já concluída pela agenda fica com `consumido = false` aqui,
+    // este ramo tenta `quantidade_reservada - 1` sobre saldo que já foi consumido (não
+    // reservado), estoura a constraint `quantidade_reservada >= 0` e a OS fica impossível
+    // de cancelar. Não é hipotético de se corrigir agora — é a Task 5 que precisa manter
+    // esse contrato ao consumir via agendamento.
     ...tarefas.filter((t) => !t.consumido).map((t) => sql`
       with mov as (
         update tarefas set deleted_at = now()
@@ -219,5 +248,13 @@ export async function cancelarOrdemServico(id: string): Promise<void> {
        where id = ${t.id} and deleted_at is null and consumido = true`),
     ...agendamentos.map((a) => sql`
       update agendamentos set status = 'cancelado', updated_at = now() where id = ${a.agendamento_id}`),
+    // Backstop: os dois ramos acima foram montados a partir do `select` de `tarefas` no
+    // topo da função — se uma tarefa concluir concorrentemente (moverTarefa) entre esse
+    // select e esta transação, nenhum dos dois ramos casa a linha dela (o `where` guarda
+    // o `consumido` já obsoleto), e ela escaparia do soft-delete: saldo correto, mas card
+    // vivo apontando para OS cancelada. Este statement final pega qualquer tarefa da OS
+    // que os ramos acima não tenham marcado, sem tocar em saldo (já tratado ali).
+    sql`update tarefas set deleted_at = now()
+     where os_item_id in (select id from os_itens where os_id = ${id}) and deleted_at is null`,
   ]);
 }

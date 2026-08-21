@@ -3,14 +3,16 @@ import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
 import type { DadosTarefa, Tarefa } from '@/lib/types';
 
-// Contrato pendente para a Task 4 (Agenda): hoje `tarefas.consumido` só é escrito por
-// este arquivo. Quando o agendamento passar a consumir saldo em nome de uma tarefa com
-// `agendamento_id`, a Task 4 precisa decidir se ele também escreve `consumido = true`
-// nessa tarefa. As duas leituras de `consumido` neste arquivo (`vaiDevolver` e o release
-// de `softDeleteTarefa`) já checam `!agendamento_id` primeiro, então qualquer valor que
-// a Task 4 deixar em `consumido` para uma tarefa vinculada a agendamento é ignorado por
-// este módulo — mas a Task 4 ainda precisa decidir o valor para consistência de leitura
-// (ex.: relatórios) e documentar aqui se mudar esse comportamento.
+// Decisão do cliente (documentada no brief da Task 4/OS): a Task 5 (Agenda) MARCA
+// `tarefas.consumido = true` quando o agendamento consome saldo em nome de uma tarefa
+// com `agendamento_id`. As duas leituras de `consumido` neste arquivo (`vaiDevolver` e o
+// release de `softDeleteTarefa`) já checam `!agendamento_id` primeiro, então esse valor é
+// ignorado por este módulo — mas `cancelarOrdemServico` (lib/db/ordens-servico.ts) DEPENDE
+// dele: o ramo de release de reserva ali usa só `!consumido` (sem checar `agendamento_id`,
+// de propósito — quem reservou foi a OS), e conta com a agenda ter marcado `consumido =
+// true` ao consumir. Se a Task 5 consumir sem marcar essa flag, cancelar uma OS
+// pré-agendada e já concluída pela agenda tenta devolver reserva que não existe mais,
+// estoura a constraint `quantidade_reservada >= 0` e a OS fica impossível de cancelar.
 
 export class SaldoIndisponivelError extends Error {
   /** De onde veio a rejeição: `checagem` é a leitura preliminar em `createTarefa`

@@ -1427,6 +1427,17 @@ descreve('integração com o banco real', () => {
     expect(tarefasGeradas).toHaveLength(4);
     expect(tarefasGeradas.every((t) => t.coluna === 'a_fazer' && t.consumido === false)).toBe(true);
 
+    // Distribuição real das tarefas por contratação: 2 vieram da contratação 1 (mais
+    // antiga, saldo 2, esgotou primeiro), 2 vieram da contratação 2 (cobriu o resto).
+    // Sem isso, uma tarefa apontando para a contratação errada (FK ainda válida, nenhuma
+    // constraint reclama) passaria despercebida — só a contagem total era checada.
+    const [itemContratacao1Row] = (await sql`
+      select id from contratacao_itens where contratacao_id = ${contratacao1Id}`) as { id: string }[];
+    const [itemContratacao2Row] = (await sql`
+      select id from contratacao_itens where contratacao_id = ${contratacao2Id}`) as { id: string }[];
+    expect(tarefasGeradas.filter((t) => t.contratacao_item_id === itemContratacao1Row.id)).toHaveLength(2);
+    expect(tarefasGeradas.filter((t) => t.contratacao_item_id === itemContratacao2Row.id)).toHaveLength(2);
+
     await sql`delete from tarefas where cliente_id = ${clienteId}`;
     await sql`delete from ordens_servico where id = ${osId}`;
     await sql`delete from contratacao_itens where contratacao_id in (${contratacao1Id}, ${contratacao2Id})`;
@@ -1791,6 +1802,7 @@ descreve('integração com o banco real', () => {
     const tarefasDepois = (await sql`
       select id, deleted_at from tarefas where id = any(${tarefasAntes.map((t) => t.id)})`) as
       { id: string; deleted_at: string | null }[];
+    expect(tarefasDepois).toHaveLength(2);
     expect(tarefasDepois.every((t) => t.deleted_at !== null)).toBe(true);
 
     const agDepois = (await sql`select status from agendamentos where id = ${agendamentoId}`) as { status: string }[];
