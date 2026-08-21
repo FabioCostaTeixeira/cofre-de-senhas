@@ -333,6 +333,38 @@ export type OrdemServico = {
   itens: OSItemLinha[];
 };
 
+export type Tarefa = {
+  id: string;
+  cliente_id: string;
+  cliente_nome: string;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
+  produto_id: string;
+  produto_nome: string;
+  contratacao_item_id: string;
+  agendamento_id: string | null;
+  os_item_id: string | null;
+  tarefa: string | null;
+  coluna: string;
+  prioridade: number;
+  deadline_cliente: string | null;
+  deadline_tarefa: string | null;
+  ajuste: boolean;
+  consumido: boolean;
+  created_at: string;
+};
+
+export type DadosTarefa = {
+  cliente_id: string;
+  responsavel_id: string | null;
+  contratacao_item_id: string;
+  tarefa: string | null;
+  coluna: string;
+  prioridade: number;
+  deadline_cliente: string | null;
+  deadline_tarefa: string | null;
+};
+
 export type DadosOSItem = {
   produto_id: string;
   quantidade: number;
