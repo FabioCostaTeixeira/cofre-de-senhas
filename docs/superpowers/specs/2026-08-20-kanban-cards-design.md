@@ -44,9 +44,15 @@ A simetria vale na volta: card com `agendamento_id` que sai de Concluído **não
 nada, porque não foi ele quem consumiu. Devolver ali creditaria saldo que o card nunca
 debitou.
 
-**OS passa a gerar card:** todo item de OS cria uma tarefa em "A Fazer". Sem isso, item
-de OS sem pré-agendamento não teria nenhum evento de conclusão e ficaria reservado pra
-sempre. Item com `pre_agendar` gera a tarefa já com `agendamento_id` preenchido.
+**Card = 1 unidade.** Uma tarefa reserva e consome exatamente 1 unidade de 1
+`contratacao_item_id`. Não há campo de quantidade — precisa de 3, criam-se 3 tarefas.
+Isso é o que mantém o modelo de saldo simples: nenhuma tarefa precisa dividir reserva
+entre várias contratações, ao contrário de `os_itens`, que faz isso via `os_item_saldos`.
+
+**OS passa a gerar card:** cada item de OS cria **`quantidade` tarefas** em "A Fazer" —
+um item de quantidade 3 vira 3 cards de 1 unidade. Sem isso, item de OS sem
+pré-agendamento não teria nenhum evento de conclusão e ficaria reservado pra sempre.
+Item com `pre_agendar` gera as tarefas já com `agendamento_id` preenchido.
 
 **Dado existente:** as deduções já feitas em `quantidade_consumida` continuam válidas
 como consumo realizado. `quantidade_reservada` nasce `0` para todas as linhas atuais.
