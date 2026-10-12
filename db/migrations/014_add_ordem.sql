@@ -1,0 +1,2 @@
+ALTER TABLE ti_tarefas ADD COLUMN ordem INT DEFAULT 0;
+ALTER TABLE ti_atividades ADD COLUMN ordem INT DEFAULT 0;
