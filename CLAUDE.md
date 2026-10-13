@@ -119,6 +119,10 @@ abaixo.
 
 ## Permissão por área (2026-10-13)
 
+**Em produção** desde o commit `603aea4` (2026-10-13), testado local pelo cliente antes do
+deploy. Efeito no deploy: usuários não-master perderam Painel/Working até o master marcar
+as caixas de cada um (ex.: Vanute, criado no mesmo dia, sem nenhuma área).
+
 Cada área da aplicação é liberável por usuário na tela de usuário ("Áreas com acesso"),
 gravada em `module_access`. Catálogo em `lib/modules.ts` (painel, working, agenda,
 clientes, fornecedores, locais_gravacao, produtos — inclui categorias/combos/planos —,
