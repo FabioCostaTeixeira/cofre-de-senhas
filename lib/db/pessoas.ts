@@ -30,12 +30,16 @@ export type DadosPessoa = DadosContato & {
  * Seleção explícita, sem `select *`: os blobs cifrados nunca saem daqui para desenhar
  * tela. `tem_cpf`/`tem_rg` dizem se existe documento guardado, o suficiente para a
  * tela decidir se mostra o botão de revelar.
+ *
+ * `data_nascimento` sai como texto `YYYY-MM-DD`: coluna `date` crua vira `Date` no
+ * driver, e o client (`formatarDataBR`) espera string — quebrava a tela "Meus dados".
  */
 export async function getPessoa(id: string): Promise<Pessoa | null> {
   assertUuid(id);
   const rows = (await sql`
     select id, telefone, cep, logradouro, numero, complemento, bairro, cidade, uf,
-           data_nascimento, rg_orgao_expedidor, cnpj,
+           to_char(data_nascimento, 'YYYY-MM-DD') as data_nascimento,
+           rg_orgao_expedidor, cnpj,
            (cpf_ct is not null) as tem_cpf,
            (rg_ct is not null) as tem_rg
       from pessoas where id = ${id}`) as Pessoa[];
