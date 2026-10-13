@@ -28,6 +28,50 @@ descreve('integração do módulo TI', () => {
     await sql`delete from ti_projetos where id = any(${projetoIds})`;
   });
 
+  it('tem schema TI completo, colunas de peso e ordem, e cascata nos pais', async () => {
+    const tabelas = (await sql`
+      select relname
+        from pg_class
+       where relkind = 'r'
+         and relname = any(array['ti_projetos', 'ti_tarefas', 'ti_atividades'])
+    `) as { relname: string }[];
+    expect(tabelas.map((tabela) => tabela.relname)).toEqual(expect.arrayContaining([
+      'ti_projetos', 'ti_tarefas', 'ti_atividades',
+    ]));
+
+    const colunas = (await sql`
+      select table_name, column_name
+        from information_schema.columns
+       where table_schema = 'public'
+         and table_name in ('ti_tarefas', 'ti_atividades')
+         and column_name in ('peso', 'ordem')
+    `) as { table_name: string; column_name: string }[];
+    expect(colunas).toEqual(expect.arrayContaining([
+      { table_name: 'ti_tarefas', column_name: 'peso' },
+      { table_name: 'ti_tarefas', column_name: 'ordem' },
+      { table_name: 'ti_atividades', column_name: 'peso' },
+      { table_name: 'ti_atividades', column_name: 'ordem' },
+    ]));
+
+    const projetoId = await criarProjeto(`${marca}-cascata`);
+    const tarefaId = randomUUID();
+    const atividadeId = randomUUID();
+    await sql`
+      insert into ti_tarefas (id, projeto_id, nome, status, prioridade, peso, ordem)
+      values (${tarefaId}, ${projetoId}, 'Feature', 'a_fazer', 'media', 100, 0)
+    `;
+    await sql`
+      insert into ti_atividades (id, tarefa_id, nome, status, prioridade, peso, ordem)
+      values (${atividadeId}, ${tarefaId}, 'Story', 'a_fazer', 'media', 100, 0)
+    `;
+
+    await sql`delete from ti_projetos where id = ${projetoId}`;
+    expect((await sql`select id from ti_tarefas where id = ${tarefaId}`)).toHaveLength(0);
+    expect((await sql`select id from ti_atividades where id = ${atividadeId}`)).toHaveLength(0);
+    const indice = projetoIds.indexOf(projetoId);
+    if (indice >= 0) projetoIds.splice(indice, 1);
+  });
+
   async function criarProjeto(nome: string): Promise<string> {
     const id = randomUUID();
     projetoIds.push(id);

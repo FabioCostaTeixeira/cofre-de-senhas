@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireReadyUser } from '@/lib/auth/guards';
+import { requireTiAccess } from '@/lib/auth/guards';
 import {
   createTiAtividade,
   updateTiAtividade,
@@ -9,12 +9,13 @@ import {
   deleteTiAtividade,
   atualizarOrdemAtividades,
 } from '@/lib/db/ti-tarefas';
+import { isPrioridadeTi, isStatusAtividade, parsePesoTi } from '@/lib/ti-validation';
 import { isUuid } from '@/lib/validation';
 
 export type AtividadeActionState = { error?: string; ok?: string };
 
 export async function criarOuEditarAtividadeAction(_prev: AtividadeActionState, formData: FormData): Promise<AtividadeActionState> {
-  await requireReadyUser();
+  await requireTiAccess();
   const id = String(formData.get('id') ?? '').trim();
   const tarefaId = String(formData.get('tarefaId') ?? '');
   const nome = String(formData.get('nome') ?? '').trim();
@@ -22,10 +23,14 @@ export async function criarOuEditarAtividadeAction(_prev: AtividadeActionState, 
   const status = String(formData.get('status') ?? 'a_fazer');
   const prioridade = String(formData.get('prioridade') ?? 'media');
   const responsavel = String(formData.get('responsavel') ?? '').trim() || null;
-  const peso = parseFloat(formData.get('peso') as string) || 0;
+  const peso = parsePesoTi(formData.get('peso'));
 
   if (!isUuid(tarefaId)) return { error: 'Tarefa inválida.' };
+  if (id && !isUuid(id)) return { error: 'User Story inválida.' };
   if (!nome) return { error: 'Informe o nome da User Story (Atividade).' };
+  if (!isStatusAtividade(status)) return { error: 'Status inválido.' };
+  if (!isPrioridadeTi(prioridade)) return { error: 'Prioridade inválida.' };
+  if (peso === null) return { error: 'Informe um peso entre 0 e 100.' };
 
   try {
     if (id && isUuid(id)) {
@@ -49,18 +54,18 @@ export async function criarOuEditarAtividadeAction(_prev: AtividadeActionState, 
 }
 
 export async function mudarStatusAtividadeAction(formData: FormData): Promise<void> {
-  await requireReadyUser();
+  await requireTiAccess();
   const id = String(formData.get('id') ?? '');
   const tarefaId = String(formData.get('tarefaId') ?? '');
   const status = String(formData.get('status') ?? '');
 
-  if (!isUuid(id) || !isUuid(tarefaId) || !status) return;
+  if (!isUuid(id) || !isUuid(tarefaId) || !isStatusAtividade(status)) return;
   await updateTiAtividadeStatus(id, status);
   revalidatePath(`/ti/tarefas/${tarefaId}`);
 }
 
 export async function excluirAtividadeAction(formData: FormData): Promise<void> {
-  await requireReadyUser();
+  await requireTiAccess();
   const id = String(formData.get('id') ?? '');
   const tarefaId = String(formData.get('tarefaId') ?? '');
   if (!isUuid(id) || !isUuid(tarefaId)) return;
@@ -70,8 +75,8 @@ export async function excluirAtividadeAction(formData: FormData): Promise<void> 
 }
 
 export async function reordenarAtividadesAction(tarefaId: string, idsOrdenados: string[]): Promise<void> {
-  await requireReadyUser();
-  if (!isUuid(tarefaId) || !Array.isArray(idsOrdenados)) return;
+  await requireTiAccess();
+  if (!isUuid(tarefaId) || !Array.isArray(idsOrdenados) || idsOrdenados.some((id) => !isUuid(id))) return;
   await atualizarOrdemAtividades(idsOrdenados);
   revalidatePath(`/ti/tarefas/${tarefaId}`);
 }

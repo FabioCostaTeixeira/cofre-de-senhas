@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTiTarefa, listTiAtividades, listTiTarefasDisponiveis } from '@/lib/db/ti-tarefas';
+import { requireTiAccess } from '@/lib/auth/guards';
 import { AtividadesClient } from './AtividadesClient';
 
 export const runtime = 'nodejs';
@@ -11,6 +12,7 @@ export default async function TarefaDetalhesPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireTiAccess();
   const { id } = await params;
   const tarefa = await getTiTarefa(id);
   if (!tarefa) notFound();

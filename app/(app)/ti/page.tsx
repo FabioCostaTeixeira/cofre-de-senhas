@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { requireTiAccess } from '@/lib/auth/guards';
 
 export default async function TiPage() {
+  await requireTiAccess();
+
   return (
     <main className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">

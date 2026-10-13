@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import { Cpu } from 'lucide-react';
 // import { FolderKanban } from 'lucide-react';
 
 /**
@@ -19,5 +20,6 @@ export type ModuleDef = {
 // Gestão de Projetos comentada a pedido do cliente (2026-08-20): não deve mais
 // aparecer no sidebar nem ser acessível daqui. Descomentar pra reativar.
 export const MODULES: ModuleDef[] = [
+  { key: 'ti', groupLabel: 'TI', label: 'Projetos de TI', href: '/ti', icon: Cpu },
   // { key: 'gestao', groupLabel: 'Gestão', label: 'Gestão de Projetos', href: '/gestao', icon: FolderKanban },
 ];

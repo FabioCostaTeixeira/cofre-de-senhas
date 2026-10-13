@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getTiProjeto, listTiTarefas } from '@/lib/db/ti-tarefas';
+import { requireTiAccess } from '@/lib/auth/guards';
 import { TarefasClient } from './TarefasClient';
 
 export const runtime = 'nodejs';
@@ -11,6 +12,7 @@ export default async function ProjetoDetalhesPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireTiAccess();
   const { id } = await params;
   const projeto = await getTiProjeto(id);
   if (!projeto) notFound();

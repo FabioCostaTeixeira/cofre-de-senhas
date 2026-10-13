@@ -70,7 +70,9 @@ export async function listUsersComContato(
 ): Promise<UserComContato[]> {
   return (await sql`
     select u.id, u.email, u.name, u.role, u.is_active, u.must_change_password,
-           u.created_at, u.pessoa_id, u.data_contratacao, u.data_demissao,
+           u.created_at, u.pessoa_id,
+           to_char(u.data_contratacao, 'YYYY-MM-DD') as data_contratacao,
+           to_char(u.data_demissao, 'YYYY-MM-DD') as data_demissao,
            p.telefone
       from users u
       join pessoas p on p.id = u.pessoa_id
@@ -81,7 +83,9 @@ export async function listUsersComContato(
 export async function getUserComContato(id: string): Promise<UserComContato | null> {
   const rows = (await sql`
     select u.id, u.email, u.name, u.role, u.is_active, u.must_change_password,
-           u.created_at, u.pessoa_id, u.data_contratacao, u.data_demissao,
+           u.created_at, u.pessoa_id,
+           to_char(u.data_contratacao, 'YYYY-MM-DD') as data_contratacao,
+           to_char(u.data_demissao, 'YYYY-MM-DD') as data_demissao,
            p.telefone
       from users u
       join pessoas p on p.id = u.pessoa_id
@@ -100,7 +104,9 @@ export type VinculoResumo = {
 
 export async function listVinculosDaPessoa(pessoaId: string): Promise<VinculoResumo[]> {
   return (await sql`
-    select id, name, email, data_contratacao, data_demissao
+    select id, name, email,
+           to_char(data_contratacao, 'YYYY-MM-DD') as data_contratacao,
+           to_char(data_demissao, 'YYYY-MM-DD') as data_demissao
       from users where pessoa_id = ${pessoaId}
      order by data_contratacao nulls last, created_at`) as VinculoResumo[];
 }

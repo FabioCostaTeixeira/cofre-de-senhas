@@ -81,6 +81,36 @@ describe('UsuariosClient', () => {
     expect(screen.getByLabelText('Nome')).toBeDisabled();
   });
 
+  it('formata datas ISO no modal do usuário', async () => {
+    const usuarioComDatas: UserComContato = {
+      ...usuarioB,
+      data_contratacao: '2024-04-25',
+      data_demissao: '2026-10-12',
+    };
+    const pessoaComData: Pessoa = {
+      ...pessoaB,
+      data_nascimento: '1984-04-25',
+    };
+    vi.mocked(buscarDadosUsuario).mockResolvedValue({
+      usuario: usuarioComDatas, pessoa: pessoaComData,
+      salasDoUsuario: [], modulosDoUsuario: [], vinculos: [],
+    });
+
+    render(
+      <UsuariosClient
+        escopo="todos" usuarios={[usuarioComDatas]} eu={usuarioA} pessoa={pessoaA}
+        salas={[]} salasDoUsuario={[]} modulosDoUsuario={[]} vinculos={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Pessoa B'));
+    await screen.findByRole('heading', { name: 'Pessoa B' });
+
+    expect(screen.getAllByDisplayValue('25/04/1984')).toHaveLength(1);
+    expect(screen.getAllByDisplayValue('25/04/2024')).toHaveLength(1);
+    expect(screen.getAllByDisplayValue('12/10/2026')).toHaveLength(1);
+  });
+
   it('ao clicar na linha de B, o modal mostra os dados de B, não os do ator A', async () => {
     // Regressão do vazamento achado na revisão final: o bug original mostrava/gravava
     // endereço, salas e módulos DO ATOR (A) no cadastro da linha clicada (B) — nome e

@@ -1,14 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireReadyUser } from '@/lib/auth/guards';
+import { requireTiAccess } from '@/lib/auth/guards';
 import { createTiProjeto, deleteTiProjeto, duplicateTiProjeto, updateTiProjeto } from '@/lib/db/ti';
+import { isPrioridadeTi, isStatusProjeto } from '@/lib/ti-validation';
 import { isUuid } from '@/lib/validation';
 
 export type TiActionState = { error?: string; ok?: string };
 
 export async function criarOuEditarProjetoAction(_prev: TiActionState, formData: FormData): Promise<TiActionState> {
-  await requireReadyUser();
+  await requireTiAccess();
   const id = String(formData.get('id') ?? '').trim();
   const nome = String(formData.get('nome') ?? '').trim();
   const descricao = String(formData.get('descricao') ?? '').trim() || null;
@@ -19,6 +20,9 @@ export async function criarOuEditarProjetoAction(_prev: TiActionState, formData:
   const dataFim = String(formData.get('dataFim') ?? '').trim() || null;
 
   if (!nome) return { error: 'Informe o nome do projeto (Epic).' };
+  if (!isStatusProjeto(status)) return { error: 'Status inválido.' };
+  if (!isPrioridadeTi(prioridade)) return { error: 'Prioridade inválida.' };
+  if (id && !isUuid(id)) return { error: 'Projeto inválido.' };
 
   try {
     if (id && isUuid(id)) {
@@ -53,7 +57,7 @@ export async function criarOuEditarProjetoAction(_prev: TiActionState, formData:
 }
 
 export async function duplicarProjetoAction(formData: FormData): Promise<void> {
-  await requireReadyUser();
+  await requireTiAccess();
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return;
 
@@ -62,7 +66,7 @@ export async function duplicarProjetoAction(formData: FormData): Promise<void> {
 }
 
 export async function excluirProjetoAction(formData: FormData): Promise<void> {
-  await requireReadyUser();
+  await requireTiAccess();
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return;
 

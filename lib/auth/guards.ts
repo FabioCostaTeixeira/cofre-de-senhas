@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { notFound } from 'next/navigation';
 import { readSession } from '@/lib/auth/session';
 import { findUserById } from '@/lib/db/users';
+import { listModulesOfUser } from '@/lib/db/queries';
 import type { Actor } from '@/lib/types';
 
 /**
@@ -28,6 +29,14 @@ export async function requireUser(): Promise<Actor> {
 export async function requireReadyUser(): Promise<Actor> {
   const actor = await requireUser();
   if (actor.mustChangePassword) redirect('/trocar-senha');
+  return actor;
+}
+
+/** Barreira real do módulo TI. Esconder o menu na UI é apenas cosmético. */
+export async function requireTiAccess(): Promise<Actor> {
+  const actor = await requireReadyUser();
+  if (actor.role === 'master') return actor;
+  if (!(await listModulesOfUser(actor.id)).includes('ti')) notFound();
   return actor;
 }
 

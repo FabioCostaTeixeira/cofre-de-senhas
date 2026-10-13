@@ -371,6 +371,36 @@ descreve('integração com o banco real', () => {
       )).toThrow();
     });
 
+    it('normaliza datas de vínculo como texto ISO em todas as consultas de cadastro', async () => {
+      const u = await import('@/lib/db/users');
+      const id = randomUUID();
+      const pessoaId = randomUUID();
+      usersCriados.push(id);
+      pessoasCriadas.push(pessoaId);
+      await u.createUserComPessoa({
+        userId: id, pessoaId, pessoaJaExiste: false,
+        email: `${marca}-datas@x.com`, name: 'Datas', hash: 'x', role: 'user',
+        dataContratacao: '2024-04-25',
+      });
+      await u.updateVinculo({
+        id, name: 'Datas', role: 'user', isActive: false,
+        dataContratacao: '2024-04-25', dataDemissao: '2026-10-12',
+      });
+
+      const porId = await u.getUserComContato(id);
+      const naLista = (await u.listUsersComContato(true)).find((usuario) => usuario.id === id);
+      const vinculo = (await u.listVinculosDaPessoa(pessoaId)).find((item) => item.id === id);
+
+      for (const resultado of [porId, naLista, vinculo]) {
+        expect(resultado).toMatchObject({
+          data_contratacao: '2024-04-25',
+          data_demissao: '2026-10-12',
+        });
+        expect(typeof resultado?.data_contratacao).toBe('string');
+        expect(typeof resultado?.data_demissao).toBe('string');
+      }
+    });
+
     it('readmissão: reusa o e-mail e findUserByEmail devolve o vínculo atual', async () => {
       const u = await import('@/lib/db/users');
       const email = `${marca}-readmitido@x.com`;
