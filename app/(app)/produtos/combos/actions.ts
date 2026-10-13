@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { createCombo, softDeleteCombo, updateCombo } from '@/lib/db/combos';
 import { lerDadosCombo } from '@/lib/produtos-form';
@@ -11,7 +11,7 @@ import type { ComboState } from '@/components/ComboClient';
 const ROTA = '/produtos/combos';
 
 export async function criarCombo(_prev: ComboState, formData: FormData): Promise<ComboState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const dados = lerDadosCombo(formData);
   if ('error' in dados) return dados;
 
@@ -22,7 +22,7 @@ export async function criarCombo(_prev: ComboState, formData: FormData): Promise
 }
 
 export async function salvarCombo(_prev: ComboState, formData: FormData): Promise<ComboState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Combo não encontrado.' };
 
@@ -36,7 +36,7 @@ export async function salvarCombo(_prev: ComboState, formData: FormData): Promis
 }
 
 export async function apagarCombo(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   if (!isUuid(id)) return { error: 'Combo não encontrado.' };
 
   await softDeleteCombo(id);

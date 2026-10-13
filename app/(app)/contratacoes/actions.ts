@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { createContratacao, ItemInativoError, softDeleteContratacao } from '@/lib/db/contratacoes';
 import { lerDadosContratacao } from '@/lib/contratacao-form';
@@ -11,7 +11,7 @@ import type { ContratacaoState } from '@/components/ContratacaoClient';
 const ROTA = '/contratacoes';
 
 export async function criarContratacao(_prev: ContratacaoState, formData: FormData): Promise<ContratacaoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('contratacoes');
   const dados = lerDadosContratacao(formData);
   if ('error' in dados) return dados;
 
@@ -28,7 +28,7 @@ export async function criarContratacao(_prev: ContratacaoState, formData: FormDa
 }
 
 export async function apagarContratacao(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('contratacoes');
   if (!isUuid(id)) return { error: 'Contratação não encontrada.' };
 
   await softDeleteContratacao(id);

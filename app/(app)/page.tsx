@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { requireReadyUser } from '@/lib/auth/guards';
+import { redirect } from 'next/navigation';
+import { modulosDoAtor, requireReadyUser } from '@/lib/auth/guards';
 import {
   contarAgendamentosPorStatus, contarClientesAtivos, listarStudiosComAgendamentos,
   somarVendasPorTipo,
@@ -7,6 +8,7 @@ import {
 import {
   calcularTempoStudio, formatarMinutos, periodoParaIntervalo, type Periodo,
 } from '@/lib/dashboard-calc';
+import { rotaInicial } from '@/lib/modules';
 import type { StatusAgendamento, TipoContratacao } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -36,7 +38,10 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ periodo?: string }>;
 }) {
-  await requireReadyUser();
+  // `/` é o destino pós-login de todo mundo: sem o Painel, manda pra primeira área
+  // liberada em vez de 404 (não dá pra usar `requireModulo('painel')` aqui).
+  const liberados = await modulosDoAtor(await requireReadyUser());
+  if (!liberados.includes('painel')) redirect(rotaInicial(liberados));
   const { periodo: periodoParam } = await searchParams;
   const periodo = periodoValido(periodoParam);
   const { inicio, fim, dias } = periodoParaIntervalo(periodo);

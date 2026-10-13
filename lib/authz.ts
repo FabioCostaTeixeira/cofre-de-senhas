@@ -78,19 +78,8 @@ export function canCreateCredential(actor: Actor, isMember: boolean): boolean {
 export const canManageRooms = (actor: Actor) => isMaster(actor);
 export const canManageUsers = (actor: Actor) => isMaster(actor);
 
-/**
- * Master-only por enquanto, no mesmo formato de `canManageUsers`. Função
- * própria (e não reuso de `canManageUsers`) porque são permissões
- * conceitualmente diferentes — gerenciar usuário do sistema vs. gerenciar
- * cadastro de terceiro — mesmo empatando em "só master" hoje. Se um dia
- * usuário comum ganhar acesso a um mas não ao outro, a separação já existe.
- */
-export const canManageTerceiros = (actor: Actor) => isMaster(actor);
-export const canManageProdutos = (actor: Actor) => isMaster(actor);
-export const canManageLocaisGravacao = (actor: Actor) => isMaster(actor);
-export const canManageAgenda = (actor: Actor) => isMaster(actor);
-export const canManageContratacoes = (actor: Actor) => isMaster(actor);
-export const canManageOrdensServico = (actor: Actor) => isMaster(actor);
+// Agenda, cadastros, produtos, contratações e ordens de serviço não moram mais aqui:
+// viraram áreas liberáveis por usuário (`lib/modules.ts` + `requireModulo()`).
 export const canViewAudit = (actor: Actor) => isMaster(actor);
 
 /**

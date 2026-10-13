@@ -116,3 +116,16 @@ abaixo.
   `col::text`). Crua, o driver do Neon devolve `Date`, e o client (`formatarDataBR`,
   `.split('-')`) quebra com "e.split is not a function" — foi o bug da tela "Meus dados"
   (`getPessoa`, corrigido em `23c2c76`).
+
+## Permissão por área (2026-10-13)
+
+Cada área da aplicação é liberável por usuário na tela de usuário ("Áreas com acesso"),
+gravada em `module_access`. Catálogo em `lib/modules.ts` (painel, working, agenda,
+clientes, fornecedores, locais_gravacao, produtos — inclui categorias/combos/planos —,
+contratacoes, ordens_servico, ti). Barreira real: `requireModulo('<key>')` em **toda**
+página e server action da área (sem acesso → 404); o menu só esconde. Decisões do cliente:
+liberar = ver e editar; Painel e Working começam bloqueados para não-master (quem não tem
+o Painel é levado de `/` para a primeira área liberada, ou "Meus dados"); administração
+(Salas admin, Auditoria, Lixeira, gestão de usuários) continua só master; Senhas segue por
+sala. Área nova: entrada em `MODULES` + `requireModulo` nas páginas/actions + item no
+`Sidebar`.

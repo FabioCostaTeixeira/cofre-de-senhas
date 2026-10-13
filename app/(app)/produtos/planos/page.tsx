@@ -1,5 +1,5 @@
 import { PlanoClient } from '@/components/PlanoClient';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { listCombos } from '@/lib/db/combos';
 import { listPlanos } from '@/lib/db/planos';
 import { listProdutos } from '@/lib/db/produtos';
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function PlanosPage() {
-  await requireMaster();
+  await requireModulo('produtos');
   const [itens, produtos, combos] = await Promise.all([listPlanos(), listProdutos(), listCombos()]);
   return (
     <main className="p-4 md:p-6 max-w-5xl mx-auto">

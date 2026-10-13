@@ -1,5 +1,5 @@
 import { KanbanBoard } from '@/components/KanbanBoard';
-import { requireReadyUser } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { listTarefas } from '@/lib/db/tarefas';
 import { listTerceiros } from '@/lib/db/terceiros';
 import { listUsers } from '@/lib/db/users';
@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function PlanejamentoPage() {
-  await requireReadyUser();
+  await requireModulo('working');
 
   const [tarefas, clientes, users] = await Promise.all([
     listTarefas(), listTerceiros('clientes'), listUsers(),

@@ -1,5 +1,5 @@
 import { TerceiroClient } from '@/components/TerceiroClient';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { listTerceiros } from '@/lib/db/terceiros';
 import { apagarFornecedor, criarFornecedor, salvarFornecedor } from './actions';
 
@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function FornecedoresPage() {
-  await requireMaster();
+  await requireModulo('fornecedores');
   const itens = await listTerceiros('fornecedores');
 
   return (

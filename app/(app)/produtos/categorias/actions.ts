@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import {
   createCategoria, deleteCategoria, updateCategoria, CategoriaEmUsoError,
@@ -13,7 +13,7 @@ import type { CategoriaState } from '@/components/CategoriaClient';
 const ROTA = '/produtos/categorias';
 
 export async function criarCategoria(_prev: CategoriaState, formData: FormData): Promise<CategoriaState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const dados = lerDadosCategoria(formData);
   if ('error' in dados) return dados;
 
@@ -24,7 +24,7 @@ export async function criarCategoria(_prev: CategoriaState, formData: FormData):
 }
 
 export async function salvarCategoria(_prev: CategoriaState, formData: FormData): Promise<CategoriaState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Categoria não encontrada.' };
 
@@ -38,7 +38,7 @@ export async function salvarCategoria(_prev: CategoriaState, formData: FormData)
 }
 
 export async function apagarCategoria(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   if (!isUuid(id)) return { error: 'Categoria não encontrada.' };
 
   try {

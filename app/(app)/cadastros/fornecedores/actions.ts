@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { createTerceiro, softDeleteTerceiro, updateTerceiro } from '@/lib/db/terceiros';
 import { lerDadosTerceiro } from '@/lib/terceiros-form';
@@ -14,7 +14,7 @@ const ROTA = '/cadastros/fornecedores';
 export async function criarFornecedor(
   _prev: TerceiroState, formData: FormData,
 ): Promise<TerceiroState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('fornecedores');
   const dados = lerDadosTerceiro(formData);
   if ('error' in dados) return dados;
 
@@ -27,7 +27,7 @@ export async function criarFornecedor(
 export async function salvarFornecedor(
   _prev: TerceiroState, formData: FormData,
 ): Promise<TerceiroState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('fornecedores');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Fornecedor não encontrado.' };
 
@@ -41,7 +41,7 @@ export async function salvarFornecedor(
 }
 
 export async function apagarFornecedor(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('fornecedores');
   if (!isUuid(id)) return { error: 'Fornecedor não encontrado.' };
 
   await softDeleteTerceiro(TABELA, id);

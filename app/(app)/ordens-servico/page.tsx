@@ -1,5 +1,5 @@
 import { OSClient } from '@/components/OSClient';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { listLocais } from '@/lib/db/locais-gravacao';
 import { listOrdensServico } from '@/lib/db/ordens-servico';
 import { listProdutos } from '@/lib/db/produtos';
@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function OrdensServicoPage() {
-  await requireMaster();
+  await requireModulo('ordens_servico');
   const [itens, clientes, produtos, locais] = await Promise.all([
     listOrdensServico(), listTerceiros('clientes'), listProdutos(), listLocais(),
   ]);

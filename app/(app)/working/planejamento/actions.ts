@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireReadyUser } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { NotFoundError } from '@/lib/authz';
 import { audit } from '@/lib/db/audit';
 import {
@@ -54,7 +54,7 @@ function lerDadosTarefa(formData: FormData): DadosTarefa | { error: string } {
 export async function criarTarefaAction(
   _prev: TarefaFormState, formData: FormData,
 ): Promise<TarefaFormState> {
-  const actor = await requireReadyUser();
+  const actor = await requireModulo('working');
   const dados = lerDadosTarefa(formData);
   if ('error' in dados) return dados;
 
@@ -73,7 +73,7 @@ export async function criarTarefaAction(
 }
 
 export async function moverTarefaAction(id: string, coluna: string): Promise<{ error?: string }> {
-  const actor = await requireReadyUser();
+  const actor = await requireModulo('working');
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
   try {
@@ -90,7 +90,7 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
 }
 
 export async function reordenarTarefasAction(ids: string[]): Promise<{ error?: string }> {
-  const actor = await requireReadyUser();
+  const actor = await requireModulo('working');
   if (!ids.every(isUuid)) return { error: 'Lista de tarefas inválida.' };
 
   await reordenarTarefas(ids);
@@ -100,7 +100,7 @@ export async function reordenarTarefasAction(ids: string[]): Promise<{ error?: s
 }
 
 export async function apagarTarefaAction(id: string): Promise<{ error?: string }> {
-  const actor = await requireReadyUser();
+  const actor = await requireModulo('working');
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
   try {
@@ -124,7 +124,7 @@ export async function apagarTarefaAction(id: string): Promise<{ error?: string }
 export async function buscarItensDoClienteAction(
   clienteId: string,
 ): Promise<{ itens: ItemDisponivel[] } | { error: string }> {
-  await requireReadyUser();
+  await requireModulo('working');
   if (!isUuid(clienteId)) return { error: 'Cliente não encontrado.' };
 
   const itens = await listItensDisponiveisDoCliente(clienteId);

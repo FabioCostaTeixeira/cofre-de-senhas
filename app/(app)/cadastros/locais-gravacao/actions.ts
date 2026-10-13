@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { createLocal, softDeleteLocal, updateLocal } from '@/lib/db/locais-gravacao';
 import { lerDadosLocal } from '@/lib/locais-gravacao-form';
@@ -13,7 +13,7 @@ const ROTA = '/cadastros/locais-gravacao';
 export async function criarLocal(
   _prev: LocalGravacaoState, formData: FormData,
 ): Promise<LocalGravacaoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('locais_gravacao');
   const dados = lerDadosLocal(formData);
   if ('error' in dados) return dados;
 
@@ -26,7 +26,7 @@ export async function criarLocal(
 export async function salvarLocal(
   _prev: LocalGravacaoState, formData: FormData,
 ): Promise<LocalGravacaoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('locais_gravacao');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Local de gravação não encontrado.' };
 
@@ -40,7 +40,7 @@ export async function salvarLocal(
 }
 
 export async function apagarLocal(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('locais_gravacao');
   if (!isUuid(id)) return { error: 'Local de gravação não encontrado.' };
 
   await softDeleteLocal(id);

@@ -3,7 +3,7 @@
 import type { ModuleDef } from '@/lib/modules';
 
 /**
- * Escolha dos módulos externos a que um usuário tem acesso. Mesmo padrão de
+ * Escolha das áreas (`lib/modules.ts`) a que um usuário tem acesso. Mesmo padrão de
  * `SeletorSalas`: caixas controladas, porque o conjunto muda sozinho ao trocar o
  * papel para master (que já enxerga todos os módulos).
  */
@@ -28,7 +28,7 @@ export function SeletorModulos({
         <input key={key} type="hidden" name="modulos" value={key} />
       ))}
 
-      <span className="text-sm">Módulos externos com acesso</span>
+      <span className="text-sm">Áreas com acesso</span>
       {dica && <p className="text-xs" style={{ color: 'var(--text-dim)' }}>{dica}</p>}
 
       <div className="flex flex-wrap gap-x-4 gap-y-2" style={{ opacity: desabilitado ? 0.55 : 1 }}>

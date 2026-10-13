@@ -1,5 +1,5 @@
 import { ContratacaoClient } from '@/components/ContratacaoClient';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { listCombos } from '@/lib/db/combos';
 import { listContratacoes } from '@/lib/db/contratacoes';
 import { listPlanos } from '@/lib/db/planos';
@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function ContratacoesPage() {
-  await requireMaster();
+  await requireModulo('contratacoes');
   const [itens, clientes, produtos, combos, planos] = await Promise.all([
     listContratacoes(), listTerceiros('clientes'), listProdutos(), listCombos(), listPlanos(),
   ]);

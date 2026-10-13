@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { getCategoria } from '@/lib/db/categorias-produto';
 import { createProduto, softDeleteProduto, updateProduto } from '@/lib/db/produtos';
@@ -18,7 +18,7 @@ async function moldeDaCategoria(categoriaId: string) {
 }
 
 export async function criarProduto(_prev: ProdutoState, formData: FormData): Promise<ProdutoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const molde = await moldeDaCategoria(String(formData.get('categoriaId') ?? ''));
   if (!molde) return { error: 'Categoria não encontrada.' };
 
@@ -32,7 +32,7 @@ export async function criarProduto(_prev: ProdutoState, formData: FormData): Pro
 }
 
 export async function salvarProduto(_prev: ProdutoState, formData: FormData): Promise<ProdutoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Produto não encontrado.' };
 
@@ -49,7 +49,7 @@ export async function salvarProduto(_prev: ProdutoState, formData: FormData): Pr
 }
 
 export async function apagarProduto(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   if (!isUuid(id)) return { error: 'Produto não encontrado.' };
 
   await softDeleteProduto(id);

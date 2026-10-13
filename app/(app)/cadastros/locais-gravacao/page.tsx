@@ -1,5 +1,5 @@
 import { LocalGravacaoClient } from '@/components/LocalGravacaoClient';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { listLocais } from '@/lib/db/locais-gravacao';
 import { apagarLocal, criarLocal, salvarLocal } from './actions';
 
@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function LocaisGravacaoPage() {
-  await requireMaster();
+  await requireModulo('locais_gravacao');
   const itens = await listLocais();
 
   return (

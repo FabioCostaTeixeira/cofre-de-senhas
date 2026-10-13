@@ -1,50 +1,56 @@
-import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, FolderKanban, Home, Kanban, LayoutDashboard, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
+import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, Cpu, FolderKanban, Home, Kanban, LayoutDashboard, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
-import { canManageAgenda, canManageContratacoes, canManageLocaisGravacao, canManageOrdensServico, canManageProdutos, canManageTerceiros } from '@/lib/authz';
-import { listModulesOfUser } from '@/lib/db/queries';
-import { MODULES } from '@/lib/modules';
+import { modulosDoAtor } from '@/lib/auth/guards';
+import type { ModuleKey } from '@/lib/modules';
 import type { Actor } from '@/lib/types';
 import { SidebarShell, type SidebarGroup } from './SidebarShell';
 
 export async function Sidebar({ actor, children }: { actor: Actor; children: React.ReactNode }) {
-  const modulosLiberados =
-    actor.role === 'master' ? MODULES.map((m) => m.key) : await listModulesOfUser(actor.id);
-  const modulosVisiveis = MODULES.filter((m) => modulosLiberados.includes(m.key));
+  // Só cosmético: a barreira real é `requireModulo()` em cada página e action.
+  const liberados = await modulosDoAtor(actor);
+  const tem = (key: ModuleKey) => liberados.includes(key);
 
   const iconClass = 'shrink-0';
   const groups: SidebarGroup[] = [
-    {
-      label: 'Painel',
-      icon: <LayoutDashboard size={18} className={iconClass} />,
-      items: [{ href: '/', label: 'Painel', icon: <LayoutDashboard size={18} className={iconClass} /> }],
-    },
-    // Working: gestão de tarefas internas da 4Nexus. Hub interno como Painel/Pessoas —
-    // sem gate de module_access, todo usuário logado vê.
-    {
-      label: 'Working',
-      icon: <Kanban size={18} className={iconClass} />,
-      items: [{ href: '/working/planejamento', label: 'Planejamento', icon: <Kanban size={18} className={iconClass} /> }],
-    },
-    // Pessoas primeiro: hub de dados compartilhados (usuário, cliente, e o que
-    // vier depois) — vive dentro do próprio Cofre, sem gate de module_access.
+    ...(tem('painel')
+      ? [{
+          label: 'Painel',
+          icon: <LayoutDashboard size={18} className={iconClass} />,
+          items: [{ href: '/', label: 'Painel', icon: <LayoutDashboard size={18} className={iconClass} /> }],
+        }]
+      : []),
+    // Working: gestão de tarefas internas da 4Nexus.
+    ...(tem('working')
+      ? [{
+          label: 'Working',
+          icon: <Kanban size={18} className={iconClass} />,
+          items: [{ href: '/working/planejamento', label: 'Planejamento', icon: <Kanban size={18} className={iconClass} /> }],
+        }]
+      : []),
+    // Pessoas: "Usuários" (Meus dados) é de todo usuário ativo; Clientes, Fornecedores
+    // e Locais são áreas liberáveis.
     {
       label: 'Pessoas',
       icon: <UserSquare2 size={18} className={iconClass} />,
       items: [
         { href: '/usuarios', label: 'Usuários', icon: <Users size={18} className={iconClass} /> },
-        ...(canManageTerceiros(actor)
+        ...(tem('clientes')
           ? [
               {
                 href: '/cadastros/clientes', label: 'Clientes',
                 icon: <Building2 size={18} className={iconClass} />,
               },
+            ]
+          : []),
+        ...(tem('fornecedores')
+          ? [
               {
                 href: '/cadastros/fornecedores', label: 'Fornecedores',
                 icon: <Truck size={18} className={iconClass} />,
               },
             ]
           : []),
-        ...(canManageLocaisGravacao(actor)
+        ...(tem('locais_gravacao')
           ? [
               {
                 href: '/cadastros/locais-gravacao', label: 'Locais de Gravação',
@@ -54,7 +60,7 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
           : []),
       ],
     },
-    ...(canManageProdutos(actor)
+    ...(tem('produtos')
       ? [{
           label: 'Produtos',
           icon: <Package size={18} className={iconClass} />,
@@ -66,33 +72,30 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
           ],
         }]
       : []),
-    ...(canManageAgenda(actor)
+    ...(tem('agenda')
       ? [{ label: 'Agenda', icon: <CalendarDays size={18} className={iconClass} />, items: [{ href: '/agenda', label: 'Agenda', icon: <CalendarDays size={18} className={iconClass} /> }] }]
       : []),
-    ...(canManageContratacoes(actor)
+    ...(tem('contratacoes')
       ? [{
           label: 'Contratações',
           icon: <ShoppingCart size={18} className={iconClass} />,
           items: [{ href: '/contratacoes', label: 'Contratações', icon: <ShoppingCart size={18} className={iconClass} /> }],
         }]
       : []),
-    ...(canManageOrdensServico(actor)
+    ...(tem('ordens_servico')
       ? [{
           label: 'Ordens de Serviço',
           icon: <ClipboardList size={18} className={iconClass} />,
           items: [{ href: '/ordens-servico', label: 'Ordens de Serviço', icon: <ClipboardList size={18} className={iconClass} /> }],
         }]
       : []),
-    // Cada módulo externo ganha seu próprio grupo de topo (não mais agrupado sob
-    // um "Módulos" genérico), lado a lado com Cadastros e Cofre de Senhas.
-    ...modulosVisiveis.map((m) => {
-      const Icon = m.icon;
-      return {
-        label: m.groupLabel,
-        icon: <Icon size={18} className={iconClass} />,
-        items: [{ href: m.href, label: m.label, icon: <Icon size={18} className={iconClass} /> }],
-      };
-    }),
+    ...(tem('ti')
+      ? [{
+          label: 'TI',
+          icon: <Cpu size={18} className={iconClass} />,
+          items: [{ href: '/ti', label: 'Projetos de TI', icon: <Cpu size={18} className={iconClass} /> }],
+        }]
+      : []),
     {
       label: 'Cofre de Senhas',
       icon: <Vault size={18} className={iconClass} />,

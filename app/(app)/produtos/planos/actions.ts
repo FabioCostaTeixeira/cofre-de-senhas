@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { createPlano, softDeletePlano, updatePlano } from '@/lib/db/planos';
 import { lerDadosPlano } from '@/lib/produtos-form';
@@ -11,7 +11,7 @@ import type { PlanoState } from '@/components/PlanoClient';
 const ROTA = '/produtos/planos';
 
 export async function criarPlano(_prev: PlanoState, formData: FormData): Promise<PlanoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const dados = lerDadosPlano(formData);
   if ('error' in dados) return dados;
 
@@ -22,7 +22,7 @@ export async function criarPlano(_prev: PlanoState, formData: FormData): Promise
 }
 
 export async function salvarPlano(_prev: PlanoState, formData: FormData): Promise<PlanoState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Plano não encontrado.' };
 
@@ -36,7 +36,7 @@ export async function salvarPlano(_prev: PlanoState, formData: FormData): Promis
 }
 
 export async function apagarPlano(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('produtos');
   if (!isUuid(id)) return { error: 'Plano não encontrado.' };
 
   await softDeletePlano(id);

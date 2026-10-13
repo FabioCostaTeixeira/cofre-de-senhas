@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import {
   cancelarOrdemServico, ConflitoAgendaError, createOrdemServico, ItemInativoError, SaldoInsuficienteError,
@@ -13,7 +13,7 @@ import type { OSState } from '@/components/OSClient';
 const ROTA = '/ordens-servico';
 
 export async function criarOS(_prev: OSState, formData: FormData): Promise<OSState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('ordens_servico');
   const dados = lerDadosOS(formData);
   if ('error' in dados) return dados;
 
@@ -32,7 +32,7 @@ export async function criarOS(_prev: OSState, formData: FormData): Promise<OSSta
 }
 
 export async function cancelarOS(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('ordens_servico');
   if (!isUuid(id)) return { error: 'Ordem de serviço não encontrada.' };
 
   await cancelarOrdemServico(id);

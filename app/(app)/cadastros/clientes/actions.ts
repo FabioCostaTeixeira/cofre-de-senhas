@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireMaster } from '@/lib/auth/guards';
+import { requireModulo } from '@/lib/auth/guards';
 import { audit } from '@/lib/db/audit';
 import { listAgendamentosDoCliente } from '@/lib/db/agenda';
 import { listContratacoesDoCliente } from '@/lib/db/contratacoes';
@@ -17,7 +17,7 @@ const ROTA = '/cadastros/clientes';
 export async function criarCliente(
   _prev: TerceiroState, formData: FormData,
 ): Promise<TerceiroState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('clientes');
   const dados = lerDadosTerceiro(formData);
   if ('error' in dados) return dados;
 
@@ -30,7 +30,7 @@ export async function criarCliente(
 export async function salvarCliente(
   _prev: TerceiroState, formData: FormData,
 ): Promise<TerceiroState> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('clientes');
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Cliente não encontrado.' };
 
@@ -44,7 +44,7 @@ export async function salvarCliente(
 }
 
 export async function apagarCliente(id: string): Promise<{ error?: string }> {
-  const actor = await requireMaster();
+  const actor = await requireModulo('clientes');
   if (!isUuid(id)) return { error: 'Cliente não encontrado.' };
 
   await softDeleteTerceiro(TABELA, id);
@@ -56,13 +56,13 @@ export async function apagarCliente(id: string): Promise<{ error?: string }> {
 /**
  * Busca o histórico de compras e agendamentos de um cliente, chamada direto do
  * cliente (não é submissão de formulário, então não passa por `useActionState`).
- * Mesmo guard de leitura da página (`requireMaster`) — quem vê a lista de clientes
+ * Mesmo guard de leitura da página (`requireModulo('clientes')`) — quem vê a lista de clientes
  * pode ver o histórico de qualquer um deles.
  */
 export async function buscarDadosClienteAction(
   clienteId: string,
 ): Promise<{ contratacoes: ContratacaoDoCliente[]; agendamentos: Agendamento[] } | { error: string }> {
-  await requireMaster();
+  await requireModulo('clientes');
   if (!isUuid(clienteId)) return { error: 'Cliente não encontrado.' };
 
   const [contratacoes, agendamentos] = await Promise.all([
