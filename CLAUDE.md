@@ -96,3 +96,23 @@ abaixo.
 - Auth própria: JWT (`jose`) em cookie httpOnly (`lib/auth/session.ts`), guards em
   `lib/auth/guards.ts`
 - Deploy: Vercel
+
+## Deploy e produção — regras (incidente de 2026-10-13)
+
+- **Produção:** projeto Vercel `cofre-de-senhas` (`prj_wS1IjzPFvsAo6XgSakoP8GPDflf0`),
+  domínio `cofre-de-senhas-two.vercel.app`. Deploy **só por push na `main`** (a Vercel
+  publica sozinha). Nunca rodar `vercel deploy`/`vercel alias` de dentro de worktree
+  (`.claude/worktrees/*` etc.): sem o `.vercel/project.json` certo o CLI cria um projeto
+  novo, sem `DATABASE_URL`/`SESSION_SECRET`/`VAULT_KEY`.
+- **O que aconteceu:** um `vercel deploy` feito de `.claude/worktrees/production-hotfix`
+  criou o projeto `production-hotfix` e o domínio foi apontado pra ele. A página de login
+  abria, mas o "Entrar" quebrava ("Application error: a server-side exception"), e o
+  projeto oficial parecia saudável (deploys READY, nenhum log). Corrigido devolvendo o
+  alias ao deploy da `main`; o projeto intruso foi apagado.
+- **Diagnóstico rápido:** se produção quebra mas os deploys do `cofre-de-senhas` estão
+  READY e sem log, conferir primeiro pra qual projeto o domínio aponta
+  (`vercel alias ls` / `get_alias cofre-de-senhas-two.vercel.app`).
+- **Colunas `date` sempre como texto no SELECT** (`to_char(col, 'YYYY-MM-DD')` ou
+  `col::text`). Crua, o driver do Neon devolve `Date`, e o client (`formatarDataBR`,
+  `.split('-')`) quebra com "e.split is not a function" — foi o bug da tela "Meus dados"
+  (`getPessoa`, corrigido em `23c2c76`).
