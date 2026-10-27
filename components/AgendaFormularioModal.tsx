@@ -67,8 +67,8 @@ export function AgendaFormularioModal({
             <select name="status" className="input" defaultValue={item?.status ?? 'pre_agendado'}>{STATUS_OPCOES.map((s) => <option key={s.valor} value={s.valor}>{s.rotulo}</option>)}</select>
           </label>
           <label className="block space-y-1"><span className="text-sm">Data</span><input type="date" name="data" className="input" defaultValue={item?.data ?? padraoData ?? ''} required /></label>
-          <label className="block space-y-1"><span className="text-sm">Início</span><input type="time" step={900} name="horaInicio" className="input" defaultValue={item?.hora_inicio.slice(0, 5) ?? padraoHoraInicio ?? ''} required /></label>
-          <label className="block space-y-1"><span className="text-sm">Fim</span><input type="time" step={900} name="horaFim" className="input" defaultValue={item?.hora_fim.slice(0, 5) ?? padraoHoraFim ?? ''} required /></label>
+          <label className="block space-y-1"><span className="text-sm">Início</span><input type="time" step={1800} min="07:00" max="21:00" name="horaInicio" className="input" defaultValue={item?.hora_inicio.slice(0, 5) ?? padraoHoraInicio ?? ''} required /></label>
+          <label className="block space-y-1"><span className="text-sm">Fim</span><input type="time" step={1800} min="07:00" max="21:00" name="horaFim" className="input" defaultValue={item?.hora_fim.slice(0, 5) ?? padraoHoraFim ?? ''} required /></label>
         </div>
         {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
         <button className="btn btn-primary" disabled={pending}>{item ? 'Salvar' : 'Cadastrar'}</button>

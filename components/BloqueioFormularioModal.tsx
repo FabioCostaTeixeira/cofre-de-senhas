@@ -38,8 +38,8 @@ export function BloqueioFormularioModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-1"><span className="text-sm">Data</span><input type="date" name="data" className="input" required /></label>
           <div />
-          <label className="block space-y-1"><span className="text-sm">Início</span><input type="time" step={900} name="horaInicio" className="input" required /></label>
-          <label className="block space-y-1"><span className="text-sm">Fim</span><input type="time" step={900} name="horaFim" className="input" required /></label>
+          <label className="block space-y-1"><span className="text-sm">Início</span><input type="time" step={1800} min="07:00" max="21:00" name="horaInicio" className="input" required /></label>
+          <label className="block space-y-1"><span className="text-sm">Fim</span><input type="time" step={1800} min="07:00" max="21:00" name="horaFim" className="input" required /></label>
           <label className="block space-y-1 sm:col-span-2"><span className="text-sm">Motivo</span><input type="text" name="motivo" className="input" placeholder="Ex.: manutenção do equipamento" /></label>
         </div>
         {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}

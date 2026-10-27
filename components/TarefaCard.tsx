@@ -39,7 +39,7 @@ export function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
     <button
       type="button"
       onClick={() => setExpandido((v) => !v)}
-      className="glass w-full text-left p-3 space-y-1 rounded-lg border-l-4"
+      className="solid solid-raised w-full text-left p-3 space-y-1 rounded-lg border-l-4"
       style={{ borderLeftColor: corBorda }}
     >
       <div className="flex items-center gap-2">

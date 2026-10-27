@@ -181,7 +181,7 @@ function KanbanColuna({
   const ids = tarefas.map((t) => t.id);
 
   return (
-    <section ref={setNodeRef} className="glass w-72 shrink-0 p-4 space-y-3">
+    <section ref={setNodeRef} className="solid w-72 shrink-0 p-4 space-y-3">
       <h2 className="text-sm font-semibold">
         <button type="button" className="w-full text-left" onClick={onNovaTarefa}>
           {coluna.label}

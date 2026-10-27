@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   createTiTarefa: vi.fn(),
   updateTiTarefa: vi.fn(),
   updateTiTarefaStatus: vi.fn(),
+  duplicateTiTarefa: vi.fn(),
   createTiAtividade: vi.fn(),
   updateTiAtividade: vi.fn(),
   updateTiAtividadeStatus: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/lib/db/ti-tarefas', () => ({
   updateTiTarefa: mocks.updateTiTarefa,
   updateTiTarefaStatus: mocks.updateTiTarefaStatus,
   deleteTiTarefa: vi.fn(),
+  duplicateTiTarefa: mocks.duplicateTiTarefa,
   atualizarOrdemTarefas: vi.fn(),
   createTiAtividade: mocks.createTiAtividade,
   updateTiAtividade: mocks.updateTiAtividade,
@@ -37,6 +39,7 @@ vi.mock('@/lib/db/ti-tarefas', () => ({
 import { criarOuEditarProjetoAction } from '@/app/(app)/ti/projetos/actions';
 import {
   criarOuEditarTarefaAction,
+  duplicarTarefaAction,
   mudarStatusTarefaAction,
 } from '@/app/(app)/ti/projetos/[id]/actions';
 import {
@@ -97,6 +100,27 @@ describe('validação das Server Actions TI', () => {
     expect(peso).toEqual({ error: 'Informe um peso entre 0 e 100.' });
     expect(mocks.createTiAtividade).not.toHaveBeenCalled();
     expect(mocks.updateTiAtividadeStatus).not.toHaveBeenCalled();
+  });
+
+  it('rejeita id forjado ao duplicar Feature sem gravar', async () => {
+    await duplicarTarefaAction(formulario({ id: 'nao-e-uuid', projetoId }));
+    await duplicarTarefaAction(formulario({ id: tarefaId, projetoId: 'nao-e-uuid' }));
+
+    expect(mocks.duplicateTiTarefa).not.toHaveBeenCalled();
+  });
+
+  it('duplica Feature válida e revalida a página do projeto', async () => {
+    await duplicarTarefaAction(formulario({ id: tarefaId, projetoId }));
+
+    expect(mocks.duplicateTiTarefa).toHaveBeenCalledWith(tarefaId);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/ti/projetos/${projetoId}`);
+  });
+
+  it('não duplica Feature quando acesso TI é negado', async () => {
+    mocks.requireTiAccess.mockRejectedValueOnce(new Error('not-found'));
+
+    await expect(duplicarTarefaAction(formulario({ id: tarefaId, projetoId }))).rejects.toThrow('not-found');
+    expect(mocks.duplicateTiTarefa).not.toHaveBeenCalled();
   });
 
   it('encaminha peso zero válido sem convertê-lo', async () => {

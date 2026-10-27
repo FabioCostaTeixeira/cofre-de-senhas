@@ -128,6 +128,43 @@ descreve('integração do módulo TI', () => {
     expect(await tarefasDb.listTiTarefas(copiaId!)).toHaveLength(0);
   });
 
+  it('duplica Feature no mesmo projeto com stories independentes e rebalanceia os pesos', async () => {
+    const projetoId = await criarProjeto(`${marca}-dup-feature`);
+    const tarefaId = randomUUID();
+    const atividadeId = randomUUID();
+    await sql`
+      insert into ti_tarefas (id, projeto_id, nome, descricao, status, prioridade, responsavel, peso, ordem)
+      values (${tarefaId}, ${projetoId}, 'Feature original', 'Detalhes', 'a_fazer', 'alta', 'Pessoa', 100, 3)
+    `;
+    await sql`
+      insert into ti_atividades (id, tarefa_id, nome, descricao, status, prioridade, responsavel, peso, ordem)
+      values (${atividadeId}, ${tarefaId}, 'Story original', 'Critérios', 'progresso', 'critica', 'Pessoa', 100, 2)
+    `;
+
+    const copiaId = await tarefasDb.duplicateTiTarefa(tarefaId);
+    expect(copiaId).toBeTruthy();
+    expect(copiaId).not.toBe(tarefaId);
+
+    const tarefas = (await sql`
+      select id, nome, status, prioridade, peso::float as peso, ordem
+        from ti_tarefas
+       where projeto_id = ${projetoId}
+    `) as { id: string; nome: string; status: string; prioridade: string; peso: number; ordem: number }[];
+    const copia = tarefas.find((t) => t.id === copiaId)!;
+    const atividades = (await sql`
+      select id, nome, status, peso::float as peso, ordem
+        from ti_atividades
+       where tarefa_id = ${copiaId}
+    `) as { id: string; nome: string; status: string; peso: number; ordem: number }[];
+
+    expect(tarefas).toHaveLength(2);
+    expect(copia).toMatchObject({ nome: 'Feature original (Cópia)', status: 'roadmap', prioridade: 'alta', ordem: 4 });
+    expect(tarefas.reduce((soma, t) => soma + t.peso, 0)).toBeCloseTo(100);
+    expect(atividades).toHaveLength(1);
+    expect(atividades[0]).toMatchObject({ nome: 'Story original', status: 'roadmap', peso: 100, ordem: 2 });
+    expect(atividades[0].id).not.toBe(atividadeId);
+  });
+
   it('move User Story para tarefa existente e rebalanceia os dois pais', async () => {
     const projetoOrigemId = await criarProjeto(`${marca}-projeto-a`);
     const projetoDestinoId = await criarProjeto(`${marca}-projeto-b`);

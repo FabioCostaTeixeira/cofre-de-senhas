@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
+import { ALTURA_BLOCO_PX, AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
 import { AgendaLista, calcularMesesDisponiveis, mesRotulo } from '@/components/AgendaLista';
 import { BloqueioFormularioModal } from '@/components/BloqueioFormularioModal';
+import { AGENDA_BLOCO_MIN, AGENDA_FIM_MIN, AGENDA_INICIO_MIN } from '@/lib/agenda-form';
 import type { Agendamento, BloqueioEstudio, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
 
-const ALTURA_BLOCO_PX = 25;
-const BLOCOS_POR_DIA = 96;
+const BLOCOS_POR_DIA = (AGENDA_FIM_MIN - AGENDA_INICIO_MIN) / AGENDA_BLOCO_MIN;
+const BLOCOS_POR_HORA = 60 / AGENDA_BLOCO_MIN;
 const LIMIAR_ARRASTO_PX = 4;
 const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
@@ -45,8 +46,8 @@ function minutosAgora() {
 }
 
 function janelaPadrao(inicioMin: number) {
-  const fim = Math.min(inicioMin + 60, BLOCOS_POR_DIA * 15 - 15);
-  const inicio = Math.max(0, Math.min(inicioMin, fim - 15));
+  const fim = Math.min(inicioMin + 60, AGENDA_FIM_MIN);
+  const inicio = Math.max(AGENDA_INICIO_MIN, Math.min(inicioMin, fim - AGENDA_BLOCO_MIN));
   return { horaInicio: hora(inicio), horaFim: hora(fim) };
 }
 
@@ -116,8 +117,11 @@ export function AgendaClient({
     const rect = gridRef.current?.getBoundingClientRect();
     if (!rect) return null;
     const dia = Math.max(0, Math.min(6, Math.floor((x - rect.left) / (rect.width / 7))));
-    const bruto = ((y - rect.top) / ALTURA_BLOCO_PX) * 15;
-    const m = Math.max(0, Math.min(BLOCOS_POR_DIA * 15 - 15, Math.round(bruto / 15) * 15));
+    const bruto = AGENDA_INICIO_MIN + ((y - rect.top) / ALTURA_BLOCO_PX) * AGENDA_BLOCO_MIN;
+    const m = Math.max(
+      AGENDA_INICIO_MIN,
+      Math.min(AGENDA_FIM_MIN - AGENDA_BLOCO_MIN, Math.round(bruto / AGENDA_BLOCO_MIN) * AGENDA_BLOCO_MIN),
+    );
     return { dia, minutos: m };
   }
 
@@ -147,7 +151,7 @@ export function AgendaClient({
         houveMovimento = true;
         const c = coordenadas(ev.clientX, ev.clientY);
         if (!c) return;
-        const inicio = Math.min(c.minutos, BLOCOS_POR_DIA * 15 - duracao);
+        const inicio = Math.max(AGENDA_INICIO_MIN, Math.min(c.minutos, AGENDA_FIM_MIN - duracao));
         ultimo = { id: item.id, data: dias[c.dia], horaInicio: hora(inicio), horaFim: hora(inicio + duracao) };
         setArrastando(ultimo);
       }
@@ -178,7 +182,7 @@ export function AgendaClient({
         houveMovimento = true;
         const c = coordenadas(ev.clientX, ev.clientY);
         if (!c) return;
-        const fim = Math.max(minutos(item.hora_inicio) + 15, c.minutos + 15);
+        const fim = Math.max(minutos(item.hora_inicio) + AGENDA_BLOCO_MIN, c.minutos + AGENDA_BLOCO_MIN);
         ultimo = { id: item.id, data: item.data, horaInicio: hora(minutos(item.hora_inicio)), horaFim: hora(fim) };
         setArrastando(ultimo);
       }
@@ -210,7 +214,7 @@ export function AgendaClient({
       suprimirProximoCliqueRef.current = false;
       return;
     }
-    const { horaInicio, horaFim } = janelaPadrao(bloco * 15);
+    const { horaInicio, horaFim } = janelaPadrao(AGENDA_INICIO_MIN + bloco * AGENDA_BLOCO_MIN);
     setAberto({ data: dia, horaInicio, horaFim, localId: localAtual?.id ?? '', estudioId });
   };
 
@@ -309,19 +313,23 @@ export function AgendaClient({
     </div>
     <div data-testid="agenda-scroll" className="max-h-[70vh] overflow-y-auto" onClick={() => setBloqueioSelecionado(null)}>
       <div className="relative grid gap-1" style={{ gridTemplateColumns: '3rem minmax(0, 1fr)' }}>
-        <div
+        {agora >= AGENDA_INICIO_MIN && agora <= AGENDA_FIM_MIN && <div
           data-testid="agenda-linha-agora"
           aria-hidden="true"
           className="pointer-events-none absolute left-0 right-0"
-          style={{ top: (agora / 15) * ALTURA_BLOCO_PX, height: 2, backgroundColor: 'var(--danger)', zIndex: 10 }}
-        />
+          style={{ top: ((agora - AGENDA_INICIO_MIN) / AGENDA_BLOCO_MIN) * ALTURA_BLOCO_PX, height: 2, backgroundColor: 'var(--danger)', zIndex: 10 }}
+        />}
         <div aria-hidden="true" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
-          {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => <div
-            key={bloco}
-            id={bloco % 4 === 0 ? `agenda-hora-${hora(bloco * 15).slice(0, 2)}` : undefined}
-            className="text-base leading-none text-right pr-1"
-            style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}
-          >{bloco % 4 === 0 ? hora(bloco * 15) : ''}</div>)}
+          {Array.from({ length: BLOCOS_POR_DIA }, (_, bloco) => {
+            const inicioBloco = AGENDA_INICIO_MIN + bloco * AGENDA_BLOCO_MIN;
+            const cheia = bloco % BLOCOS_POR_HORA === 0;
+            return <div
+              key={bloco}
+              id={cheia ? `agenda-hora-${hora(inicioBloco).slice(0, 2)}` : undefined}
+              className="text-base leading-none text-right pr-1"
+              style={{ height: ALTURA_BLOCO_PX, color: 'var(--text-dim)' }}
+            >{cheia ? hora(inicioBloco) : ''}</div>;
+          })}
         </div>
         <div ref={gridRef} className="grid grid-cols-7 gap-1" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
           {dias.map((dia) => <div

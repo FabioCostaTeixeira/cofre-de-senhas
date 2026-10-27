@@ -48,9 +48,9 @@ describe('lerDadosAgendamento', () => {
     expect(r).toEqual({ error: 'Informe o horário.' });
   });
 
-  it('horário fora do múltiplo de 15 minutos retorna erro', () => {
-    const r = lerDadosAgendamento(formData({ ...CAMPOS_VALIDOS, horaInicio: '09:05' }));
-    expect(r).toEqual({ error: 'Horário precisa ser múltiplo de 15 minutos.' });
+  it('horário fora do múltiplo de 30 minutos retorna erro', () => {
+    const r = lerDadosAgendamento(formData({ ...CAMPOS_VALIDOS, horaInicio: '09:15' }));
+    expect(r).toEqual({ error: 'Horário precisa ser múltiplo de 30 minutos.' });
   });
 
   it('hora fim igual ou antes da hora início retorna erro', () => {
@@ -71,7 +71,10 @@ describe('validarPeriodoAgendamento', () => {
   it.each([
     ['20/08/2026', '09:00', '10:00', 'Informe a data.'],
     ['2026-08-20', '9h', '10:00', 'Informe o horário.'],
-    ['2026-08-20', '09:05', '10:00', 'Horário precisa ser múltiplo de 15 minutos.'],
+    ['2026-08-20', '09:05', '10:00', 'Horário precisa ser múltiplo de 30 minutos.'],
+    ['2026-08-20', '09:00', '09:45', 'Horário precisa ser múltiplo de 30 minutos.'],
+    ['2026-08-20', '06:30', '08:00', 'Horário precisa estar entre 07:00 e 21:00.'],
+    ['2026-08-20', '20:00', '21:30', 'Horário precisa estar entre 07:00 e 21:00.'],
     ['2026-08-20', '10:00', '10:00', 'Horário de fim precisa ser depois do início.'],
   ])('rejeita período inválido (%s, %s, %s)', (data, inicio, fim, error) => {
     expect(validarPeriodoAgendamento(data, inicio, fim)).toEqual({ error });
@@ -79,6 +82,10 @@ describe('validarPeriodoAgendamento', () => {
 
   it('aceita data e horários válidos', () => {
     expect(validarPeriodoAgendamento('2026-08-20', '09:00', '10:00')).toBeNull();
+  });
+
+  it('aceita os limites exatos da janela (07:00 e 21:00)', () => {
+    expect(validarPeriodoAgendamento('2026-08-20', '07:00', '21:00')).toBeNull();
   });
 });
 
@@ -95,9 +102,9 @@ describe('lerDadosBloqueio', () => {
     expect(r).toEqual({ error: 'Informe a data.' });
   });
 
-  it('horário fora do múltiplo de 15 minutos retorna erro', () => {
-    const r = lerDadosBloqueio(formData({ ...CAMPOS_BLOQUEIO_VALIDOS, horaInicio: '09:05' }));
-    expect(r).toEqual({ error: 'Horário precisa ser múltiplo de 15 minutos.' });
+  it('horário fora do múltiplo de 30 minutos retorna erro', () => {
+    const r = lerDadosBloqueio(formData({ ...CAMPOS_BLOQUEIO_VALIDOS, horaInicio: '09:15' }));
+    expect(r).toEqual({ error: 'Horário precisa ser múltiplo de 30 minutos.' });
   });
 
   it('motivo é opcional (vazio vira null)', () => {

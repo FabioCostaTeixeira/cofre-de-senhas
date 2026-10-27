@@ -127,6 +127,20 @@ body::after {
   .surface { background: rgba(18, 21, 30, 0.97); }
 }
 
+/*
+ * Opaco: quadro de Planejamento. Mesmo formato do vidro, mas sem blur nem
+ * transparência — o fundo da página não aparece atrás de colunas e cards.
+ */
+.solid {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.solid-raised { background: var(--surface-2); }
+
 .input {
   width: 100%;
   background: rgba(10, 12, 20, 0.45);

@@ -7,6 +7,7 @@ import {
   updateTiTarefa,
   updateTiTarefaStatus,
   deleteTiTarefa,
+  duplicateTiTarefa,
   atualizarOrdemTarefas,
 } from '@/lib/db/ti-tarefas';
 import { isPrioridadeTi, isStatusTarefa, parsePesoTi } from '@/lib/ti-validation';
@@ -55,6 +56,16 @@ export async function mudarStatusTarefaAction(formData: FormData): Promise<void>
 
   if (!isUuid(id) || !isUuid(projetoId) || !isStatusTarefa(status)) return;
   await updateTiTarefaStatus(id, status);
+  revalidatePath(`/ti/projetos/${projetoId}`);
+}
+
+export async function duplicarTarefaAction(formData: FormData): Promise<void> {
+  await requireTiAccess();
+  const id = String(formData.get('id') ?? '');
+  const projetoId = String(formData.get('projetoId') ?? '');
+  if (!isUuid(id) || !isUuid(projetoId)) return;
+
+  await duplicateTiTarefa(id);
   revalidatePath(`/ti/projetos/${projetoId}`);
 }
 

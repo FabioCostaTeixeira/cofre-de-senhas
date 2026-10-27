@@ -15,11 +15,13 @@ const criarBloqueio = vi.fn(); const apagarBloqueio = vi.fn();
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe('AgendaClient', () => {
   it('renderiza os 7 dias da semana e o card no dia certo', () => { render(<AgendaClient itens={[item]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />); expect(screen.getByText(/Segunda/)).toBeInTheDocument(); expect(screen.getByText(/Domingo/)).toBeInTheDocument(); expect(screen.getByText('ACME')).toBeInTheDocument(); });
-  it('renderiza 96 linhas de 15 minutos por dia, rótulos de hora e rolagem vertical', () => {
+  it('renderiza 28 linhas de 30 minutos por dia (07:00–21:00), rótulos de hora e rolagem vertical', () => {
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
-    expect(screen.getAllByTestId('agenda-slot')).toHaveLength(96 * 7);
-    expect(screen.getByText('00:00')).toBeInTheDocument();
-    expect(screen.getByText('23:00')).toBeInTheDocument();
+    expect(screen.getAllByTestId('agenda-slot')).toHaveLength(28 * 7);
+    expect(screen.getByText('07:00')).toBeInTheDocument();
+    expect(screen.getByText('20:00')).toBeInTheDocument();
+    expect(screen.queryByText('06:00')).not.toBeInTheDocument();
+    expect(screen.queryByText('21:00')).not.toBeInTheDocument();
     expect(screen.getByTestId('agenda-scroll')).toHaveClass('overflow-y-auto');
   });
   it('filtra estúdios pelo local e navega ao trocar o local', () => {
@@ -73,7 +75,7 @@ describe('AgendaClient', () => {
   it('clicar numa célula vazia abre o modal de criação com data e horário pré-preenchidos', () => {
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
     const slots = screen.getAllByTestId('agenda-slot');
-    fireEvent.click(slots[40]); // dia 0 (segunda, 2026-08-24), bloco 40 = 10:00
+    fireEvent.click(slots[6]); // dia 0 (segunda, 2026-08-24), bloco 6 = 07:00 + 6×30min = 10:00
     expect(screen.getByText('Novo agendamento', { selector: 'h2' })).toBeInTheDocument();
     expect(screen.getByLabelText('Data')).toHaveValue('2026-08-24');
     expect(screen.getByLabelText('Início')).toHaveValue('10:00');
@@ -95,12 +97,19 @@ describe('AgendaClient', () => {
     vi.setSystemTime(new Date('2026-08-24T10:30:00'));
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
     const linha = screen.getByTestId('agenda-linha-agora');
-    expect(linha).toHaveStyle({ top: '1050px' }); // (10*60+30)/15 * 25
+    expect(linha).toHaveStyle({ top: '175px' }); // (10*60+30 - 7*60)/30 * 25
     act(() => {
       vi.setSystemTime(new Date('2026-08-24T11:00:00'));
       vi.advanceTimersByTime(30000);
     });
-    expect(linha).toHaveStyle({ top: '1100px' }); // (11*60)/15 * 25
+    expect(linha).toHaveStyle({ top: '200px' }); // (11*60 - 7*60)/30 * 25
+    vi.useRealTimers();
+  });
+  it('linha da hora atual some fora da janela 07:00–21:00', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-24T22:00:00'));
+    render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} categorias={[categoria]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
+    expect(screen.queryByTestId('agenda-linha-agora')).not.toBeInTheDocument();
     vi.useRealTimers();
   });
   it('redimensionar envia horaInicio no formato HH:MM, sem os segundos do servidor (regressão)', () => {

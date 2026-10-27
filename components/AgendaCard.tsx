@@ -1,8 +1,9 @@
 'use client';
 
+import { AGENDA_BLOCO_MIN, AGENDA_INICIO_MIN } from '@/lib/agenda-form';
 import type { Agendamento, StatusAgendamento } from '@/lib/types';
 
-const ALTURA_BLOCO_PX = 25;
+export const ALTURA_BLOCO_PX = 25;
 
 const CORES: Record<StatusAgendamento, string> = {
   cancelado: '#ef4444', agendado: '#22c55e', pre_agendado: '#eab308',
@@ -20,8 +21,8 @@ function minutosDesdeMeiaNoite(hora: string): number {
 }
 
 export function calcularPosicaoCard(horaInicio: string, horaFim: string): { top: number; height: number } {
-  const inicioBlocos = minutosDesdeMeiaNoite(horaInicio) / 15;
-  const fimBlocos = minutosDesdeMeiaNoite(horaFim) / 15;
+  const inicioBlocos = (minutosDesdeMeiaNoite(horaInicio) - AGENDA_INICIO_MIN) / AGENDA_BLOCO_MIN;
+  const fimBlocos = (minutosDesdeMeiaNoite(horaFim) - AGENDA_INICIO_MIN) / AGENDA_BLOCO_MIN;
   return { top: inicioBlocos * ALTURA_BLOCO_PX, height: (fimBlocos - inicioBlocos) * ALTURA_BLOCO_PX };
 }
 

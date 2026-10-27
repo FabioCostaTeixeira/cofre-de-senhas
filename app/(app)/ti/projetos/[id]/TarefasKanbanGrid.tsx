@@ -2,10 +2,29 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Copy } from 'lucide-react';
 import type { TiProjeto } from '@/lib/db/ti';
 import type { TiTarefa } from '@/lib/db/ti';
 import { formatarDataBR } from '@/lib/documentos';
-import { excluirTarefaAction, mudarStatusTarefaAction } from './actions';
+import { duplicarTarefaAction, excluirTarefaAction, mudarStatusTarefaAction } from './actions';
+
+function DuplicarTarefaBotao({ tarefa, projetoId }: { tarefa: TiTarefa; projetoId: string }) {
+  return (
+    <form action={duplicarTarefaAction} className="inline-block align-middle">
+      <input type="hidden" name="id" value={tarefa.id} />
+      <input type="hidden" name="projetoId" value={projetoId} />
+      <button
+        type="submit"
+        className="p-1 rounded-md bg-black/20 hover:bg-white/10 transition-colors"
+        style={{ color: 'var(--text-dim)' }}
+        aria-label={`Duplicar tarefa ${tarefa.nome}`}
+        title="Duplicar tarefa com suas stories (com status roadmap)"
+      >
+        <Copy size={14} aria-hidden="true" />
+      </button>
+    </form>
+  );
+}
 
 const STATUS_LABELS: Record<string, { label: string; bg: string; color?: string }> = {
   roadmap: { label: 'Roadmap', bg: '#64748b' },
@@ -208,6 +227,7 @@ export function TarefasKanbanGrid({
                       {t.descricao || '—'}
                     </td>
                     <td className="p-3 text-right space-x-2">
+                      <DuplicarTarefaBotao tarefa={t} projetoId={projeto.id} />
                       <Link href={`/ti/tarefas/${t.id}`} className="text-xs hover:underline" style={{ color: 'var(--accent)' }}>
                         Stories
                       </Link>
@@ -278,6 +298,7 @@ export function TarefasKanbanGrid({
                       <div className="flex justify-between items-center pt-2 border-t text-xs" style={{ borderColor: 'var(--border)' }}>
                         <span style={{ color: 'var(--text-dim)' }}>{t.responsavel || '—'}</span>
                         <div className="space-x-2">
+                          <DuplicarTarefaBotao tarefa={t} projetoId={projeto.id} />
                           <button
                             type="button"
                             onClick={() => onEditarTarefa(t)}

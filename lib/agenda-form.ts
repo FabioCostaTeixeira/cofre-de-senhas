@@ -6,6 +6,13 @@ const STATUS_VALIDOS: StatusAgendamento[] = [
 const DATA_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Janela de funcionamento da agenda (07:00–21:00) e tamanho do bloco, em minutos
+ *  desde a meia-noite. Valem para a grade e para a validação de agendamento e
+ *  bloqueio — mudar aqui muda os dois. */
+export const AGENDA_INICIO_MIN = 7 * 60;
+export const AGENDA_FIM_MIN = 21 * 60;
+export const AGENDA_BLOCO_MIN = 30;
+
 function horaParaMinutos(hora: string): number {
   const [h, m] = hora.split(':').map(Number);
   return h * 60 + m;
@@ -16,8 +23,11 @@ export function validarPeriodoAgendamento(
 ): { error: string } | null {
   if (!DATA_RE.test(data)) return { error: 'Informe a data.' };
   if (!HORA_RE.test(horaInicio) || !HORA_RE.test(horaFim)) return { error: 'Informe o horário.' };
-  if (horaParaMinutos(horaInicio) % 15 !== 0 || horaParaMinutos(horaFim) % 15 !== 0) {
-    return { error: 'Horário precisa ser múltiplo de 15 minutos.' };
+  if (horaParaMinutos(horaInicio) % AGENDA_BLOCO_MIN !== 0 || horaParaMinutos(horaFim) % AGENDA_BLOCO_MIN !== 0) {
+    return { error: 'Horário precisa ser múltiplo de 30 minutos.' };
+  }
+  if (horaParaMinutos(horaInicio) < AGENDA_INICIO_MIN || horaParaMinutos(horaFim) > AGENDA_FIM_MIN) {
+    return { error: 'Horário precisa estar entre 07:00 e 21:00.' };
   }
   if (horaParaMinutos(horaFim) <= horaParaMinutos(horaInicio)) {
     return { error: 'Horário de fim precisa ser depois do início.' };

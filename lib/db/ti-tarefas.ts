@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { sql } from '@/lib/db/client';
 import { assertUuid } from '@/lib/validation';
 import type { TiProjeto, TiTarefa, TiAtividade, TiTarefaOption } from './ti';
@@ -84,6 +85,51 @@ export async function createTiTarefa(data: {
     values (${data.projetoId}, ${data.nome}, ${data.descricao}, ${data.status}, ${data.prioridade}, ${data.responsavel}, ${data.peso ?? 0})
   `;
   await balancearPesosTarefas(data.projetoId);
+}
+
+/**
+ * Duplica a Feature no mesmo projeto, com suas User Stories, tudo em status
+ * roadmap — mesmo padrão de `duplicateTiProjeto`. A cópia vai para o fim da
+ * ordem e os pesos das Features do projeto são rebalanceados, como na criação.
+ */
+export async function duplicateTiTarefa(id: string): Promise<string | null> {
+  assertUuid(id);
+  const novaTarefaId = randomUUID();
+
+  const rows = (await sql`
+    with tarefa_origem as (
+      select projeto_id, nome, descricao, prioridade, responsavel, peso
+        from ti_tarefas
+       where id = ${id}
+    ),
+    nova_tarefa as (
+      insert into ti_tarefas (
+        id, projeto_id, nome, descricao, status, prioridade, responsavel, peso, ordem
+      )
+      select ${novaTarefaId}, o.projeto_id, o.nome || ' (Cópia)', o.descricao, 'roadmap',
+             o.prioridade, o.responsavel, o.peso,
+             coalesce((select max(t.ordem) + 1 from ti_tarefas t where t.projeto_id = o.projeto_id), 0)
+        from tarefa_origem o
+      returning id, projeto_id
+    ),
+    novas_atividades as (
+      insert into ti_atividades (
+        id, tarefa_id, nome, descricao, status, prioridade, responsavel, peso, ordem
+      )
+      select gen_random_uuid(), n.id, a.nome, a.descricao, 'roadmap',
+             a.prioridade, a.responsavel, a.peso, a.ordem
+        from ti_atividades a
+        cross join nova_tarefa n
+       where a.tarefa_id = ${id}
+      returning id
+    )
+    select id, projeto_id from nova_tarefa
+  `) as { id: string; projeto_id: string }[];
+
+  const nova = rows[0];
+  if (!nova) return null;
+  await balancearPesosTarefas(nova.projeto_id);
+  return nova.id;
 }
 
 export async function updateTiTarefa(data: {
