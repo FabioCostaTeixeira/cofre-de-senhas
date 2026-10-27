@@ -59,6 +59,16 @@ describe('lerDadosOS', () => {
     expect(r).toEqual({ error: 'Informe a data.' });
   });
 
+  it('item pré-agendado fora do múltiplo de 30 minutos retorna erro (mesma regra da Agenda)', () => {
+    const r = lerDadosOS(formData({ clienteId: 'c1', itens: JSON.stringify([{ ...ITEM_PRE_AGENDADO, hora_inicio: '09:15' }]) }));
+    expect(r).toEqual({ error: 'Horário precisa ser múltiplo de 30 minutos.' });
+  });
+
+  it('item pré-agendado fora de 07:00–21:00 retorna erro (mesma regra da Agenda)', () => {
+    const r = lerDadosOS(formData({ clienteId: 'c1', itens: JSON.stringify([{ ...ITEM_PRE_AGENDADO, hora_inicio: '06:00' }]) }));
+    expect(r).toEqual({ error: 'Horário precisa estar entre 07:00 e 21:00.' });
+  });
+
   it('item sem pré-agendar é lido com campos de agenda nulos', () => {
     const r = lerDadosOS(formData({ clienteId: 'c1', itens: JSON.stringify([ITEM_SIMPLES]) }));
     expect(r).toEqual({

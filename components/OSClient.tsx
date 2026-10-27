@@ -105,14 +105,14 @@ function LinhaFormulario({
             <label className="block space-y-1">
               <span className="text-sm">Início</span>
               <input
-                aria-label={`Início ${index + 1}`} type="time" step={900} className="input"
+                aria-label={`Início ${index + 1}`} type="time" step={1800} min="07:00" max="21:00" className="input"
                 value={linha.horaInicio} onChange={(e) => onChange(index, { horaInicio: e.target.value })} required
               />
             </label>
             <label className="block space-y-1">
               <span className="text-sm">Fim</span>
               <input
-                aria-label={`Fim ${index + 1}`} type="time" step={900} className="input"
+                aria-label={`Fim ${index + 1}`} type="time" step={1800} min="07:00" max="21:00" className="input"
                 value={linha.horaFim} onChange={(e) => onChange(index, { horaFim: e.target.value })} required
               />
             </label>
