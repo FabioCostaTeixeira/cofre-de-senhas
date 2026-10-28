@@ -24,7 +24,7 @@ export default async function PlanejamentoEdicaoPage() {
       <h1 className="text-xl font-semibold">Planejamento · Edição</h1>
       <KanbanBoard
         tarefas={tarefas} clientes={clientes} users={users}
-        criarTarefaAction={criarTarefaAction}
+        criarTarefaAction={criarTarefaAction.bind(null, 'edicao')}
         buscarItensDoClienteAction={buscarItensDoClienteAction.bind(null, 'edicao')}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />

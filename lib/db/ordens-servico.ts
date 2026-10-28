@@ -4,8 +4,10 @@ import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
 import { existeConflito } from '@/lib/db/agenda';
 import { existeBloqueioNoHorario } from '@/lib/db/bloqueios';
+import { getCategoria } from '@/lib/db/categorias-produto';
 import { getProduto } from '@/lib/db/produtos';
-import type { DadosOS, OrdemServico } from '@/lib/types';
+import { produtoPermitidoNaCategoria } from '@/lib/produtos-regra';
+import type { DadosOS, OrdemServico, Planejamento } from '@/lib/types';
 
 // Coluna em que toda tarefa gerada por OS nasce. `tarefas.coluna` guarda o id de
 // COLUNAS_KANBAN (lib/kanban.ts), nunca o rótulo — 'a_fazer' é um id válido lá.
@@ -69,7 +71,11 @@ async function buscarSaldoDisponivel(clienteId: string, produtoId: string): Prom
 type ItemValidado = {
   produto_id: string;
   produto_nome: string;
+  /** Categoria do produto — `agendamentos.categoria_produto_id` ainda é not null. */
   categoria_produto_id: string;
+  /** Categoria escolhida no item e o quadro que ela define para as tarefas. */
+  categoria_escolhida_id: string;
+  planejamento: Planejamento;
   quantidade: number;
   pre_agendar: boolean;
   data: string | null;
@@ -94,6 +100,14 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
     assertUuid(item.produto_id);
     const produto = await getProduto(item.produto_id);
     if (!produto || !produto.ativo) throw new ItemInativoError('Este produto não está disponível.');
+
+    assertUuid(item.categoria_id);
+    const escolhida = await getCategoria(item.categoria_id);
+    if (!escolhida || !escolhida.ativo) throw new ItemInativoError('Esta categoria não está disponível.');
+    const categoriaDoProduto = await getCategoria(produto.categoria_id);
+    if (!categoriaDoProduto || !produtoPermitidoNaCategoria(categoriaDoProduto, escolhida)) {
+      throw new ItemInativoError(`"${produto.nome}" não pode ser escolhido na categoria "${escolhida.nome}".`);
+    }
 
     const saldoLinhas = await buscarSaldoDisponivel(dados.cliente_id, item.produto_id);
     let restante = item.quantidade;
@@ -130,6 +144,7 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
 
     itensValidados.push({
       produto_id: item.produto_id, produto_nome: produto.nome, categoria_produto_id: produto.categoria_id,
+      categoria_escolhida_id: escolhida.id, planejamento: escolhida.planejamento,
       quantidade: item.quantidade, pre_agendar: item.pre_agendar,
       data: item.data, hora_inicio: item.hora_inicio, hora_fim: item.hora_fim,
       local_id: item.local_id, estudio_id: item.estudio_id,
@@ -150,12 +165,13 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
       // Agendamentos precisam existir antes dos `os_itens` que os referenciam via
       // `agendamento_id` (FK), então essa etapa vem antes da inserção dos itens.
       ...agendamentosParaCriar.map(({ item, i }) => sql`
-          insert into agendamentos (id, cliente_id, local_id, estudio_id, categoria_produto_id, status, data, hora_inicio, hora_fim)
+          insert into agendamentos (id, cliente_id, local_id, estudio_id, categoria_produto_id, produto_id, status, data, hora_inicio, hora_fim)
           values (${agendamentoIds[i]}, ${dados.cliente_id}, ${item.local_id}, ${item.estudio_id}, ${item.categoria_produto_id},
-                  'pre_agendado', ${item.data}, ${item.hora_inicio}, ${item.hora_fim})`),
+                  ${item.produto_id}, 'pre_agendado', ${item.data}, ${item.hora_inicio}, ${item.hora_fim})`),
       ...itensValidados.map((item, i) => sql`
-        insert into os_itens (id, os_id, produto_id, quantidade, pre_agendar, agendamento_id)
-        values (${osItemIds[i]}, ${osId}, ${item.produto_id}, ${item.quantidade}, ${item.pre_agendar}, ${agendamentoIds[i]})`),
+        insert into os_itens (id, os_id, produto_id, categoria_id, quantidade, pre_agendar, agendamento_id)
+        values (${osItemIds[i]}, ${osId}, ${item.produto_id}, ${item.categoria_escolhida_id}, ${item.quantidade},
+                ${item.pre_agendar}, ${agendamentoIds[i]})`),
       ...descontos.map((d) => sql`
         insert into os_item_saldos (os_item_id, contratacao_item_id, quantidade)
         values (${osItemIds[d.itemIndex]}, ${d.contratacao_item_id}, ${d.quantidade})`),
@@ -191,9 +207,10 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
       // conclui; a OS nunca antecipa isso.
       ...descontos.flatMap((d) =>
         Array.from({ length: d.quantidade }, () => sql`
-          insert into tarefas (cliente_id, produto_id, contratacao_item_id, agendamento_id, os_item_id, coluna)
+          insert into tarefas (cliente_id, produto_id, contratacao_item_id, agendamento_id, os_item_id, coluna, planejamento)
           values (${dados.cliente_id}, ${itensValidados[d.itemIndex].produto_id}, ${d.contratacao_item_id},
-                  ${agendamentoIds[d.itemIndex]}, ${osItemIds[d.itemIndex]}, ${COLUNA_INICIAL_TAREFA})`)),
+                  ${agendamentoIds[d.itemIndex]}, ${osItemIds[d.itemIndex]}, ${COLUNA_INICIAL_TAREFA},
+                  ${itensValidados[d.itemIndex].planejamento})`)),
     ]);
   } catch (err) {
     if (isViolacaoSaldoInsuficiente(err)) {

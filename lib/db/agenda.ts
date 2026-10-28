@@ -35,13 +35,14 @@ export async function listAgendamentosDaSemana(
   assertUuid(estudioId);
   return (await sql`
     select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
-           a.categoria_produto_id, cp.nome as categoria_nome, a.status,
+           a.produto_id, coalesce(p.nome, cp.nome) as produto_nome, a.status,
            a.data::text as data, a.hora_inicio::text as hora_inicio, a.hora_fim::text as hora_fim,
            a.created_at
       from agendamentos a
       join clientes cl on cl.id = a.cliente_id
       join estudios e on e.id = a.estudio_id
       join categorias_produto cp on cp.id = a.categoria_produto_id
+      left join produtos p on p.id = a.produto_id
      where a.estudio_id = ${estudioId} and a.deleted_at is null
        and a.data >= ${inicioSemana}::date and a.data < (${inicioSemana}::date + interval '7 days')
      order by a.data, a.hora_inicio`) as Agendamento[];
@@ -52,13 +53,14 @@ export async function listAgendamentosDoEstudio(estudioId: string): Promise<Agen
   assertUuid(estudioId);
   return (await sql`
     select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
-           a.categoria_produto_id, cp.nome as categoria_nome, a.status,
+           a.produto_id, coalesce(p.nome, cp.nome) as produto_nome, a.status,
            a.data::text as data, a.hora_inicio::text as hora_inicio, a.hora_fim::text as hora_fim,
            a.created_at
       from agendamentos a
       join clientes cl on cl.id = a.cliente_id
       join estudios e on e.id = a.estudio_id
       join categorias_produto cp on cp.id = a.categoria_produto_id
+      left join produtos p on p.id = a.produto_id
      where a.estudio_id = ${estudioId} and a.deleted_at is null
      order by a.data, a.hora_inicio`) as Agendamento[];
 }
@@ -73,13 +75,14 @@ export async function listAgendamentosDoCliente(clienteId: string): Promise<Agen
   assertUuid(clienteId);
   return (await sql`
     select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
-           a.categoria_produto_id, cp.nome as categoria_nome, a.status,
+           a.produto_id, coalesce(p.nome, cp.nome) as produto_nome, a.status,
            a.data::text as data, a.hora_inicio::text as hora_inicio, a.hora_fim::text as hora_fim,
            a.created_at
       from agendamentos a
       join clientes cl on cl.id = a.cliente_id
       join estudios e on e.id = a.estudio_id
       join categorias_produto cp on cp.id = a.categoria_produto_id
+      left join produtos p on p.id = a.produto_id
      where a.cliente_id = ${clienteId} and a.deleted_at is null
      order by a.data desc, a.hora_inicio desc`) as Agendamento[];
 }
@@ -88,7 +91,7 @@ export async function createAgendamento(dados: DadosAgendamento): Promise<string
   assertUuid(dados.cliente_id);
   assertUuid(dados.local_id);
   assertUuid(dados.estudio_id);
-  assertUuid(dados.categoria_produto_id);
+  assertUuid(dados.produto_id);
 
   if (await existeBloqueioNoHorario(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim)) {
     throw new ConflitoHorarioError('Este horário está bloqueado para manutenção.');
@@ -96,13 +99,17 @@ export async function createAgendamento(dados: DadosAgendamento): Promise<string
   if (await existeConflito(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim, null)) {
     throw new ConflitoHorarioError();
   }
+  // `categoria_produto_id` segue preenchido com a categoria do produto (coluna not null,
+  // ainda lida pelo código antigo — ver migração 016). Produto inexistente = sem linha.
   const rows = (await sql`
     insert into agendamentos (
-      cliente_id, local_id, estudio_id, categoria_produto_id, status, data, hora_inicio, hora_fim)
-    values (
-      ${dados.cliente_id}, ${dados.local_id}, ${dados.estudio_id}, ${dados.categoria_produto_id},
-      ${dados.status}, ${dados.data}, ${dados.hora_inicio}, ${dados.hora_fim})
+      cliente_id, local_id, estudio_id, categoria_produto_id, produto_id, status, data, hora_inicio, hora_fim)
+    select
+      ${dados.cliente_id}, ${dados.local_id}, ${dados.estudio_id}, p.categoria_id, p.id,
+      ${dados.status}, ${dados.data}, ${dados.hora_inicio}, ${dados.hora_fim}
+      from produtos p where p.id = ${dados.produto_id} and p.deleted_at is null
     returning id`) as { id: string }[];
+  if (!rows[0]) throw new NotFoundError();
   return rows[0].id;
 }
 
@@ -192,7 +199,7 @@ export async function updateAgendamento(id: string, dados: DadosAgendamento): Pr
   assertUuid(dados.cliente_id);
   assertUuid(dados.local_id);
   assertUuid(dados.estudio_id);
-  assertUuid(dados.categoria_produto_id);
+  assertUuid(dados.produto_id);
 
   if (await existeBloqueioNoHorario(dados.estudio_id, dados.data, dados.hora_inicio, dados.hora_fim)) {
     throw new ConflitoHorarioError('Este horário está bloqueado para manutenção.');
@@ -215,7 +222,9 @@ export async function updateAgendamento(id: string, dados: DadosAgendamento): Pr
   const stmtAgendamento = sql`
     update agendamentos
        set cliente_id = ${dados.cliente_id}, local_id = ${dados.local_id}, estudio_id = ${dados.estudio_id},
-           categoria_produto_id = ${dados.categoria_produto_id}, status = ${dados.status},
+           produto_id = ${dados.produto_id},
+           categoria_produto_id = (select categoria_id from produtos where id = ${dados.produto_id}),
+           status = ${dados.status},
            data = ${dados.data}, hora_inicio = ${dados.hora_inicio}, hora_fim = ${dados.hora_fim},
            updated_at = now()
      where id = ${id} and deleted_at is null

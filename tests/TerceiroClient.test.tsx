@@ -93,8 +93,8 @@ describe('TerceiroClient', () => {
       }],
       agendamentos: [{
         id: 'ag1', cliente_id: item.id, cliente_nome: item.nome, local_id: 'l1',
-        estudio_id: 'e1', estudio_nome: 'Estúdio A', categoria_produto_id: 'cat1',
-        categoria_nome: 'Gravação Padrão', status: 'concluido', data: '2026-08-01',
+        estudio_id: 'e1', estudio_nome: 'Estúdio A', produto_id: 'p1',
+        produto_nome: 'Gravação Padrão', status: 'concluido', data: '2026-08-01',
         hora_inicio: '09:00:00', hora_fim: '10:00:00', created_at: '2026-08-01T00:00:00Z',
       }],
     });

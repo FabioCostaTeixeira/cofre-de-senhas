@@ -16,7 +16,7 @@ import {
 } from '@/lib/db/tarefas';
 import { isPlanejamento } from '@/lib/kanban';
 import { isUuid } from '@/lib/validation';
-import type { DadosTarefa } from '@/lib/types';
+import type { DadosTarefa, Planejamento } from '@/lib/types';
 
 // Revalidada como 'layout' para cobrir os dois quadros (/edicao e /gravacao) de uma vez.
 const ROTA = '/working/planejamento';
@@ -24,7 +24,7 @@ const ROTA = '/working/planejamento';
 export type TarefaFormState = { error?: string; ok?: boolean };
 const inicial: TarefaFormState = {};
 
-function lerDadosTarefa(formData: FormData): DadosTarefa | { error: string } {
+function lerDadosTarefa(formData: FormData, planejamento: Planejamento): DadosTarefa | { error: string } {
   const cliente_id = String(formData.get('clienteId') ?? '');
   const contratacao_item_id = String(formData.get('contratacaoItemId') ?? '');
   const coluna = String(formData.get('coluna') ?? '');
@@ -50,14 +50,18 @@ function lerDadosTarefa(formData: FormData): DadosTarefa | { error: string } {
     prioridade,
     deadline_cliente: deadlineCliente || null,
     deadline_tarefa: deadlineTarefa || null,
+    planejamento,
   };
 }
 
+/** `planejamento` vem primeiro pelo mesmo motivo de `buscarItensDoClienteAction`: a
+ *  página faz `.bind(null, 'edicao')` e a tarefa fica no quadro onde foi criada. */
 export async function criarTarefaAction(
-  _prev: TarefaFormState, formData: FormData,
+  planejamento: string, _prev: TarefaFormState, formData: FormData,
 ): Promise<TarefaFormState> {
   const actor = await requireModulo('working');
-  const dados = lerDadosTarefa(formData);
+  if (!isPlanejamento(planejamento)) return { error: 'Planejamento inválido.' };
+  const dados = lerDadosTarefa(formData, planejamento);
   if ('error' in dados) return dados;
 
   let id: string;

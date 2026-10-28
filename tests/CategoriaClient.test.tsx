@@ -7,7 +7,7 @@ import type { CategoriaProduto } from '@/lib/types';
 const categoria: CategoriaProduto = {
   id: '11111111-1111-1111-1111-111111111111', nome: 'Podcast', unidade_consumo: 'gravação',
   atributos_molde: [{ chave: 'qtd_cameras', rotulo: 'Câmeras', tipo: 'numero', obrigatorio: true }],
-  ativo: true, planejamento: 'gravacao',
+  ativo: true, planejamento: 'gravacao', produtos_exclusivos: false,
 };
 
 const criar = vi.fn();

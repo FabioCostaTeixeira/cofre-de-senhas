@@ -60,7 +60,7 @@ export function lerDadosCategoria(
   const unidade = String(fd.get('unidadeConsumo') ?? '').trim();
   return {
     nome, unidade_consumo: unidade || null, atributos_molde: molde, ativo: fd.get('ativo') === 'on',
-    planejamento,
+    planejamento, produtos_exclusivos: fd.get('produtosExclusivos') === 'on',
   };
 }
 

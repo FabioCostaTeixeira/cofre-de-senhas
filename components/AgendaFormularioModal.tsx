@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
-import type { Agendamento, CategoriaProduto, LocalGravacao, StatusAgendamento, Terceiro } from '@/lib/types';
+import type { Agendamento, LocalGravacao, Produto, StatusAgendamento, Terceiro } from '@/lib/types';
 
 export type AgendaFormState = { error?: string; ok?: string };
 const inicial: AgendaFormState = {};
@@ -14,11 +14,11 @@ const STATUS_OPCOES: { valor: StatusAgendamento; rotulo: string }[] = [
 ];
 
 export function AgendaFormularioModal({
-  item, padraoData, padraoHoraInicio, padraoHoraFim, padraoLocalId, padraoEstudioId, clientes, locais, categorias, criar, salvar, apagar, onFechar,
+  item, padraoData, padraoHoraInicio, padraoHoraFim, padraoLocalId, padraoEstudioId, clientes, locais, produtos, criar, salvar, apagar, onFechar,
 }: {
   item?: Agendamento; padraoData?: string; padraoHoraInicio?: string; padraoHoraFim?: string;
   padraoLocalId?: string; padraoEstudioId?: string;
-  clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[];
+  clientes: Terceiro[]; locais: LocalGravacao[]; produtos: Produto[];
   criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>; onFechar: () => void;
 }) {
   const [state, action, pending] = useActionState(item ? salvar : criar, inicial);
@@ -59,8 +59,8 @@ export function AgendaFormularioModal({
             </select>
           </label>
           <label className="block space-y-1"><span className="text-sm">Tipo de gravação</span>
-            <select name="categoriaId" className="input" defaultValue={item?.categoria_produto_id ?? ''} required>
-              <option value="" disabled>Escolha…</option>{categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            <select name="produtoId" className="input" defaultValue={item?.produto_id ?? ''} required>
+              <option value="" disabled>Escolha…</option>{produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
             </select>
           </label>
           <label className="block space-y-1"><span className="text-sm">Status</span>

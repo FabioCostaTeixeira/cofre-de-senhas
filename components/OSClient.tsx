@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { formatarDataHora } from '@/lib/formato';
+import { produtoPermitidoNaCategoria } from '@/lib/produtos-regra';
 import type { CategoriaProduto, LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
 
 export type OSState = { error?: string; ok?: string };
@@ -9,7 +10,7 @@ const inicial: OSState = {};
 type Acao = (prev: OSState, fd: FormData) => Promise<OSState>;
 
 type LinhaOS = {
-  /** Só filtra o select de produto; não vai para o servidor (o produto já diz a categoria). */
+  /** Filtra o select de produto e decide o quadro do Planejamento das tarefas do item. */
   categoriaId: string;
   produtoId: string;
   quantidade: string;
@@ -27,6 +28,7 @@ function linhaVazia(): LinhaOS {
 
 function serializarItens(linhas: LinhaOS[]): string {
   return JSON.stringify(linhas.map((l) => ({
+    categoria_id: l.categoriaId,
     produto_id: l.produtoId,
     quantidade: Number(l.quantidade) || 0,
     pre_agendar: l.preAgendar,
@@ -45,7 +47,13 @@ function LinhaFormulario({
   onChange: (i: number, campo: Partial<LinhaOS>) => void; onRemover: (i: number) => void;
 }) {
   const localAtual = locais.find((l) => l.id === linha.localId);
-  const produtosDaCategoria = produtos.filter((p) => p.ativo && p.categoria_id === linha.categoriaId);
+  const escolhida = categorias.find((c) => c.id === linha.categoriaId);
+  const produtosDaCategoria = escolhida
+    ? produtos.filter((p) => {
+        const doProduto = categorias.find((c) => c.id === p.categoria_id);
+        return p.ativo && !!doProduto && produtoPermitidoNaCategoria(doProduto, escolhida);
+      })
+    : [];
 
   return (
     <div className="glass p-4 space-y-3">

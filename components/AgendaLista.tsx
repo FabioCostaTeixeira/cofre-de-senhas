@@ -78,7 +78,7 @@ export function AgendaLista({
                         <td className="p-2">{linha.item.hora_inicio.slice(0, 5)}</td>
                         <td className="p-2">{linha.item.hora_fim.slice(0, 5)}</td>
                         <td className="p-2">{linha.item.cliente_nome}</td>
-                        <td className="p-2">{linha.item.categoria_nome}</td>
+                        <td className="p-2">{linha.item.produto_nome}</td>
                         <td className="p-2">{ROTULOS_STATUS[linha.item.status]}</td>
                       </tr>
                     ) : (

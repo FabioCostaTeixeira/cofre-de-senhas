@@ -20,6 +20,14 @@ const descreve = temBanco ? describe : describe.skip;
 
 const marca = `teste-${Date.now()}`;
 
+/** Agendamento referencia produto (migração 016): os testes de agenda criam um por categoria. */
+async function produtoDeTeste(categoriaId: string): Promise<string> {
+  const prod = await import('@/lib/db/produtos');
+  return prod.createProduto({
+    categoria_id: categoriaId, nome: `${marca}-produto-agenda`, descricao: null, atributos: {}, preco: 0, ativo: true,
+  });
+}
+
 descreve('integração com o banco real', () => {
   let sql: typeof import('@/lib/db/client')['sql'];
   let q: typeof import('@/lib/db/queries');
@@ -926,13 +934,14 @@ descreve('integração com o banco real', () => {
     const categoriaId = await cat.createCategoria({
       nome: `${marca}-categoria-agenda`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoId = await produtoDeTeste(categoriaId);
     const localId = await lg.createLocal({
       nome: `${marca}-local-agenda`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio A' }],
     });
     const [estudio] = (await lg.getLocal(localId))!.estudios;
 
     const dadosBase = {
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado' as const, data: '2026-08-24', hora_inicio: '09:00', hora_fim: '10:00',
     };
 
@@ -957,6 +966,7 @@ descreve('integração com o banco real', () => {
     await sql`delete from agendamentos where id in (${id1}, ${id2})`;
     await sql`delete from estudios where local_id in (${localId}, ${localId2})`;
     await sql`delete from locais_gravacao where id in (${localId}, ${localId2})`;
+    await sql`delete from produtos where categoria_id = ${categoriaId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
@@ -974,13 +984,14 @@ descreve('integração com o banco real', () => {
     const categoriaId = await cat.createCategoria({
       nome: `${marca}-categoria-agenda-2`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoId = await produtoDeTeste(categoriaId);
     const localId = await lg.createLocal({
       nome: `${marca}-local-agenda-3`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio C' }],
     });
     const [estudio] = (await lg.getLocal(localId))!.estudios;
 
     const dadosBase = {
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'cancelado' as const, data: '2026-08-25', hora_inicio: '09:00', hora_fim: '10:00',
     };
 
@@ -1000,6 +1011,7 @@ descreve('integração com o banco real', () => {
     await sql`delete from agendamentos where id in (${id1}, ${id2})`;
     await sql`delete from estudios where local_id = ${localId}`;
     await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where categoria_id = ${categoriaId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
@@ -1017,13 +1029,14 @@ descreve('integração com o banco real', () => {
     const categoriaId = await cat.createCategoria({
       nome: `${marca}-categoria-agenda-conflito-mover`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoId = await produtoDeTeste(categoriaId);
     const localId = await lg.createLocal({
       nome: `${marca}-local-agenda-conflito-mover`, endereco: null, responsavel: null,
       estudios: [{ nome: 'Estúdio conflito mover' }],
     });
     const [estudio] = (await lg.getLocal(localId))!.estudios;
     const base = {
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado' as const, data: '2026-08-27', hora_inicio: '09:00', hora_fim: '10:00',
     };
     const ocupadoId = await ag.createAgendamento(base);
@@ -1040,11 +1053,12 @@ descreve('integração com o banco real', () => {
     await sql`delete from agendamentos where id in (${ocupadoId}, ${movidoId})`;
     await sql`delete from estudios where local_id = ${localId}`;
     await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where categoria_id = ${categoriaId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
 
-  it('updateAgendamento persiste a edição completa de status e categoria', async () => {
+  it('updateAgendamento persiste a edição completa de status e produto', async () => {
     const terceiros = await import('@/lib/db/terceiros');
     const cat = await import('@/lib/db/categorias-produto');
     const lg = await import('@/lib/db/locais-gravacao');
@@ -1057,32 +1071,39 @@ descreve('integração com o banco real', () => {
     const categoriaId = await cat.createCategoria({
       nome: `${marca}-categoria-agenda-update-original`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoId = await produtoDeTeste(categoriaId);
     const categoriaNovaId = await cat.createCategoria({
       nome: `${marca}-categoria-agenda-update-nova`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoNovoId = await produtoDeTeste(categoriaNovaId);
     const localId = await lg.createLocal({
       nome: `${marca}-local-agenda-update`, endereco: null, responsavel: null,
       estudios: [{ nome: 'Estúdio update' }],
     });
     const [estudio] = (await lg.getLocal(localId))!.estudios;
     const base = {
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'pre_agendado' as const, data: '2026-08-28', hora_inicio: '14:00', hora_fim: '15:00',
     };
     const id = await ag.createAgendamento(base);
 
     await ag.updateAgendamento(id, {
-      ...base, categoria_produto_id: categoriaNovaId, status: 'concluido',
+      ...base, produto_id: produtoNovoId, status: 'concluido',
     });
     const semana = await ag.listAgendamentosDaSemana(estudio.id, '2026-08-24');
     const atualizado = semana.find((a) => a.id === id);
     expect(atualizado?.status).toBe('concluido');
-    expect(atualizado?.categoria_produto_id).toBe(categoriaNovaId);
-    expect(atualizado?.categoria_nome).toBe(`${marca}-categoria-agenda-update-nova`);
+    expect(atualizado?.produto_id).toBe(produtoNovoId);
+    expect(atualizado?.produto_nome).toBe(`${marca}-produto-agenda`);
+    // A categoria antiga continua acompanhando o produto (compatibilidade com o código da main).
+    const [linha] = (await sql`select categoria_produto_id from agendamentos where id = ${id}`) as
+      { categoria_produto_id: string }[];
+    expect(linha.categoria_produto_id).toBe(categoriaNovaId);
 
     await sql`delete from agendamentos where id = ${id}`;
     await sql`delete from estudios where local_id = ${localId}`;
     await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where categoria_id in (${categoriaId}, ${categoriaNovaId})`;
     await sql`delete from categorias_produto where id in (${categoriaId}, ${categoriaNovaId})`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
@@ -1100,13 +1121,14 @@ descreve('integração com o banco real', () => {
     const categoriaId = await cat.createCategoria({
       nome: `${marca}-categoria-agenda-lixeira`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoId = await produtoDeTeste(categoriaId);
     const localId = await lg.createLocal({
       nome: `${marca}-local-agenda-lixeira`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio D' }],
     });
     const [estudio] = (await lg.getLocal(localId))!.estudios;
 
     const id = await ag.createAgendamento({
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado', data: '2026-08-26', hora_inicio: '09:00', hora_fim: '10:00',
     });
     await ag.softDeleteAgendamento(id);
@@ -1126,6 +1148,7 @@ descreve('integração com o banco real', () => {
 
     await sql`delete from estudios where local_id = ${localId}`;
     await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where categoria_id = ${categoriaId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
@@ -1144,6 +1167,7 @@ descreve('integração com o banco real', () => {
     const categoriaId = await cat.createCategoria({
       nome: `${marca}-categoria-bloqueio`, unidade_consumo: null, atributos_molde: [], ativo: true,
     });
+    const produtoId = await produtoDeTeste(categoriaId);
     const localId = await lg.createLocal({
       nome: `${marca}-local-bloqueio`, endereco: null, responsavel: null, estudios: [{ nome: 'Estúdio E' }],
     });
@@ -1160,13 +1184,13 @@ descreve('integração com o banco real', () => {
 
     // Tentar agendar em cima do bloqueio (mesmo estúdio, horário sobreposto) rejeita.
     await expect(ag.createAgendamento({
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado', data: '2026-08-29', hora_inicio: '14:30', hora_fim: '15:30',
     })).rejects.toThrow(ag.ConflitoHorarioError);
 
     // Agendar num horário livre do mesmo dia funciona normalmente.
     const agendamentoId = await ag.createAgendamento({
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado', data: '2026-08-29', hora_inicio: '09:00', hora_fim: '10:00',
     });
 
@@ -1184,7 +1208,7 @@ descreve('integração com o banco real', () => {
     const semanaDepois = await bl.listBloqueiosDaSemana(estudio.id, '2026-08-24');
     expect(semanaDepois.map((b) => b.id)).not.toContain(bloqueioId);
     const idLivre = await ag.createAgendamento({
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado', data: '2026-08-29', hora_inicio: '14:00', hora_fim: '15:00',
     });
     expect(idLivre).toBeTruthy();
@@ -1193,6 +1217,7 @@ descreve('integração com o banco real', () => {
     await sql`delete from bloqueios_estudio where id = ${bloqueioId}`;
     await sql`delete from estudios where local_id = ${localId}`;
     await sql`delete from locais_gravacao where id = ${localId}`;
+    await sql`delete from produtos where categoria_id = ${categoriaId}`;
     await sql`delete from categorias_produto where id = ${categoriaId}`;
     await sql`delete from clientes where id = ${clienteId}`;
   });
@@ -1430,7 +1455,7 @@ descreve('integração com o banco real', () => {
     const osId = await os.createOrdemServico({
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 4, pre_agendar: false,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 4, pre_agendar: false,
         data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
       }],
     });
@@ -1509,8 +1534,8 @@ descreve('integração com o banco real', () => {
     const osId = await os.createOrdemServico({
       cliente_id: clienteId,
       itens: [
-        { produto_id: produtoId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
-        { produto_id: produtoId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
+        { categoria_id: categoriaId, produto_id: produtoId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
+        { categoria_id: categoriaId, produto_id: produtoId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
       ],
     });
     expect(osId).toBeTruthy();
@@ -1585,8 +1610,8 @@ descreve('integração com o banco real', () => {
     await expect(os.createOrdemServico({
       cliente_id: clienteId,
       itens: [
-        { produto_id: produtoAId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
-        { produto_id: produtoBId, quantidade: 1, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
+        { categoria_id: categoriaId, produto_id: produtoAId, quantidade: 2, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
+        { categoria_id: categoriaId, produto_id: produtoBId, quantidade: 1, pre_agendar: false, data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null },
       ],
     })).rejects.toThrow(os.SaldoInsuficienteError);
 
@@ -1655,7 +1680,7 @@ descreve('integração com o banco real', () => {
     const dados = {
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 1, pre_agendar: false,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 1, pre_agendar: false,
         data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
       }],
     };
@@ -1733,7 +1758,7 @@ descreve('integração com o banco real', () => {
     const osId = await os.createOrdemServico({
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 1, pre_agendar: true,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 1, pre_agendar: true,
         data: '2026-09-10', hora_inicio: '09:00', hora_fim: '10:00', local_id: localId, estudio_id: estudio.id,
       }],
     });
@@ -1748,13 +1773,13 @@ descreve('integração com o banco real', () => {
     expect(agRows[0].cliente_id).toBe(clienteId);
 
     const conflitanteId = await ag.createAgendamento({
-      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, categoria_produto_id: categoriaId,
+      cliente_id: clienteId, local_id: localId, estudio_id: estudio.id, produto_id: produtoId,
       status: 'agendado', data: '2026-09-11', hora_inicio: '14:00', hora_fim: '15:00',
     });
     await expect(os.createOrdemServico({
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 1, pre_agendar: true,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 1, pre_agendar: true,
         data: '2026-09-11', hora_inicio: '14:30', hora_fim: '15:30', local_id: localId, estudio_id: estudio.id,
       }],
     })).rejects.toThrow(os.ConflitoAgendaError);
@@ -1779,7 +1804,7 @@ descreve('integração com o banco real', () => {
     await expect(os.createOrdemServico({
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 1, pre_agendar: true,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 1, pre_agendar: true,
         data: '2026-09-12', hora_inicio: '10:00', hora_fim: '11:00', local_id: localId, estudio_id: estudio.id,
       }],
     })).rejects.toThrow(os.ConflitoAgendaError);
@@ -1830,11 +1855,11 @@ descreve('integração com o banco real', () => {
       cliente_id: clienteId,
       itens: [
         {
-          produto_id: produtoId, quantidade: 1, pre_agendar: true,
+          categoria_id: categoriaId, produto_id: produtoId, quantidade: 1, pre_agendar: true,
           data: '2026-09-20', hora_inicio: '09:00', hora_fim: '10:00', local_id: localId, estudio_id: estudio.id,
         },
         {
-          produto_id: produtoId, quantidade: 1, pre_agendar: true,
+          categoria_id: categoriaId, produto_id: produtoId, quantidade: 1, pre_agendar: true,
           data: '2026-09-20', hora_inicio: '09:30', hora_fim: '10:30', local_id: localId, estudio_id: estudio.id,
         },
       ],
@@ -1894,7 +1919,7 @@ descreve('integração com o banco real', () => {
     const osId = await os.createOrdemServico({
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 2, pre_agendar: true,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 2, pre_agendar: true,
         data: '2026-09-15', hora_inicio: '09:00', hora_fim: '10:00', local_id: localId, estudio_id: estudio.id,
       }],
     });
@@ -1979,7 +2004,7 @@ descreve('integração com o banco real', () => {
     const osId = await os.createOrdemServico({
       cliente_id: clienteId,
       itens: [{
-        produto_id: produtoId, quantidade: 3, pre_agendar: false,
+        categoria_id: categoriaId, produto_id: produtoId, quantidade: 3, pre_agendar: false,
         data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
       }],
     });
@@ -2085,7 +2110,7 @@ descreve('integração com o banco real', () => {
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
 
       const depois = await saldoAtual(c.contratacaoItemId);
@@ -2105,7 +2130,7 @@ descreve('integração com o banco real', () => {
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
 
       await tf.moverTarefa(tarefaId, 'concluido');
@@ -2128,7 +2153,7 @@ descreve('integração com o banco real', () => {
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
       expect((await saldoAtual(c.contratacaoItemId)).quantidade_reservada).toBe(1);
 
@@ -2154,14 +2179,14 @@ descreve('integração com o banco real', () => {
       const [estudio] = (await lg.getLocal(localId))!.estudios;
       const agendamentoId = await ag.createAgendamento({
         cliente_id: c.clienteId, local_id: localId, estudio_id: estudio.id,
-        categoria_produto_id: c.categoriaId, status: 'agendado',
+        produto_id: c.produtoId, status: 'agendado',
         data: '2026-09-30', hora_inicio: '09:00', hora_fim: '10:00',
       });
 
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'gravação', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
       // `createTarefa` não aceita `agendamento_id` — é o próprio módulo de Agenda (Task 4,
       // fora deste escopo) quem vincularia. Aqui simulamos o vínculo direto na tarefa que
@@ -2197,7 +2222,7 @@ descreve('integração com o banco real', () => {
       const primeiraId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição 1', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
 
       const antes = await saldoAtual(c.contratacaoItemId);
@@ -2206,7 +2231,7 @@ descreve('integração com o banco real', () => {
       await expect(tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição 2', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       })).rejects.toThrow(tf.SaldoIndisponivelError);
 
       const depois = await saldoAtual(c.contratacaoItemId);
@@ -2242,7 +2267,7 @@ descreve('integração com o banco real', () => {
       const dados = {
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição concorrente', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao' as const,
       };
 
       const N = 10;
@@ -2274,7 +2299,7 @@ descreve('integração com o banco real', () => {
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
 
       await tf.moverTarefa(tarefaId, 'concluido');
@@ -2297,7 +2322,7 @@ descreve('integração com o banco real', () => {
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'edição', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
 
       const lerAjuste = async () => {
@@ -2342,14 +2367,14 @@ descreve('integração com o banco real', () => {
       const [estudio] = (await lg.getLocal(localId))!.estudios;
       const agendamentoId = await ag.createAgendamento({
         cliente_id: c.clienteId, local_id: localId, estudio_id: estudio.id,
-        categoria_produto_id: c.categoriaId, status: 'agendado',
+        produto_id: c.produtoId, status: 'agendado',
         data: '2026-10-05', hora_inicio: '09:00', hora_fim: '10:00',
       });
 
       const tarefaId = await tf.createTarefa({
         cliente_id: c.clienteId, responsavel_id: null, contratacao_item_id: c.contratacaoItemId,
         tarefa: 'gravação agendada', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
       // Mesmo artifício dos outros testes deste bloco: `createTarefa` não aceita
       // `agendamento_id`, então o vínculo é simulado direto no banco.
@@ -2357,7 +2382,7 @@ descreve('integração com o banco real', () => {
 
       const dadosBase = {
         cliente_id: c.clienteId, local_id: localId, estudio_id: estudio.id,
-        categoria_produto_id: c.categoriaId,
+        produto_id: c.produtoId,
         data: '2026-10-05', hora_inicio: '09:00', hora_fim: '10:00',
       };
 
@@ -2451,7 +2476,7 @@ descreve('integração com o banco real', () => {
       const [estudio] = (await lg.getLocal(localId))!.estudios;
       const agendamentoId = await ag.createAgendamento({
         cliente_id: clienteId, local_id: localId, estudio_id: estudio.id,
-        categoria_produto_id: categoriaId, status: 'agendado',
+        produto_id: produtoId, status: 'agendado',
         data: '2026-10-12', hora_inicio: '09:00', hora_fim: '10:00',
       });
 
@@ -2459,17 +2484,17 @@ descreve('integração com o banco real', () => {
       const tarefaA1 = await tf.createTarefa({
         cliente_id: clienteId, responsavel_id: null, contratacao_item_id: itemAId,
         tarefa: 'gravação multi A1', coluna: 'roadmap', prioridade: 0,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
       const tarefaA2 = await tf.createTarefa({
         cliente_id: clienteId, responsavel_id: null, contratacao_item_id: itemAId,
         tarefa: 'gravação multi A2', coluna: 'roadmap', prioridade: 1,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
       const tarefaB1 = await tf.createTarefa({
         cliente_id: clienteId, responsavel_id: null, contratacao_item_id: itemBId,
         tarefa: 'gravação multi B1', coluna: 'roadmap', prioridade: 2,
-        deadline_cliente: null, deadline_tarefa: null,
+        deadline_cliente: null, deadline_tarefa: null, planejamento: 'edicao',
       });
       await sql`
         update tarefas set agendamento_id = ${agendamentoId}
@@ -2486,7 +2511,7 @@ descreve('integração com o banco real', () => {
 
       const dadosBase = {
         cliente_id: clienteId, local_id: localId, estudio_id: estudio.id,
-        categoria_produto_id: categoriaId,
+        produto_id: produtoId,
         data: '2026-10-12', hora_inicio: '09:00', hora_fim: '10:00',
       };
 

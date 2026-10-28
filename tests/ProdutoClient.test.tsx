@@ -7,11 +7,11 @@ import type { CategoriaProduto, Produto } from '@/lib/types';
 const gravacao: CategoriaProduto = {
   id: 'aaaaaaaa-1111-1111-1111-111111111111', nome: 'Gravação', unidade_consumo: 'gravação',
   atributos_molde: [{ chave: 'qtd_cameras', rotulo: 'Câmeras', tipo: 'numero', obrigatorio: true }],
-  ativo: true, planejamento: 'gravacao',
+  ativo: true, planejamento: 'gravacao', produtos_exclusivos: false,
 };
 const corte: CategoriaProduto = {
   id: 'bbbbbbbb-2222-2222-2222-222222222222', nome: 'Corte', unidade_consumo: 'corte',
-  atributos_molde: [], ativo: true, planejamento: 'edicao',
+  atributos_molde: [], ativo: true, planejamento: 'edicao', produtos_exclusivos: true,
 };
 
 const produto: Produto = {

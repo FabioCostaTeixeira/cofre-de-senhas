@@ -37,8 +37,9 @@ export class TarefaDivergenteError extends Error {
   }
 }
 
-/** Sem `planejamento`, lista as tarefas dos dois quadros. Com ele, só as cujo produto
- *  é de categoria daquele quadro (Edição ou Gravação). */
+/** Sem `planejamento`, lista as tarefas dos dois quadros. Com ele, só as daquele
+ *  quadro: o gravado na tarefa (categoria escolhida na OS, ou quadro onde foi criada) ou,
+ *  em tarefa antiga sem esse valor, o da categoria do produto. */
 export async function listTarefas(planejamento?: Planejamento): Promise<Tarefa[]> {
   const filtro = planejamento ?? null;
   return (await sql`
@@ -53,7 +54,7 @@ export async function listTarefas(planejamento?: Planejamento): Promise<Tarefa[]
       join categorias_produto cp on cp.id = p.categoria_id
       left join users u on u.id = t.responsavel_id
      where t.deleted_at is null
-       and (${filtro}::text is null or cp.planejamento = ${filtro})
+       and (${filtro}::text is null or coalesce(t.planejamento, cp.planejamento) = ${filtro})
      order by t.prioridade, t.created_at`) as Tarefa[];
 }
 
@@ -66,8 +67,8 @@ export type ItemDisponivel = {
 
 /** Itens da carteira do cliente com saldo livre. Alimenta o select de produto do
  *  formulário: só faz sentido abrir tarefa contra o que ele ainda tem. Com
- *  `planejamento`, só os produtos que cairiam naquele quadro — senão a tarefa criada
- *  na tela de Edição sumiria para a de Gravação. */
+ *  `planejamento`, mesma regra da OS adaptada ao quadro: produtos de categoria não
+ *  exclusiva, mais os de categoria exclusiva daquele quadro (Cortes só em Edição). */
 export async function listItensDisponiveisDoCliente(
   clienteId: string, planejamento?: Planejamento,
 ): Promise<ItemDisponivel[]> {
@@ -82,7 +83,7 @@ export async function listItensDisponiveisDoCliente(
       join categorias_produto cp on cp.id = p.categoria_id
      where ct.cliente_id = ${clienteId} and ct.deleted_at is null
        and (ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida) > 0
-       and (${filtro}::text is null or cp.planejamento = ${filtro})
+       and (${filtro}::text is null or not cp.produtos_exclusivos or cp.planejamento = ${filtro})
      order by ct.created_at, p.nome`) as ItemDisponivel[];
 }
 
@@ -95,9 +96,11 @@ export async function createTarefa(dados: DadosTarefa): Promise<string> {
            (ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida) as disponivel
       from contratacao_itens ci
       join produtos p on p.id = ci.produto_id
+      join categorias_produto cp on cp.id = p.categoria_id
       join contratacoes ct on ct.id = ci.contratacao_id
      where ci.id = ${dados.contratacao_item_id}
-       and ct.cliente_id = ${dados.cliente_id} and ct.deleted_at is null`) as
+       and ct.cliente_id = ${dados.cliente_id} and ct.deleted_at is null
+       and (not cp.produtos_exclusivos or cp.planejamento = ${dados.planejamento})`) as
     { produto_id: string; produto_nome: string; disponivel: number }[];
 
   const item = itens[0];
@@ -113,10 +116,10 @@ export async function createTarefa(dados: DadosTarefa): Promise<string> {
       returning id
     )
     insert into tarefas (cliente_id, responsavel_id, produto_id, contratacao_item_id,
-                         tarefa, coluna, prioridade, deadline_cliente, deadline_tarefa)
+                         tarefa, coluna, prioridade, deadline_cliente, deadline_tarefa, planejamento)
     select ${dados.cliente_id}, ${dados.responsavel_id}, ${item.produto_id},
            ${dados.contratacao_item_id}, ${dados.tarefa}, ${dados.coluna},
-           ${dados.prioridade}, ${dados.deadline_cliente}, ${dados.deadline_tarefa}
+           ${dados.prioridade}, ${dados.deadline_cliente}, ${dados.deadline_tarefa}, ${dados.planejamento}
       from reserva
     returning id`) as { id: string }[];
 

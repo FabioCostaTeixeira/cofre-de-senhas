@@ -7,7 +7,7 @@ import { AgendaFormularioModal, type AgendaFormState } from '@/components/Agenda
 import { AgendaLista, calcularMesesDisponiveis, mesRotulo } from '@/components/AgendaLista';
 import { BloqueioFormularioModal } from '@/components/BloqueioFormularioModal';
 import { AGENDA_BLOCO_MIN, AGENDA_FIM_MIN, AGENDA_INICIO_MIN } from '@/lib/agenda-form';
-import type { Agendamento, BloqueioEstudio, CategoriaProduto, LocalGravacao, Terceiro } from '@/lib/types';
+import type { Agendamento, BloqueioEstudio, LocalGravacao, Produto, Terceiro } from '@/lib/types';
 
 const BLOCOS_POR_DIA = (AGENDA_FIM_MIN - AGENDA_INICIO_MIN) / AGENDA_BLOCO_MIN;
 const BLOCOS_POR_HORA = 60 / AGENDA_BLOCO_MIN;
@@ -56,12 +56,12 @@ type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string }
 type Rascunho = { data: string; horaInicio: string; horaFim: string; localId: string; estudioId: string };
 
 export function AgendaClient({
-  itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio, clientes, locais, categorias, estudioId, inicioSemana,
+  itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio, clientes, locais, produtos, estudioId, inicioSemana,
   criar, salvar, apagar, mover, criarBloqueio, apagarBloqueio,
 }: {
   itens: Agendamento[]; itensDoEstudio: Agendamento[];
   bloqueiosDaSemana: BloqueioEstudio[]; bloqueiosAtivos: BloqueioEstudio[]; bloqueiosDoEstudio: BloqueioEstudio[];
-  clientes: Terceiro[]; locais: LocalGravacao[]; categorias: CategoriaProduto[]; estudioId: string; inicioSemana: string;
+  clientes: Terceiro[]; locais: LocalGravacao[]; produtos: Produto[]; estudioId: string; inicioSemana: string;
   criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
   mover: (id: string, data: string, horaInicio: string, horaFim: string) => Promise<{ error?: string }>;
   criarBloqueio: Acao; apagarBloqueio: (id: string) => Promise<{ error?: string }>;
@@ -396,7 +396,7 @@ export function AgendaClient({
             padraoHoraFim={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaFim : undefined}
             padraoLocalId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.localId : undefined}
             padraoEstudioId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.estudioId : undefined}
-            clientes={clientes} locais={locais} categorias={categorias} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
+            clientes={clientes} locais={locais} produtos={produtos} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
           />
         </div>
       </div>

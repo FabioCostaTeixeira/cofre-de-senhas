@@ -77,6 +77,10 @@ function CamposComuns({
           <input type="checkbox" name="ativo" defaultChecked={item?.ativo ?? true} />
           Ativa
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="produtosExclusivos" defaultChecked={item?.produtos_exclusivos ?? false} />
+          Produtos exclusivos (na OS, só aparecem ao escolher esta categoria)
+        </label>
       </div>
       <MoldeEditor molde={molde} onChange={onMolde} />
       <input type="hidden" name="atributosMolde" value={JSON.stringify(molde)} />

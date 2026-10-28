@@ -45,7 +45,7 @@ export function AgendaCard({
     >
       <div className="p-1">
         <div className="font-medium truncate">{item.cliente_nome}</div>
-        <div className="truncate">{item.estudio_nome} · {item.categoria_nome}</div>
+        <div className="truncate">{item.estudio_nome} · {item.produto_nome}</div>
         <div className="truncate">{ROTULOS_STATUS[item.status]}</div>
       </div>
       <div

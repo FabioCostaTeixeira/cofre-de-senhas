@@ -45,8 +45,8 @@ export function lerDadosAgendamento(fd: FormData): DadosAgendamento | { error: s
   const estudio_id = String(fd.get('estudioId') ?? '');
   if (!estudio_id) return { error: 'Escolha o estúdio.' };
 
-  const categoria_produto_id = String(fd.get('categoriaId') ?? '');
-  if (!categoria_produto_id) return { error: 'Escolha o tipo de gravação.' };
+  const produto_id = String(fd.get('produtoId') ?? '');
+  if (!produto_id) return { error: 'Escolha o tipo de gravação.' };
 
   const status = String(fd.get('status') ?? '');
   if (!STATUS_VALIDOS.includes(status as StatusAgendamento)) return { error: 'Status inválido.' };
@@ -58,7 +58,7 @@ export function lerDadosAgendamento(fd: FormData): DadosAgendamento | { error: s
   if (erroPeriodo) return erroPeriodo;
 
   return {
-    cliente_id, local_id, estudio_id, categoria_produto_id,
+    cliente_id, local_id, estudio_id, produto_id,
     status: status as StatusAgendamento, data, hora_inicio, hora_fim,
   };
 }

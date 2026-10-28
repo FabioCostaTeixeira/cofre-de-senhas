@@ -252,7 +252,7 @@ function AbaAgendamento({ agendamentos }: { agendamentos: Agendamento[] }) {
       <tbody>
         {agendamentos.map((a) => (
           <tr key={a.id}>
-            <td className="p-2">{a.categoria_nome}</td>
+            <td className="p-2">{a.produto_nome}</td>
             <td className="p-2">{a.estudio_nome}</td>
             <td className="p-2">{a.data.slice(8, 10)}/{a.data.slice(5, 7)}/{a.data.slice(0, 4)}</td>
             <td className="p-2">{a.hora_inicio.slice(0, 5)}</td>

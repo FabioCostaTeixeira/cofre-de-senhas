@@ -8,7 +8,7 @@ function formData(campos: Record<string, string>): FormData {
 }
 
 const CAMPOS_VALIDOS = {
-  clienteId: 'c1', localId: 'l1', estudioId: 'e1', categoriaId: 'cat1',
+  clienteId: 'c1', localId: 'l1', estudioId: 'e1', produtoId: 'p1',
   status: 'agendado', data: '2026-08-20', horaInicio: '09:00', horaFim: '10:00',
 };
 
@@ -28,8 +28,8 @@ describe('lerDadosAgendamento', () => {
     expect(r).toEqual({ error: 'Escolha o estúdio.' });
   });
 
-  it('sem categoria retorna erro', () => {
-    const r = lerDadosAgendamento(formData({ ...CAMPOS_VALIDOS, categoriaId: '' }));
+  it('sem produto (tipo de gravação) retorna erro', () => {
+    const r = lerDadosAgendamento(formData({ ...CAMPOS_VALIDOS, produtoId: '' }));
     expect(r).toEqual({ error: 'Escolha o tipo de gravação.' });
   });
 
@@ -61,7 +61,7 @@ describe('lerDadosAgendamento', () => {
   it('campos completos e válidos são lidos corretamente', () => {
     const r = lerDadosAgendamento(formData(CAMPOS_VALIDOS));
     expect(r).toEqual({
-      cliente_id: 'c1', local_id: 'l1', estudio_id: 'e1', categoria_produto_id: 'cat1',
+      cliente_id: 'c1', local_id: 'l1', estudio_id: 'e1', produto_id: 'p1',
       status: 'agendado', data: '2026-08-20', hora_inicio: '09:00', hora_fim: '10:00',
     });
   });

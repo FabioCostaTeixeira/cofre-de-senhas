@@ -15,7 +15,7 @@ describe('calcularPosicaoCard', () => {
 
 const item: Agendamento = {
   id: '1', cliente_id: 'c1', cliente_nome: 'ACME', local_id: 'l1', estudio_id: 'e1',
-  estudio_nome: 'Estúdio A', categoria_produto_id: 'cat1', categoria_nome: 'Gravação',
+  estudio_nome: 'Estúdio A', produto_id: 'p1', produto_nome: 'Gravação',
   status: 'agendado', data: '2026-08-24', hora_inicio: '09:00:00', hora_fim: '10:00:00',
   created_at: '2026-08-20T00:00:00Z',
 };

@@ -10,12 +10,18 @@ const cliente: Terceiro = {
   email: null, telefone: null, cidade: null, uf: null, created_at: '2026-01-01T00:00:00Z',
 };
 const gravacao: CategoriaProduto = {
-  id: 'cat1', nome: 'Gravação', unidade_consumo: null, atributos_molde: [], ativo: true, planejamento: 'gravacao',
+  id: 'cat1', nome: 'Gravação', unidade_consumo: null, atributos_molde: [], ativo: true,
+  planejamento: 'gravacao', produtos_exclusivos: false,
 };
 const edicao: CategoriaProduto = {
-  id: 'cat2', nome: 'Edição', unidade_consumo: null, atributos_molde: [], ativo: true, planejamento: 'edicao',
+  id: 'cat2', nome: 'Edição', unidade_consumo: null, atributos_molde: [], ativo: true,
+  planejamento: 'edicao', produtos_exclusivos: false,
 };
-const categorias = [gravacao, edicao];
+const cortes: CategoriaProduto = {
+  id: 'cat3', nome: 'Cortes', unidade_consumo: null, atributos_molde: [], ativo: true,
+  planejamento: 'edicao', produtos_exclusivos: true,
+};
+const categorias = [gravacao, edicao, cortes];
 const produto: Produto = {
   id: '22222222-2222-2222-2222-222222222222', categoria_id: 'cat1', nome: 'Sessão de Estúdio',
   descricao: null, atributos: {}, preco: 100, ativo: true, created_at: '2026-01-01T00:00:00Z',
@@ -23,6 +29,12 @@ const produto: Produto = {
 const produtoEdicao: Produto = {
   ...produto, id: '77777777-7777-7777-7777-777777777777', categoria_id: 'cat2', nome: 'Edição de Episódio',
 };
+const produtoCortes: Produto = {
+  ...produto, id: '88888888-8888-8888-8888-888888888888', categoria_id: 'cat3', nome: 'Cortes',
+};
+const todosProdutos = [produto, produtoEdicao, produtoCortes];
+const nomesDasOpcoes = (select: HTMLElement) =>
+  Array.from((select as HTMLSelectElement).options).map((o) => o.textContent);
 const local: LocalGravacao = {
   id: '33333333-3333-3333-3333-333333333333', nome: 'Estúdio Central', endereco: null, responsavel: null,
   created_at: '2026-01-01T00:00:00Z',
@@ -60,27 +72,41 @@ describe('OSClient', () => {
     expect(screen.getByLabelText('Data 1')).toBeInTheDocument();
   });
 
-  it('produto só libera depois da categoria e lista apenas os produtos dela', () => {
+  it('produto só libera depois da categoria; categoria comum lista todos menos os exclusivos', () => {
     render(
       <OSClient
-        itens={[]} clientes={[cliente]} categorias={categorias} produtos={[produto, produtoEdicao]}
+        itens={[]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos}
         locais={[local]} criar={criar} apagar={apagar}
       />,
     );
-    const selectProduto = screen.getByLabelText('Produto 1') as HTMLSelectElement;
-    expect(selectProduto).toBeDisabled();
+    expect(screen.getByLabelText('Produto 1')).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText('Categoria 1'), { target: { value: 'cat2' } });
-    expect(selectProduto).toBeEnabled();
-    const nomes = Array.from(selectProduto.options).map((o) => o.textContent);
+    fireEvent.change(screen.getByLabelText('Categoria 1'), { target: { value: 'cat1' } });
+    expect(screen.getByLabelText('Produto 1')).toBeEnabled();
+    const nomes = nomesDasOpcoes(screen.getByLabelText('Produto 1'));
+    expect(nomes).toContain('Sessão de Estúdio');
     expect(nomes).toContain('Edição de Episódio');
+    expect(nomes).not.toContain('Cortes');
+  });
+
+  it('categoria exclusiva (Cortes) lista só os produtos dela', () => {
+    render(
+      <OSClient
+        itens={[]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos}
+        locais={[local]} criar={criar} apagar={apagar}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Categoria 1'), { target: { value: 'cat3' } });
+    const nomes = nomesDasOpcoes(screen.getByLabelText('Produto 1'));
+    expect(nomes).toContain('Cortes');
     expect(nomes).not.toContain('Sessão de Estúdio');
+    expect(nomes).not.toContain('Edição de Episódio');
   });
 
   it('trocar a categoria descarta o produto escolhido na anterior', () => {
     render(
       <OSClient
-        itens={[]} clientes={[cliente]} categorias={categorias} produtos={[produto, produtoEdicao]}
+        itens={[]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos}
         locais={[local]} criar={criar} apagar={apagar}
       />,
     );

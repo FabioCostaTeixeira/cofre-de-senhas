@@ -7,9 +7,9 @@ function formData(campos: Record<string, string>): FormData {
   return fd;
 }
 
-const ITEM_SIMPLES = { produto_id: 'p1', quantidade: 2, pre_agendar: false };
+const ITEM_SIMPLES = { categoria_id: 'cat1', produto_id: 'p1', quantidade: 2, pre_agendar: false };
 const ITEM_PRE_AGENDADO = {
-  produto_id: 'p1', quantidade: 1, pre_agendar: true,
+  categoria_id: 'cat1', produto_id: 'p1', quantidade: 1, pre_agendar: true,
   data: '2026-09-10', hora_inicio: '09:00', hora_fim: '10:00', local_id: 'l1', estudio_id: 'e1',
 };
 
@@ -27,6 +27,11 @@ describe('lerDadosOS', () => {
   it('sem nenhum item retorna erro', () => {
     const r = lerDadosOS(formData({ clienteId: 'c1', itens: '[]' }));
     expect(r).toEqual({ error: 'Adicione pelo menos um item.' });
+  });
+
+  it('item sem categoria retorna erro', () => {
+    const r = lerDadosOS(formData({ clienteId: 'c1', itens: JSON.stringify([{ ...ITEM_SIMPLES, categoria_id: '' }]) }));
+    expect(r).toEqual({ error: 'Escolha a categoria de cada item.' });
   });
 
   it('item sem produto_id retorna erro', () => {
@@ -74,7 +79,7 @@ describe('lerDadosOS', () => {
     expect(r).toEqual({
       cliente_id: 'c1',
       itens: [{
-        produto_id: 'p1', quantidade: 2, pre_agendar: false,
+        categoria_id: 'cat1', produto_id: 'p1', quantidade: 2, pre_agendar: false,
         data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
       }],
     });
@@ -85,7 +90,7 @@ describe('lerDadosOS', () => {
     expect(r).toEqual({
       cliente_id: 'c1',
       itens: [{
-        produto_id: 'p1', quantidade: 1, pre_agendar: true,
+        categoria_id: 'cat1', produto_id: 'p1', quantidade: 1, pre_agendar: true,
         data: '2026-09-10', hora_inicio: '09:00', hora_fim: '10:00', local_id: 'l1', estudio_id: 'e1',
       }],
     });

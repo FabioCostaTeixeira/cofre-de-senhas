@@ -4,16 +4,18 @@ import type { DadosOS, DadosOSItem } from '@/lib/types';
 function lerItemOS(bruto: unknown): DadosOSItem | { error: string } {
   if (
     typeof bruto !== 'object' || bruto === null ||
+    typeof (bruto as Record<string, unknown>).categoria_id !== 'string' ||
     typeof (bruto as Record<string, unknown>).produto_id !== 'string' ||
     typeof (bruto as Record<string, unknown>).quantidade !== 'number' ||
     typeof (bruto as Record<string, unknown>).pre_agendar !== 'boolean'
   ) {
     return { error: 'Itens inválidos.' };
   }
-  const { produto_id, quantidade, pre_agendar } = bruto as {
-    produto_id: string; quantidade: number; pre_agendar: boolean;
+  const { categoria_id, produto_id, quantidade, pre_agendar } = bruto as {
+    categoria_id: string; produto_id: string; quantidade: number; pre_agendar: boolean;
   };
 
+  if (!categoria_id) return { error: 'Escolha a categoria de cada item.' };
   if (!produto_id) return { error: 'Escolha o produto de cada item.' };
   if (!Number.isInteger(quantidade) || quantidade <= 0) {
     return { error: 'Quantidade precisa ser um número inteiro maior que zero.' };
@@ -21,7 +23,7 @@ function lerItemOS(bruto: unknown): DadosOSItem | { error: string } {
 
   if (!pre_agendar) {
     return {
-      produto_id, quantidade, pre_agendar: false,
+      categoria_id, produto_id, quantidade, pre_agendar: false,
       data: null, hora_inicio: null, hora_fim: null, local_id: null, estudio_id: null,
     };
   }
@@ -38,7 +40,7 @@ function lerItemOS(bruto: unknown): DadosOSItem | { error: string } {
   const erroPeriodo = validarPeriodoAgendamento(data, hora_inicio, hora_fim);
   if (erroPeriodo) return erroPeriodo;
 
-  return { produto_id, quantidade, pre_agendar: true, data, hora_inicio, hora_fim, local_id, estudio_id };
+  return { categoria_id, produto_id, quantidade, pre_agendar: true, data, hora_inicio, hora_fim, local_id, estudio_id };
 }
 
 export function lerDadosOS(fd: FormData): DadosOS | { error: string } {

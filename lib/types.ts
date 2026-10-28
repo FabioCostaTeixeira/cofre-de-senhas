@@ -134,6 +134,8 @@ export type CategoriaProduto = {
   atributos_molde: AtributoMolde[];
   ativo: boolean;
   planejamento: Planejamento;
+  /** Produtos desta categoria só aparecem na OS quando ela é a escolhida (Cortes). */
+  produtos_exclusivos: boolean;
 };
 
 export type ValorAtributo = string | number | boolean;
@@ -246,8 +248,10 @@ export type Agendamento = {
   local_id: string;
   estudio_id: string;
   estudio_nome: string;
-  categoria_produto_id: string;
-  categoria_nome: string;
+  /** Null em agendamento antigo, de antes do tipo de gravação ser um produto. */
+  produto_id: string | null;
+  /** Nome do produto; em agendamento antigo, o da categoria. */
+  produto_nome: string;
   status: StatusAgendamento;
   data: string;
   hora_inicio: string;
@@ -259,7 +263,7 @@ export type DadosAgendamento = {
   cliente_id: string;
   local_id: string;
   estudio_id: string;
-  categoria_produto_id: string;
+  produto_id: string;
   status: StatusAgendamento;
   data: string;
   hora_inicio: string;
@@ -367,9 +371,13 @@ export type DadosTarefa = {
   prioridade: number;
   deadline_cliente: string | null;
   deadline_tarefa: string | null;
+  /** Quadro onde a tarefa foi criada. */
+  planejamento: Planejamento;
 };
 
 export type DadosOSItem = {
+  /** Categoria escolhida no item; é ela que decide o quadro das tarefas geradas. */
+  categoria_id: string;
   produto_id: string;
   quantidade: number;
   pre_agendar: boolean;
