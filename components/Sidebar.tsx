@@ -24,7 +24,10 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
       ? [{
           label: 'Working',
           icon: <Kanban size={18} className={iconClass} />,
-          items: [{ href: '/working/planejamento', label: 'Planejamento', icon: <Kanban size={18} className={iconClass} /> }],
+          items: [
+            { href: '/working/planejamento/edicao', label: 'Planejamento · Edição', icon: <Kanban size={18} className={iconClass} /> },
+            { href: '/working/planejamento/gravacao', label: 'Planejamento · Gravação', icon: <Kanban size={18} className={iconClass} /> },
+          ],
         }]
       : []),
     // Pessoas: "Usuários" (Meus dados) é de todo usuário ativo; Clientes, Fornecedores

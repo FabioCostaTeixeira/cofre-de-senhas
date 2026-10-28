@@ -14,9 +14,11 @@ import {
   softDeleteTarefa,
   type ItemDisponivel,
 } from '@/lib/db/tarefas';
+import { isPlanejamento } from '@/lib/kanban';
 import { isUuid } from '@/lib/validation';
 import type { DadosTarefa } from '@/lib/types';
 
+// Revalidada como 'layout' para cobrir os dois quadros (/edicao e /gravacao) de uma vez.
 const ROTA = '/working/planejamento';
 
 export type TarefaFormState = { error?: string; ok?: boolean };
@@ -68,7 +70,7 @@ export async function criarTarefaAction(
   }
 
   await audit({ actorId: actor.id, action: 'create', entityType: 'tarefa', entityId: id });
-  revalidatePath(ROTA);
+  revalidatePath(ROTA, 'layout');
   return { ok: true };
 }
 
@@ -85,7 +87,7 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
   }
 
   await audit({ actorId: actor.id, action: 'update', entityType: 'tarefa', entityId: id });
-  revalidatePath(ROTA);
+  revalidatePath(ROTA, 'layout');
   return {};
 }
 
@@ -95,7 +97,7 @@ export async function reordenarTarefasAction(ids: string[]): Promise<{ error?: s
 
   await reordenarTarefas(ids);
   await audit({ actorId: actor.id, action: 'update', entityType: 'tarefa' });
-  revalidatePath(ROTA);
+  revalidatePath(ROTA, 'layout');
   return {};
 }
 
@@ -112,7 +114,7 @@ export async function apagarTarefaAction(id: string): Promise<{ error?: string }
   }
 
   await audit({ actorId: actor.id, action: 'delete', entityType: 'tarefa', entityId: id });
-  revalidatePath(ROTA);
+  revalidatePath(ROTA, 'layout');
   return {};
 }
 
@@ -120,13 +122,17 @@ export async function apagarTarefaAction(id: string): Promise<{ error?: string }
  * Busca os itens da carteira do cliente com saldo livre, chamada direto do client
  * component (não é submissão de formulário) — mesmo padrão de
  * `buscarDadosClienteAction` em app/(app)/cadastros/clientes/actions.ts.
+ *
+ * `planejamento` vem primeiro para a página fazer `.bind(null, 'edicao')` e o
+ * `KanbanBoard` seguir chamando só com o cliente.
  */
 export async function buscarItensDoClienteAction(
-  clienteId: string,
+  planejamento: string, clienteId: string,
 ): Promise<{ itens: ItemDisponivel[] } | { error: string }> {
   await requireModulo('working');
+  if (!isPlanejamento(planejamento)) return { error: 'Planejamento inválido.' };
   if (!isUuid(clienteId)) return { error: 'Cliente não encontrado.' };
 
-  const itens = await listItensDisponiveisDoCliente(clienteId);
+  const itens = await listItensDisponiveisDoCliente(clienteId, planejamento);
   return { itens };
 }

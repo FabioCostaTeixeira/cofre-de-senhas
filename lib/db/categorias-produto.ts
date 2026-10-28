@@ -1,28 +1,33 @@
 import { sql } from '@/lib/db/client';
 import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
-import type { AtributoMolde, CategoriaProduto } from '@/lib/types';
+import type { AtributoMolde, CategoriaProduto, Planejamento } from '@/lib/types';
 
 export async function listCategorias(): Promise<CategoriaProduto[]> {
   return (await sql`
-    select id, nome, unidade_consumo, atributos_molde, ativo
+    select id, nome, unidade_consumo, atributos_molde, ativo, planejamento
       from categorias_produto order by nome`) as CategoriaProduto[];
 }
 
 export async function getCategoria(id: string): Promise<CategoriaProduto | null> {
   assertUuid(id);
   const rows = (await sql`
-    select id, nome, unidade_consumo, atributos_molde, ativo
+    select id, nome, unidade_consumo, atributos_molde, ativo, planejamento
       from categorias_produto where id = ${id}`) as CategoriaProduto[];
   return rows[0] ?? null;
 }
 
-type DadosCategoria = { nome: string; unidade_consumo: string | null; atributos_molde: AtributoMolde[]; ativo: boolean };
+/** `planejamento` opcional: sem ele vale o padrão da coluna ('edicao'). */
+type DadosCategoria = {
+  nome: string; unidade_consumo: string | null; atributos_molde: AtributoMolde[]; ativo: boolean;
+  planejamento?: Planejamento;
+};
 
 export async function createCategoria(dados: DadosCategoria): Promise<string> {
   const rows = (await sql`
-    insert into categorias_produto (nome, unidade_consumo, atributos_molde, ativo)
-    values (${dados.nome}, ${dados.unidade_consumo}, ${JSON.stringify(dados.atributos_molde)}::jsonb, ${dados.ativo})
+    insert into categorias_produto (nome, unidade_consumo, atributos_molde, ativo, planejamento)
+    values (${dados.nome}, ${dados.unidade_consumo}, ${JSON.stringify(dados.atributos_molde)}::jsonb, ${dados.ativo},
+            ${dados.planejamento ?? 'edicao'})
     returning id`) as { id: string }[];
   return rows[0].id;
 }
@@ -33,6 +38,7 @@ export async function updateCategoria(id: string, dados: DadosCategoria): Promis
     update categorias_produto
        set nome = ${dados.nome}, unidade_consumo = ${dados.unidade_consumo},
            atributos_molde = ${JSON.stringify(dados.atributos_molde)}::jsonb, ativo = ${dados.ativo},
+           planejamento = ${dados.planejamento ?? 'edicao'},
            updated_at = now()
      where id = ${id}
      returning id`) as { id: string }[];

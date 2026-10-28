@@ -5,9 +5,9 @@ import { CategoriaClient } from '@/components/CategoriaClient';
 import type { CategoriaProduto } from '@/lib/types';
 
 const categoria: CategoriaProduto = {
-  id: '11111111-1111-1111-1111-111111111111', nome: 'Gravação', unidade_consumo: 'gravação',
+  id: '11111111-1111-1111-1111-111111111111', nome: 'Podcast', unidade_consumo: 'gravação',
   atributos_molde: [{ chave: 'qtd_cameras', rotulo: 'Câmeras', tipo: 'numero', obrigatorio: true }],
-  ativo: true,
+  ativo: true, planejamento: 'gravacao',
 };
 
 const criar = vi.fn();
@@ -19,8 +19,16 @@ afterEach(() => cleanup());
 describe('CategoriaClient', () => {
   it('lista categorias e mostra a quantidade de atributos', () => {
     render(<CategoriaClient itens={[categoria]} criar={criar} salvar={salvar} apagar={apagar} />);
-    expect(screen.getByText('Gravação')).toBeInTheDocument();
+    expect(screen.getByText('Podcast')).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: '1' })).toBeInTheDocument();
+  });
+
+  it('mostra o planejamento da categoria na lista e no formulário de edição', () => {
+    render(<CategoriaClient itens={[categoria]} criar={criar} salvar={salvar} apagar={apagar} />);
+    expect(screen.getByRole('cell', { name: 'Gravação' })).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Podcast'));
+    const select = screen.getByRole('dialog').querySelector('select[name="planejamento"]') as HTMLSelectElement;
+    expect(select.value).toBe('gravacao');
   });
 
   it('adicionar linha no molde do formulário novo cria um campo de chave', () => {

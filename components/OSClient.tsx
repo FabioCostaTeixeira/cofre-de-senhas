@@ -2,13 +2,15 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { formatarDataHora } from '@/lib/formato';
-import type { LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
+import type { CategoriaProduto, LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
 
 export type OSState = { error?: string; ok?: string };
 const inicial: OSState = {};
 type Acao = (prev: OSState, fd: FormData) => Promise<OSState>;
 
 type LinhaOS = {
+  /** Só filtra o select de produto; não vai para o servidor (o produto já diz a categoria). */
+  categoriaId: string;
   produtoId: string;
   quantidade: string;
   preAgendar: boolean;
@@ -20,7 +22,7 @@ type LinhaOS = {
 };
 
 function linhaVazia(): LinhaOS {
-  return { produtoId: '', quantidade: '1', preAgendar: false, data: '', horaInicio: '', horaFim: '', localId: '', estudioId: '' };
+  return { categoriaId: '', produtoId: '', quantidade: '1', preAgendar: false, data: '', horaInicio: '', horaFim: '', localId: '', estudioId: '' };
 }
 
 function serializarItens(linhas: LinhaOS[]): string {
@@ -37,24 +39,37 @@ function serializarItens(linhas: LinhaOS[]): string {
 }
 
 function LinhaFormulario({
-  linha, index, produtos, locais, onChange, onRemover,
+  linha, index, categorias, produtos, locais, onChange, onRemover,
 }: {
-  linha: LinhaOS; index: number; produtos: Produto[]; locais: LocalGravacao[];
+  linha: LinhaOS; index: number; categorias: CategoriaProduto[]; produtos: Produto[]; locais: LocalGravacao[];
   onChange: (i: number, campo: Partial<LinhaOS>) => void; onRemover: (i: number) => void;
 }) {
   const localAtual = locais.find((l) => l.id === linha.localId);
+  const produtosDaCategoria = produtos.filter((p) => p.ativo && p.categoria_id === linha.categoriaId);
 
   return (
     <div className="glass p-4 space-y-3">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <label className="block space-y-1">
+          <span className="text-sm">Categoria</span>
+          <select
+            aria-label={`Categoria ${index + 1}`} className="input" value={linha.categoriaId}
+            // Produto escolhido pertence à categoria anterior: trocar a categoria o descarta.
+            onChange={(e) => onChange(index, { categoriaId: e.target.value, produtoId: '' })} required
+          >
+            <option value="" disabled>Escolha…</option>
+            {categorias.filter((c) => c.ativo).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </label>
         <label className="block space-y-1">
           <span className="text-sm">Produto</span>
           <select
             aria-label={`Produto ${index + 1}`} className="input" value={linha.produtoId}
             onChange={(e) => onChange(index, { produtoId: e.target.value })} required
+            disabled={!linha.categoriaId}
           >
-            <option value="" disabled>Escolha…</option>
-            {produtos.filter((p) => p.ativo).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            <option value="" disabled>{linha.categoriaId ? 'Escolha…' : 'Escolha a categoria primeiro'}</option>
+            {produtosDaCategoria.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
         </label>
         <label className="block space-y-1">
@@ -125,9 +140,9 @@ function LinhaFormulario({
 }
 
 function Formulario({
-  clientes, produtos, locais, criar, abertoPorPadrao,
+  clientes, categorias, produtos, locais, criar, abertoPorPadrao,
 }: {
-  clientes: Terceiro[]; produtos: Produto[]; locais: LocalGravacao[]; criar: Acao;
+  clientes: Terceiro[]; categorias: CategoriaProduto[]; produtos: Produto[]; locais: LocalGravacao[]; criar: Acao;
   abertoPorPadrao: boolean;
 }) {
   const [state, action, pending] = useActionState(criar, inicial);
@@ -166,7 +181,7 @@ function Formulario({
           <div className="space-y-3">
             {linhas.map((linha, i) => (
               <LinhaFormulario
-                key={i} linha={linha} index={i} produtos={produtos} locais={locais}
+                key={i} linha={linha} index={i} categorias={categorias} produtos={produtos} locais={locais}
                 onChange={atualizarLinha} onRemover={removerLinha}
               />
             ))}
@@ -237,15 +252,18 @@ function Lista({ itens, apagar }: { itens: OrdemServico[]; apagar: (id: string) 
 }
 
 export function OSClient({
-  itens, clientes, produtos, locais, criar, apagar,
+  itens, clientes, categorias, produtos, locais, criar, apagar,
 }: {
-  itens: OrdemServico[]; clientes: Terceiro[]; produtos: Produto[]; locais: LocalGravacao[];
-  criar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
+  itens: OrdemServico[]; clientes: Terceiro[]; categorias: CategoriaProduto[]; produtos: Produto[];
+  locais: LocalGravacao[]; criar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
 }) {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Ordens de Serviço</h1>
-      <Formulario clientes={clientes} produtos={produtos} locais={locais} criar={criar} abertoPorPadrao={itens.length === 0} />
+      <Formulario
+        clientes={clientes} categorias={categorias} produtos={produtos} locais={locais} criar={criar}
+        abertoPorPadrao={itens.length === 0}
+      />
       <Lista itens={itens} apagar={apagar} />
     </div>
   );

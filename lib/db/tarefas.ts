@@ -1,7 +1,7 @@
 import { sql } from '@/lib/db/client';
 import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
-import type { DadosTarefa, Tarefa } from '@/lib/types';
+import type { DadosTarefa, Planejamento, Tarefa } from '@/lib/types';
 
 // Decisão do cliente (documentada no brief da Task 4/OS): a Task 5 (Agenda) MARCA
 // `tarefas.consumido = true` quando o agendamento consome saldo em nome de uma tarefa
@@ -37,7 +37,10 @@ export class TarefaDivergenteError extends Error {
   }
 }
 
-export async function listTarefas(): Promise<Tarefa[]> {
+/** Sem `planejamento`, lista as tarefas dos dois quadros. Com ele, só as cujo produto
+ *  é de categoria daquele quadro (Edição ou Gravação). */
+export async function listTarefas(planejamento?: Planejamento): Promise<Tarefa[]> {
+  const filtro = planejamento ?? null;
   return (await sql`
     select t.id, t.cliente_id, cl.nome as cliente_nome, t.responsavel_id, u.name as responsavel_nome,
            t.produto_id, p.nome as produto_nome, t.contratacao_item_id, t.agendamento_id, t.os_item_id,
@@ -47,8 +50,10 @@ export async function listTarefas(): Promise<Tarefa[]> {
       from tarefas t
       join clientes cl on cl.id = t.cliente_id
       join produtos p on p.id = t.produto_id
+      join categorias_produto cp on cp.id = p.categoria_id
       left join users u on u.id = t.responsavel_id
      where t.deleted_at is null
+       and (${filtro}::text is null or cp.planejamento = ${filtro})
      order by t.prioridade, t.created_at`) as Tarefa[];
 }
 
@@ -60,17 +65,24 @@ export type ItemDisponivel = {
 };
 
 /** Itens da carteira do cliente com saldo livre. Alimenta o select de produto do
- *  formulário: só faz sentido abrir tarefa contra o que ele ainda tem. */
-export async function listItensDisponiveisDoCliente(clienteId: string): Promise<ItemDisponivel[]> {
+ *  formulário: só faz sentido abrir tarefa contra o que ele ainda tem. Com
+ *  `planejamento`, só os produtos que cairiam naquele quadro — senão a tarefa criada
+ *  na tela de Edição sumiria para a de Gravação. */
+export async function listItensDisponiveisDoCliente(
+  clienteId: string, planejamento?: Planejamento,
+): Promise<ItemDisponivel[]> {
   assertUuid(clienteId);
+  const filtro = planejamento ?? null;
   return (await sql`
     select ci.id as contratacao_item_id, ci.produto_id, p.nome as produto_nome,
            (ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida) as disponivel
       from contratacao_itens ci
       join contratacoes ct on ct.id = ci.contratacao_id
       join produtos p on p.id = ci.produto_id
+      join categorias_produto cp on cp.id = p.categoria_id
      where ct.cliente_id = ${clienteId} and ct.deleted_at is null
        and (ci.quantidade_total - ci.quantidade_reservada - ci.quantidade_consumida) > 0
+       and (${filtro}::text is null or cp.planejamento = ${filtro})
      order by ct.created_at, p.nome`) as ItemDisponivel[];
 }
 

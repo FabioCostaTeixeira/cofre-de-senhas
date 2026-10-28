@@ -124,12 +124,16 @@ export type AtributoMolde = {
   obrigatorio: boolean;
 };
 
+/** Quadro do Planejamento (Working) onde caem as tarefas dos produtos da categoria. */
+export type Planejamento = 'edicao' | 'gravacao';
+
 export type CategoriaProduto = {
   id: string;
   nome: string;
   unidade_consumo: string | null;
   atributos_molde: AtributoMolde[];
   ativo: boolean;
+  planejamento: Planejamento;
 };
 
 export type ValorAtributo = string | number | boolean;
