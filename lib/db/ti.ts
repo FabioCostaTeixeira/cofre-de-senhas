@@ -55,17 +55,11 @@ export async function listTiProjetos(): Promise<TiProjeto[]> {
            to_char(p.data_fim, 'YYYY-MM-DD') as data_fim,
            p.created_at,
            (select count(*)::int from ti_tarefas t where t.projeto_id = p.id) as total_features,
+           -- Mesma regra da barra da página do projeto: peso das features concluídas / peso total.
            (
              select coalesce(
-               (
-                 sum(
-                   t.peso * (
-                     select coalesce(sum(case when a.status = 'concluido' then a.peso else 0 end), 0) / 100.0
-                     from ti_atividades a
-                     where a.tarefa_id = t.id
-                   )
-                 ) / nullif(sum(t.peso), 0)
-               ) * 100,
+               sum(case when t.status = 'concluido' then t.peso else 0 end) * 100.0
+                 / nullif(sum(t.peso), 0),
                0
              )::int
              from ti_tarefas t

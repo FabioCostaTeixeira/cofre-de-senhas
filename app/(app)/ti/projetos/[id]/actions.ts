@@ -37,10 +37,12 @@ export async function criarOuEditarTarefaAction(_prev: TarefaActionState, formDa
     if (id && isUuid(id)) {
       await updateTiTarefa({ id, nome, descricao, status, prioridade, responsavel, peso });
       revalidatePath(`/ti/projetos/${projetoId}`);
+      revalidatePath('/ti/projetos');
       return { ok: 'Tarefa atualizada com sucesso!' };
     } else {
       await createTiTarefa({ projetoId, nome, descricao, status, prioridade, responsavel, peso });
       revalidatePath(`/ti/projetos/${projetoId}`);
+      revalidatePath('/ti/projetos');
       return { ok: 'Tarefa criada com sucesso!' };
     }
   } catch (err) {
@@ -57,6 +59,7 @@ export async function mudarStatusTarefaAction(formData: FormData): Promise<void>
   if (!isUuid(id) || !isUuid(projetoId) || !isStatusTarefa(status)) return;
   await updateTiTarefaStatus(id, status);
   revalidatePath(`/ti/projetos/${projetoId}`);
+  revalidatePath('/ti/projetos');
 }
 
 export async function duplicarTarefaAction(formData: FormData): Promise<void> {
@@ -67,6 +70,7 @@ export async function duplicarTarefaAction(formData: FormData): Promise<void> {
 
   await duplicateTiTarefa(id);
   revalidatePath(`/ti/projetos/${projetoId}`);
+  revalidatePath('/ti/projetos');
 }
 
 export async function excluirTarefaAction(formData: FormData): Promise<void> {
@@ -77,6 +81,7 @@ export async function excluirTarefaAction(formData: FormData): Promise<void> {
 
   await deleteTiTarefa(id);
   revalidatePath(`/ti/projetos/${projetoId}`);
+  revalidatePath('/ti/projetos');
 }
 
 export async function reordenarTarefasAction(projetoId: string, idsOrdenados: string[]): Promise<void> {
@@ -84,4 +89,5 @@ export async function reordenarTarefasAction(projetoId: string, idsOrdenados: st
   if (!isUuid(projetoId) || !Array.isArray(idsOrdenados) || idsOrdenados.some((id) => !isUuid(id))) return;
   await atualizarOrdemTarefas(idsOrdenados);
   revalidatePath(`/ti/projetos/${projetoId}`);
+  revalidatePath('/ti/projetos');
 }
