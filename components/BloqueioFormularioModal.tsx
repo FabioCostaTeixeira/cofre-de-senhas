@@ -2,15 +2,17 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import type { AgendaFormState } from '@/components/AgendaFormularioModal';
-import type { BloqueioEstudio } from '@/lib/types';
+import type { BloqueioEstudio, Estudio } from '@/lib/types';
 
 const inicial: AgendaFormState = {};
 type Acao = (prev: AgendaFormState, fd: FormData) => Promise<AgendaFormState>;
 
 export function BloqueioFormularioModal({
-  estudioId, bloqueios, criar, apagar, onFechar, onAtualizar,
+  estudioId, estudios, bloqueios, criar, apagar, onFechar, onAtualizar,
 }: {
   estudioId: string; bloqueios: BloqueioEstudio[];
+  /** Visão "Todos os estúdios": o estúdio do bloqueio é escolhido no formulário. */
+  estudios?: Estudio[];
   criar: Acao; apagar: (id: string) => Promise<{ error?: string }>; onFechar: () => void; onAtualizar?: () => void;
 }) {
   const [state, action, pending] = useActionState(criar, inicial);
@@ -34,10 +36,16 @@ export function BloqueioFormularioModal({
         <button type="button" className="btn" onClick={onFechar}>Fechar</button>
       </div>
       <form action={action} className="space-y-4">
-        <input type="hidden" name="estudioId" value={estudioId} />
+        {!estudios && <input type="hidden" name="estudioId" value={estudioId} />}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-1"><span className="text-sm">Data</span><input type="date" name="data" className="input" required /></label>
-          <div />
+          {estudios
+            ? <label className="block space-y-1"><span className="text-sm">Estúdio</span>
+              <select name="estudioId" className="input" defaultValue="" required>
+                <option value="" disabled>Escolha…</option>{estudios.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+              </select>
+            </label>
+            : <div />}
           <label className="block space-y-1"><span className="text-sm">Início</span><input type="time" step={1800} min="07:00" max="21:00" name="horaInicio" className="input" required /></label>
           <label className="block space-y-1"><span className="text-sm">Fim</span><input type="time" step={1800} min="07:00" max="21:00" name="horaFim" className="input" required /></label>
           <label className="block space-y-1 sm:col-span-2"><span className="text-sm">Motivo</span><input type="text" name="motivo" className="input" placeholder="Ex.: manutenção do equipamento" /></label>
@@ -46,11 +54,12 @@ export function BloqueioFormularioModal({
         <button className="btn btn-primary" disabled={pending}>Bloquear</button>
       </form>
       <div className="space-y-2">
-        <h3 className="text-sm font-medium" style={{ color: 'var(--text-dim)' }}>Bloqueios ativos deste estúdio</h3>
+        <h3 className="text-sm font-medium" style={{ color: 'var(--text-dim)' }}>{estudios ? 'Bloqueios ativos dos estúdios deste local' : 'Bloqueios ativos deste estúdio'}</h3>
         {bloqueios.length === 0 && <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhum bloqueio ativo.</p>}
         {bloqueios.map((b) => (
           <div key={b.id} className="flex items-center gap-2 text-sm">
             <span className="flex-1">
+              {estudios && `${estudios.find((e) => e.id === b.estudio_id)?.nome ?? 'Estúdio'} · `}
               {b.data.slice(8, 10)}/{b.data.slice(5, 7)} · {b.hora_inicio.slice(0, 5)}–{b.hora_fim.slice(0, 5)}
               {b.motivo ? ` · ${b.motivo}` : ''}
             </span>

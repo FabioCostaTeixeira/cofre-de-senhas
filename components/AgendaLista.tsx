@@ -1,7 +1,7 @@
 'use client';
 
 import { ROTULOS_STATUS } from '@/components/AgendaCard';
-import type { Agendamento, BloqueioEstudio } from '@/lib/types';
+import type { Agendamento, BloqueioEstudio, Estudio } from '@/lib/types';
 
 const MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -34,10 +34,13 @@ export function calcularMesesDisponiveis(datas: string[]): string[] {
 }
 
 export function AgendaLista({
-  agendamentos, bloqueios, mesesDisponiveis, busca, mesFiltro,
+  agendamentos, bloqueios, mesesDisponiveis, busca, mesFiltro, estudios,
 }: {
   agendamentos: Agendamento[]; bloqueios: BloqueioEstudio[]; mesesDisponiveis: string[]; busca: string; mesFiltro: string;
+  /** Visão "Todos os estúdios": mostra a coluna Estúdio. */
+  estudios?: Estudio[];
 }) {
+  const nomeEstudio = (id: string) => estudios?.find((e) => e.id === id)?.nome ?? '';
   const buscaNormalizada = busca.trim().toLowerCase();
   const agendamentosFiltrados = buscaNormalizada
     ? agendamentos.filter((a) => a.cliente_nome.toLowerCase().includes(buscaNormalizada))
@@ -66,6 +69,7 @@ export function AgendaLista({
                       <th className="text-left p-2">Data</th>
                       <th className="text-left p-2">Início</th>
                       <th className="text-left p-2">Fim</th>
+                      {estudios && <th className="text-left p-2">Estúdio</th>}
                       <th className="text-left p-2">Cliente</th>
                       <th className="text-left p-2">Produto</th>
                       <th className="text-left p-2">Status</th>
@@ -77,6 +81,7 @@ export function AgendaLista({
                         <td className="p-2">{linha.item.data.slice(8, 10)}/{linha.item.data.slice(5, 7)}</td>
                         <td className="p-2">{linha.item.hora_inicio.slice(0, 5)}</td>
                         <td className="p-2">{linha.item.hora_fim.slice(0, 5)}</td>
+                        {estudios && <td className="p-2">{linha.item.estudio_nome}</td>}
                         <td className="p-2">{linha.item.cliente_nome}</td>
                         <td className="p-2">{linha.item.produto_nome}</td>
                         <td className="p-2">{ROTULOS_STATUS[linha.item.status]}</td>
@@ -86,6 +91,7 @@ export function AgendaLista({
                         <td className="p-2">{linha.item.data.slice(8, 10)}/{linha.item.data.slice(5, 7)}</td>
                         <td className="p-2">{linha.item.hora_inicio.slice(0, 5)}</td>
                         <td className="p-2">{linha.item.hora_fim.slice(0, 5)}</td>
+                        {estudios && <td className="p-2">{nomeEstudio(linha.item.estudio_id)}</td>}
                         <td className="p-2" colSpan={2} style={{ color: 'var(--text-dim)' }}>Bloqueio{linha.item.motivo ? ` — ${linha.item.motivo}` : ''}</td>
                         <td className="p-2">—</td>
                       </tr>

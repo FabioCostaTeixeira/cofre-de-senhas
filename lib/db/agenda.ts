@@ -29,10 +29,11 @@ export async function existeConflito(
   return rows.length > 0;
 }
 
+/** Aceita um estúdio ou vários (visão "Todos os estúdios" do local). */
 export async function listAgendamentosDaSemana(
-  estudioId: string, inicioSemana: string,
+  estudioId: string | string[], inicioSemana: string,
 ): Promise<Agendamento[]> {
-  assertUuid(estudioId);
+  const ids = [estudioId].flat(); ids.forEach(assertUuid);
   return (await sql`
     select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
            a.produto_id, coalesce(p.nome, cp.nome) as produto_nome, a.status,
@@ -43,7 +44,7 @@ export async function listAgendamentosDaSemana(
       join estudios e on e.id = a.estudio_id
       join categorias_produto cp on cp.id = a.categoria_produto_id
       left join produtos p on p.id = a.produto_id
-     where a.estudio_id = ${estudioId} and a.deleted_at is null
+     where a.estudio_id = any(${ids}::uuid[]) and a.deleted_at is null
        and a.data >= ${inicioSemana}::date and a.data < (${inicioSemana}::date + interval '7 days')
      order by a.data, a.hora_inicio`) as Agendamento[];
 }
@@ -65,9 +66,9 @@ export async function listAgendamentosDoPeriodo(inicio: string, fim: string): Pr
      order by a.data, a.hora_inicio`) as Agendamento[];
 }
 
-/** Todos os agendamentos ativos do estúdio (sem recorte de semana), pra visão em lista. */
-export async function listAgendamentosDoEstudio(estudioId: string): Promise<Agendamento[]> {
-  assertUuid(estudioId);
+/** Todos os agendamentos ativos do(s) estúdio(s) (sem recorte de semana), pra visão em lista. */
+export async function listAgendamentosDoEstudio(estudioId: string | string[]): Promise<Agendamento[]> {
+  const ids = [estudioId].flat(); ids.forEach(assertUuid);
   return (await sql`
     select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
            a.produto_id, coalesce(p.nome, cp.nome) as produto_nome, a.status,
@@ -78,7 +79,7 @@ export async function listAgendamentosDoEstudio(estudioId: string): Promise<Agen
       join estudios e on e.id = a.estudio_id
       join categorias_produto cp on cp.id = a.categoria_produto_id
       left join produtos p on p.id = a.produto_id
-     where a.estudio_id = ${estudioId} and a.deleted_at is null
+     where a.estudio_id = any(${ids}::uuid[]) and a.deleted_at is null
      order by a.data, a.hora_inicio`) as Agendamento[];
 }
 

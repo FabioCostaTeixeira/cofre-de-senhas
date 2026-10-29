@@ -34,38 +34,39 @@ export async function existeBloqueioNoHorario(
   return rows.length > 0;
 }
 
+/** As listagens aceitam um estúdio ou vários (visão "Todos os estúdios" do local). */
 export async function listBloqueiosDaSemana(
-  estudioId: string, inicioSemana: string,
+  estudioId: string | string[], inicioSemana: string,
 ): Promise<BloqueioEstudio[]> {
-  assertUuid(estudioId);
+  const ids = [estudioId].flat(); ids.forEach(assertUuid);
   return (await sql`
     select id, estudio_id, data::text as data, hora_inicio::text as hora_inicio, hora_fim::text as hora_fim,
            motivo, created_at
       from bloqueios_estudio
-     where estudio_id = ${estudioId} and deleted_at is null
+     where estudio_id = any(${ids}::uuid[]) and deleted_at is null
        and data >= ${inicioSemana}::date and data < (${inicioSemana}::date + interval '7 days')
      order by data, hora_inicio`) as BloqueioEstudio[];
 }
 
-/** Todos os bloqueios ativos (hoje em diante) do estúdio, pra listar/gerenciar no modal. */
-export async function listBloqueiosAtivos(estudioId: string): Promise<BloqueioEstudio[]> {
-  assertUuid(estudioId);
+/** Todos os bloqueios ativos (hoje em diante) do(s) estúdio(s), pra listar/gerenciar no modal. */
+export async function listBloqueiosAtivos(estudioId: string | string[]): Promise<BloqueioEstudio[]> {
+  const ids = [estudioId].flat(); ids.forEach(assertUuid);
   return (await sql`
     select id, estudio_id, data::text as data, hora_inicio::text as hora_inicio, hora_fim::text as hora_fim,
            motivo, created_at
       from bloqueios_estudio
-     where estudio_id = ${estudioId} and deleted_at is null and data >= current_date
+     where estudio_id = any(${ids}::uuid[]) and deleted_at is null and data >= current_date
      order by data, hora_inicio`) as BloqueioEstudio[];
 }
 
-/** Todos os bloqueios ativos do estúdio (sem recorte de data), pra visão em lista. */
-export async function listBloqueiosDoEstudio(estudioId: string): Promise<BloqueioEstudio[]> {
-  assertUuid(estudioId);
+/** Todos os bloqueios ativos do(s) estúdio(s) (sem recorte de data), pra visão em lista. */
+export async function listBloqueiosDoEstudio(estudioId: string | string[]): Promise<BloqueioEstudio[]> {
+  const ids = [estudioId].flat(); ids.forEach(assertUuid);
   return (await sql`
     select id, estudio_id, data::text as data, hora_inicio::text as hora_inicio, hora_fim::text as hora_fim,
            motivo, created_at
       from bloqueios_estudio
-     where estudio_id = ${estudioId} and deleted_at is null
+     where estudio_id = any(${ids}::uuid[]) and deleted_at is null
      order by data, hora_inicio`) as BloqueioEstudio[];
 }
 

@@ -191,6 +191,48 @@ describe('AgendaClient', () => {
     expect(screen.getByText('ACME')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Outubro de 2026' })).not.toBeInTheDocument();
   });
+  describe('Todos os estúdios', () => {
+    const localDois: LocalGravacao = { ...local, estudios: [...local.estudios, { id: 'e3', local_id: 'l1', nome: 'Estúdio C', created_at: '2026-08-20T00:00:00Z' }] };
+    const itemC: Agendamento = { ...item, id: 'a3', cliente_nome: 'Beta', estudio_id: 'e3', estudio_nome: 'Estúdio C', hora_inicio: '09:30:00', hora_fim: '10:30:00' };
+    const props = { clientes: [cliente], produtos: [produto], inicioSemana: '2026-08-24', criar, salvar, apagar, mover, itensDoEstudio: [], bloqueiosDoEstudio: [], bloqueiosDaSemana: [], bloqueiosAtivos: [], criarBloqueio, apagarBloqueio };
+
+    it('opção "Todos os estúdios" só aparece com mais de um estúdio e navega com o local', () => {
+      render(<AgendaClient {...props} itens={[]} locais={[localDois]} estudioId="e1" />);
+      fireEvent.change(screen.getByLabelText('Estúdio'), { target: { value: 'todos' } });
+      expect(push).toHaveBeenCalledWith('/agenda?estudioId=todos&localId=l1&semana=2026-08-24');
+      cleanup();
+      render(<AgendaClient {...props} itens={[]} locais={[local]} estudioId="e1" />);
+      expect(screen.getByLabelText('Estúdio')).not.toHaveTextContent('Todos os estúdios');
+    });
+
+    it('mostra os cards dos estúdios lado a lado, com a cor de cada estúdio e legenda', () => {
+      render(<AgendaClient {...props} itens={[item, itemC]} locais={[localDois]} estudioId="todos" localId="l1" />);
+      expect(screen.getByLabelText('Estúdio')).toHaveValue('todos');
+      expect(screen.getByTestId('agenda-legenda-estudios')).toHaveTextContent('Estúdio A');
+      expect(screen.getByTestId('agenda-legenda-estudios')).toHaveTextContent('Estúdio C');
+      const cardA = screen.getByText('ACME').closest('[data-agenda-card]') as HTMLElement;
+      const cardC = screen.getByText('Beta').closest('[data-agenda-card]') as HTMLElement;
+      expect(cardA.style.width).toBe('calc(50% - 4px)');
+      expect(cardC.style.left).toBe('calc(50% + 2px)');
+      expect(cardA.style.borderLeft).not.toBe(cardC.style.borderLeft);
+    });
+
+    it('clicar em célula vazia deixa o estúdio para escolher no formulário', () => {
+      render(<AgendaClient {...props} itens={[]} locais={[localDois]} estudioId="todos" localId="l1" />);
+      fireEvent.click(screen.getAllByTestId('agenda-slot')[6]);
+      expect(screen.getAllByLabelText('Local de gravação')[1]).toHaveValue('l1');
+      expect(screen.getByLabelText('Estúdio', { selector: 'select[name="estudioId"]' })).toHaveValue('');
+    });
+
+    it('bloquear horário pede o estúdio', () => {
+      render(<AgendaClient {...props} itens={[]} locais={[localDois]} estudioId="todos" localId="l1" />);
+      fireEvent.click(screen.getByText('Bloquear horário'));
+      const select = screen.getByLabelText('Estúdio', { selector: 'select[name="estudioId"]' });
+      expect(select).toHaveValue('');
+      expect(select).toHaveTextContent('Estúdio C');
+      expect(document.querySelector('input[type="hidden"][name="estudioId"]')).toBeNull();
+    });
+  });
   it('"Ir para" navega para a segunda-feira da semana da data escolhida', () => {
     render(<AgendaClient itens={[]} clientes={[cliente]} locais={[local]} produtos={[produto]} estudioId="e1" inicioSemana="2026-08-24" criar={criar} salvar={salvar} apagar={apagar} mover={mover} itensDoEstudio={[]} bloqueiosDoEstudio={[]} bloqueiosDaSemana={[]} bloqueiosAtivos={[]} criarBloqueio={criarBloqueio} apagarBloqueio={apagarBloqueio} />);
     const botaoIrPara = screen.getByRole('button', { name: 'Ir para' });

@@ -1,6 +1,7 @@
 'use client';
 
 import { AGENDA_BLOCO_MIN, AGENDA_INICIO_MIN } from '@/lib/agenda-form';
+import type { PosicaoColuna } from '@/lib/agenda-layout';
 import type { Agendamento, StatusAgendamento } from '@/lib/types';
 
 export const ALTURA_BLOCO_PX = 25;
@@ -26,10 +27,19 @@ export function calcularPosicaoCard(horaInicio: string, horaFim: string): { top:
   return { top: inicioBlocos * ALTURA_BLOCO_PX, height: (fimBlocos - inicioBlocos) * ALTURA_BLOCO_PX };
 }
 
+/** Horizontal do bloco na coluna do dia: ocupa a fatia `coluna` de `total` (horários sobrepostos lado a lado). */
+export function estiloHorizontal(posicao?: PosicaoColuna): React.CSSProperties {
+  const { coluna, total } = posicao ?? { coluna: 0, total: 1 };
+  return { left: `calc(${(coluna / total) * 100}% + 2px)`, width: `calc(${100 / total}% - 4px)` };
+}
+
 export function AgendaCard({
-  item, onPointerDownMover, onPointerDownRedimensionar, onClick,
+  item, posicao, corEstudio, onPointerDownMover, onPointerDownRedimensionar, onClick,
 }: {
   item: Agendamento;
+  posicao?: PosicaoColuna;
+  /** Visão "Todos os estúdios": faixa lateral com a cor do estúdio. */
+  corEstudio?: string;
   onPointerDownMover: (e: React.PointerEvent) => void;
   onPointerDownRedimensionar: (e: React.PointerEvent) => void;
   onClick: () => void;
@@ -38,8 +48,12 @@ export function AgendaCard({
   return (
     <div
       data-agenda-card
-      className="absolute left-1 right-1 rounded text-xs text-white overflow-hidden cursor-pointer select-none"
-      style={{ top, height, backgroundColor: CORES_STATUS[item.status] }}
+      className="absolute rounded text-xs text-white overflow-hidden cursor-pointer select-none"
+      title={`${item.cliente_nome} · ${item.estudio_nome} · ${item.produto_nome} · ${ROTULOS_STATUS[item.status]} · ${item.hora_inicio.slice(0, 5)}–${item.hora_fim.slice(0, 5)}`}
+      style={{
+        top, height, ...estiloHorizontal(posicao), backgroundColor: CORES_STATUS[item.status],
+        ...(corEstudio ? { borderLeft: `6px solid ${corEstudio}`, boxShadow: `inset 0 0 0 1px ${corEstudio}` } : {}),
+      }}
       onPointerDown={onPointerDownMover}
       onClick={onClick}
     >

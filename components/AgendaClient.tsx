@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ALTURA_BLOCO_PX, AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
+import { ALTURA_BLOCO_PX, AgendaCard, calcularPosicaoCard, estiloHorizontal } from '@/components/AgendaCard';
+import { corDoEstudio, distribuirEmColunas } from '@/lib/agenda-layout';
 import { AgendaCalendario } from '@/components/AgendaCalendario';
 import { hojeLocalISO, mesDe, rotuloMes, somarMeses } from '@/lib/agenda-calendario';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
@@ -58,9 +59,11 @@ type Arrasto = { id: string; data: string; horaInicio: string; horaFim: string }
 type Rascunho = { data: string; horaInicio: string; horaFim: string; localId: string; estudioId: string };
 
 export function AgendaClient({
-  itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio, clientes, locais, produtos, estudioId, inicioSemana,
+  itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio, clientes, locais, produtos, estudioId, localId, inicioSemana,
   criar, salvar, apagar, mover, criarBloqueio, apagarBloqueio, calendario,
 }: {
+  /** Com `estudioId === 'todos'`: o local cujos estúdios aparecem juntos na grade. */
+  localId?: string;
   itens: Agendamento[]; itensDoEstudio: Agendamento[];
   /** Presente quando a URL pede a visão de calendário (`visao=calendario`). */
   calendario?: { mes: string; itens: Agendamento[] };
@@ -101,8 +104,14 @@ export function AgendaClient({
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicioSemana, i));
   const hoje = hojeISO();
   const locaisComEstudio = locais.filter((local) => local.estudios.length > 0);
-  const localAtual = locaisComEstudio.find((local) => local.estudios.some((estudio) => estudio.id === estudioId))
+  const todos = estudioId === 'todos';
+  const localAtual = (todos
+    ? locaisComEstudio.find((local) => local.id === localId)
+    : locaisComEstudio.find((local) => local.estudios.some((estudio) => estudio.id === estudioId)))
     ?? locaisComEstudio[0];
+  const estudiosDoLocal = localAtual?.estudios ?? [];
+  const corEstudio = (id: string) => (todos ? corDoEstudio(estudiosDoLocal.findIndex((e) => e.id === id)) : undefined);
+  const nomeEstudio = (id: string) => estudiosDoLocal.find((e) => e.id === id)?.nome ?? '';
 
   const itensDoDia = (dia: string) => itens
     .filter((item) => (arrastando?.id === item.id ? arrastando.data : item.data) === dia)
@@ -111,6 +120,12 @@ export function AgendaClient({
       : item);
 
   const bloqueiosDoDia = (dia: string) => bloqueiosDaSemana.filter((b) => b.data === dia);
+
+  // Agendamentos e bloqueios do dia lado a lado quando os horários se sobrepõem.
+  const colunasDoDia = (dia: string) => distribuirEmColunas([
+    ...itensDoDia(dia).map((i) => ({ id: i.id, horaInicio: i.hora_inicio, horaFim: i.hora_fim })),
+    ...bloqueiosDoDia(dia).map((b) => ({ id: b.id, horaInicio: b.hora_inicio, horaFim: b.hora_fim })),
+  ]);
 
   const mesesDisponiveis = calcularMesesDisponiveis([
     ...itensDoEstudio.map((i) => i.data),
@@ -205,8 +220,9 @@ export function AgendaClient({
     };
   }
 
-  const navegar = (id: string, semana: string) => router.push(`/agenda?estudioId=${id}&semana=${semana}`);
-  const navegarMes = (mes: string) => router.push(`/agenda?estudioId=${estudioId}&semana=${inicioSemana}&visao=calendario&mes=${mes}`);
+  const filtroUrl = (id: string, local = localAtual?.id) => (id === 'todos' ? `estudioId=todos&localId=${local}` : `estudioId=${id}`);
+  const navegar = (id: string, semana: string) => router.push(`/agenda?${filtroUrl(id)}&semana=${semana}`);
+  const navegarMes = (mes: string) => router.push(`/agenda?${filtroUrl(estudioId)}&semana=${inicioSemana}&visao=calendario&mes=${mes}`);
   const abrirEdicao = (item: Agendamento) => {
     if (suprimirProximoCliqueRef.current) {
       suprimirProximoCliqueRef.current = false;
@@ -220,7 +236,8 @@ export function AgendaClient({
       return;
     }
     const { horaInicio, horaFim } = janelaPadrao(AGENDA_INICIO_MIN + bloco * AGENDA_BLOCO_MIN);
-    setAberto({ data: dia, horaInicio, horaFim, localId: localAtual?.id ?? '', estudioId });
+    // Em "Todos os estúdios" a célula não indica estúdio: fica para escolher no formulário.
+    setAberto({ data: dia, horaInicio, horaFim, localId: localAtual?.id ?? '', estudioId: todos ? '' : estudioId });
   };
 
   const modalAgendamento = aberto && (
@@ -267,8 +284,11 @@ export function AgendaClient({
           className="input"
           value={localAtual?.id ?? ''}
           onChange={(e) => {
-            const primeiroEstudio = locaisComEstudio.find((local) => local.id === e.target.value)?.estudios[0];
-            if (primeiroEstudio) navegar(primeiroEstudio.id, inicioSemana);
+            const novoLocal = locaisComEstudio.find((local) => local.id === e.target.value);
+            if (!novoLocal) return;
+            // Quem está vendo todos os estúdios continua vendo todos no local novo.
+            if (todos && novoLocal.estudios.length > 1) router.push(`/agenda?${filtroUrl('todos', novoLocal.id)}&semana=${inicioSemana}`);
+            else navegar(novoLocal.estudios[0].id, inicioSemana);
           }}
         >
           {locaisComEstudio.map((local) => <option key={local.id} value={local.id}>{local.nome}</option>)}
@@ -277,7 +297,8 @@ export function AgendaClient({
       <label className="block space-y-1">
         <span className="text-sm">Estúdio</span>
         <select aria-label="Estúdio" className="input" value={estudioId} onChange={(e) => navegar(e.target.value, inicioSemana)}>
-          {(localAtual?.estudios ?? []).map((estudio) => <option key={estudio.id} value={estudio.id}>{estudio.nome}</option>)}
+          {estudiosDoLocal.length > 1 && <option value="todos">Todos os estúdios</option>}
+          {estudiosDoLocal.map((estudio) => <option key={estudio.id} value={estudio.id}>{estudio.nome}</option>)}
         </select>
       </label>
       {!modoLista && (
@@ -337,6 +358,14 @@ export function AgendaClient({
       <button type="button" className="btn" onClick={() => navegarMes(mesDe(inicioSemana))}>Ver calendário</button>
     </div>
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
+    {todos && !modoLista && (
+      <div data-testid="agenda-legenda-estudios" className="flex items-center justify-center gap-4 flex-wrap text-sm">
+        {estudiosDoLocal.map((estudio, i) => <span key={estudio.id} className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: corDoEstudio(i) }} />
+          {estudio.nome}
+        </span>)}
+      </div>
+    )}
     {modoLista && (
       <AgendaLista
         agendamentos={itensDoEstudio}
@@ -344,6 +373,7 @@ export function AgendaClient({
         mesesDisponiveis={mesesDisponiveis}
         busca={buscaCliente}
         mesFiltro={mesFiltro}
+        estudios={todos ? estudiosDoLocal : undefined}
       />
     )}
     {!modoLista && <>
@@ -372,7 +402,7 @@ export function AgendaClient({
           })}
         </div>
         <div ref={gridRef} className="grid grid-cols-7 gap-1" style={{ height: BLOCOS_POR_DIA * ALTURA_BLOCO_PX }}>
-          {dias.map((dia) => <div
+          {dias.map((dia) => { const colunas = colunasDoDia(dia); return <div
             key={dia}
             className="relative border-x"
             data-testid="agenda-coluna-dia"
@@ -386,17 +416,19 @@ export function AgendaClient({
             />)}
             {bloqueiosDoDia(dia).map((b) => {
               const { top, height } = calcularPosicaoCard(b.hora_inicio, b.hora_fim);
+              const cor = corEstudio(b.estudio_id);
               return <div
                 key={b.id}
                 data-testid="agenda-bloqueio"
-                title={b.motivo ?? 'Bloqueado'}
-                className="absolute left-1 right-1 rounded cursor-pointer"
-                style={{ top, height, backgroundColor: '#fff', zIndex: 5 }}
+                title={todos ? `${nomeEstudio(b.estudio_id)} · ${b.motivo ?? 'Bloqueado'}` : (b.motivo ?? 'Bloqueado')}
+                className="absolute rounded cursor-pointer"
+                style={{ top, height, ...estiloHorizontal(colunas.get(b.id)), backgroundColor: '#fff', zIndex: 5, ...(cor ? { borderLeft: `6px solid ${cor}` } : {}) }}
                 onClick={(e) => {
                   e.stopPropagation();
                   setBloqueioSelecionado((atual) => (atual?.id === b.id ? null : b));
                 }}
               >
+                {todos && <div className="p-1 text-xs truncate" style={{ color: '#1e212d' }}>{nomeEstudio(b.estudio_id)} · Bloqueado</div>}
                 {bloqueioSelecionado?.id === b.id && (
                   <div
                     data-testid="agenda-bloqueio-tooltip"
@@ -404,6 +436,7 @@ export function AgendaClient({
                     style={{ backgroundColor: 'var(--bg, #1e212d)', border: '1px solid var(--border)', color: 'var(--text)', zIndex: 20 }}
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {todos && <div className="font-medium">{nomeEstudio(b.estudio_id)}</div>}
                     <div className="font-medium">{b.hora_inicio.slice(0, 5)}–{b.hora_fim.slice(0, 5)}</div>
                     <div>{b.motivo || 'Bloqueado'}</div>
                   </div>
@@ -413,11 +446,13 @@ export function AgendaClient({
             {itensDoDia(dia).map((item) => <AgendaCard
               key={item.id}
               item={item}
+              posicao={colunas.get(item.id)}
+              corEstudio={corEstudio(item.estudio_id)}
               onPointerDownMover={iniciarMover(item)}
               onPointerDownRedimensionar={iniciarResize(item)}
               onClick={() => abrirEdicao(item)}
             />)}
-          </div>)}
+          </div>; })}
         </div>
       </div>
     </div>
@@ -432,6 +467,7 @@ export function AgendaClient({
         <div className="w-full max-w-2xl">
           <BloqueioFormularioModal
             estudioId={estudioId}
+            estudios={todos ? estudiosDoLocal : undefined}
             bloqueios={bloqueiosAtivos}
             criar={criarBloqueio}
             apagar={apagarBloqueio}
