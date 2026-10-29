@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Pencil } from 'lucide-react';
 import { corPorDeadline, type CorPrazo } from '@/lib/tarefas-calc';
 import { formatarDataBR } from '@/lib/documentos';
 import type { Tarefa } from '@/lib/types';
@@ -29,47 +29,64 @@ function paraDataBR(valor: string | Date): string {
   return formatarDataBR(iso.slice(0, 10));
 }
 
-export function TarefaCard({ tarefa }: { tarefa: Tarefa }) {
+/** `onEditar` liga o lápis do canto. Ele fica fora do botão de expandir (botão dentro de
+ *  botão é HTML inválido) e barra o `pointerdown` para não iniciar o arraste do card. */
+export function TarefaCard({ tarefa, onEditar }: { tarefa: Tarefa; onEditar?: () => void }) {
   const [expandido, setExpandido] = useState(false);
 
   const cor = corPorDeadline(tarefa.deadline_cliente);
   const corBorda = tarefa.ajuste ? COR_BORDA_AJUSTE : CORES_BORDA[cor];
 
   return (
-    <button
-      type="button"
-      onClick={() => setExpandido((v) => !v)}
-      className="solid solid-raised w-full text-left p-3 space-y-1 rounded-lg border-l-4"
+    <div
+      className="solid solid-raised relative rounded-lg border-l-4"
       style={{ borderLeftColor: corBorda }}
     >
-      <div className="flex items-center gap-2">
-        {tarefa.ajuste && (
-          <AlertCircle
-            size={16} aria-label="Ajuste"
-            style={{ color: COR_BORDA_AJUSTE }}
-          />
-        )}
-        <span className="text-sm font-semibold flex-1 truncate">{tarefa.cliente_nome}</span>
-      </div>
-      <p className="text-sm" style={{ color: 'var(--text-dim)' }}>{tarefa.produto_nome}</p>
-      <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-dim)' }}>
-        <span>{tarefa.responsavel_nome ?? 'Sem responsável'}</span>
-        <span>Prioridade {tarefa.prioridade}</span>
-      </div>
-
-      {expandido && (
-        <div className="pt-2 mt-2 space-y-1 text-sm" style={{ borderTop: '1px solid var(--border)' }}>
-          <p><span style={{ color: 'var(--text-dim)' }}>Tarefa: </span>{tarefa.tarefa || '—'}</p>
-          <p>
-            <span style={{ color: 'var(--text-dim)' }}>Deadline cliente: </span>
-            {tarefa.deadline_cliente ? paraDataBR(tarefa.deadline_cliente) : '—'}
-          </p>
-          <p>
-            <span style={{ color: 'var(--text-dim)' }}>Deadline tarefa: </span>
-            {tarefa.deadline_tarefa ? paraDataBR(tarefa.deadline_tarefa) : '—'}
-          </p>
-        </div>
+      {onEditar && (
+        <button
+          type="button" aria-label="Editar tarefa" title="Editar tarefa"
+          className="absolute top-2 right-2 p-1 rounded hover:bg-white/10"
+          style={{ color: 'var(--text-dim)' }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onEditar}
+        >
+          <Pencil size={14} />
+        </button>
       )}
-    </button>
+      <button
+        type="button"
+        onClick={() => setExpandido((v) => !v)}
+        className={`w-full text-left p-3 space-y-1 ${onEditar ? 'pr-9' : ''}`}
+      >
+        <div className="flex items-center gap-2">
+          {tarefa.ajuste && (
+            <AlertCircle
+              size={16} aria-label="Ajuste"
+              style={{ color: COR_BORDA_AJUSTE }}
+            />
+          )}
+          <span className="text-sm font-semibold flex-1 truncate">{tarefa.cliente_nome}</span>
+        </div>
+        <p className="text-sm" style={{ color: 'var(--text-dim)' }}>{tarefa.produto_nome}</p>
+        <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-dim)' }}>
+          <span>{tarefa.responsavel_nome ?? 'Sem responsável'}</span>
+          <span>Prioridade {tarefa.prioridade}</span>
+        </div>
+
+        {expandido && (
+          <div className="pt-2 mt-2 space-y-1 text-sm" style={{ borderTop: '1px solid var(--border)' }}>
+            <p><span style={{ color: 'var(--text-dim)' }}>Tarefa: </span>{tarefa.tarefa || '—'}</p>
+            <p>
+              <span style={{ color: 'var(--text-dim)' }}>Deadline cliente: </span>
+              {tarefa.deadline_cliente ? paraDataBR(tarefa.deadline_cliente) : '—'}
+            </p>
+            <p>
+              <span style={{ color: 'var(--text-dim)' }}>Deadline tarefa: </span>
+              {tarefa.deadline_tarefa ? paraDataBR(tarefa.deadline_tarefa) : '—'}
+            </p>
+          </div>
+        )}
+      </button>
+    </div>
   );
 }

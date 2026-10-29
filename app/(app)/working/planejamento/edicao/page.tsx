@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { modulosDoAtor, requireModulo } from '@/lib/auth/guards';
 import { listTarefas } from '@/lib/db/tarefas';
-import { moverTarefaAction, reordenarTarefasAction } from '../actions';
+import { listUsers } from '@/lib/db/users';
+import { editarTarefaAction, moverTarefaAction, reordenarTarefasAction } from '../actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function PlanejamentoEdicaoPage() {
   const actor = await requireModulo('working');
 
-  const [tarefas, modulos] = await Promise.all([listTarefas('edicao'), modulosDoAtor(actor)]);
+  const [tarefas, modulos, users] = await Promise.all([listTarefas('edicao'), modulosDoAtor(actor), listUsers()]);
 
   return (
     <main className="p-4 md:p-6 space-y-4">
@@ -24,8 +25,9 @@ export default async function PlanejamentoEdicaoPage() {
         )}
       </div>
       <KanbanBoard
-        tarefas={tarefas}
+        tarefas={tarefas} users={users}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
+        editarTarefaAction={editarTarefaAction}
       />
     </main>
   );

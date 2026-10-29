@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext, PointerSensor, useDroppable, useSensor, useSensors,
@@ -10,11 +10,13 @@ import {
   SortableContext, arrayMove, useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { EditarTarefaModal, type EditarTarefaState } from '@/components/EditarTarefaModal';
 import { TarefaCard } from '@/components/TarefaCard';
 import { COLUNAS_KANBAN, type ColunaKanban } from '@/lib/kanban';
 import { ordenarTarefas } from '@/lib/tarefas-calc';
-import type { Tarefa } from '@/lib/types';
+import type { Tarefa, User } from '@/lib/types';
 
+type EditarAcao = (prev: EditarTarefaState, fd: FormData) => Promise<EditarTarefaState>;
 type MoverAcao = (id: string, coluna: string) => Promise<{ error?: string }>;
 type ReordenarAcao = (ids: string[]) => Promise<{ error?: string }>;
 
@@ -29,7 +31,9 @@ type ReordenarAcao = (ids: string[]) => Promise<{ error?: string }>;
  * que evita que um clique simples sem arrastar dispare um drag em vez do
  * toggle do card.
  */
-function TarefaCardArrastavel({ tarefa, coluna }: { tarefa: Tarefa; coluna: string }) {
+function TarefaCardArrastavel({
+  tarefa, coluna, onEditar,
+}: { tarefa: Tarefa; coluna: string; onEditar: () => void }) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: tarefa.id, data: { coluna } });
@@ -45,7 +49,7 @@ function TarefaCardArrastavel({ tarefa, coluna }: { tarefa: Tarefa; coluna: stri
       {...attributes}
       {...listeners}
     >
-      <TarefaCard tarefa={tarefa} />
+      <TarefaCard tarefa={tarefa} onEditar={onEditar} />
     </div>
   );
 }
@@ -57,7 +61,9 @@ function TarefaCardArrastavel({ tarefa, coluna }: { tarefa: Tarefa; coluna: stri
  * lê `over.data.current?.coluna` sem se importar se o alvo foi um card ou o
  * fundo da coluna.
  */
-function KanbanColuna({ coluna, tarefas }: { coluna: ColunaKanban; tarefas: Tarefa[] }) {
+function KanbanColuna({
+  coluna, tarefas, onEditar,
+}: { coluna: ColunaKanban; tarefas: Tarefa[]; onEditar: (t: Tarefa) => void }) {
   const { setNodeRef } = useDroppable({ id: coluna.id, data: { coluna: coluna.id } });
   const ids = tarefas.map((t) => t.id);
 
@@ -68,7 +74,9 @@ function KanbanColuna({ coluna, tarefas }: { coluna: ColunaKanban; tarefas: Tare
         {tarefas.length === 0 && (
           <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhuma tarefa</p>
         )}
-        {tarefas.map((t) => <TarefaCardArrastavel key={t.id} tarefa={t} coluna={coluna.id} />)}
+        {tarefas.map((t) => (
+          <TarefaCardArrastavel key={t.id} tarefa={t} coluna={coluna.id} onEditar={() => onEditar(t)} />
+        ))}
       </SortableContext>
     </section>
   );
@@ -90,11 +98,14 @@ function KanbanColuna({ coluna, tarefas }: { coluna: ColunaKanban; tarefas: Tare
  * `router.refresh()` disparado no `catch` de erro).
  */
 export function KanbanBoard({
-  tarefas, moverTarefaAction, reordenarTarefasAction,
+  tarefas, users, moverTarefaAction, reordenarTarefasAction, editarTarefaAction,
 }: {
-  tarefas: Tarefa[]; moverTarefaAction: MoverAcao; reordenarTarefasAction: ReordenarAcao;
+  tarefas: Tarefa[]; users: User[];
+  moverTarefaAction: MoverAcao; reordenarTarefasAction: ReordenarAcao; editarTarefaAction: EditarAcao;
 }) {
   const router = useRouter();
+  const [editando, setEditando] = useState<Tarefa | null>(null);
+  const fecharEdicao = useCallback(() => setEditando(null), []);
   const [tarefasState, setTarefasState] = useState(tarefas);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -192,11 +203,14 @@ export function KanbanBoard({
           {COLUNAS_KANBAN.map((coluna) => {
             const daColuna = ordenarTarefas(tarefasState.filter((t) => t.coluna === coluna.id));
             return (
-              <KanbanColuna key={coluna.id} coluna={coluna} tarefas={daColuna} />
+              <KanbanColuna key={coluna.id} coluna={coluna} tarefas={daColuna} onEditar={setEditando} />
             );
           })}
         </div>
       </DndContext>
+      {editando && (
+        <EditarTarefaModal tarefa={editando} users={users} salvar={editarTarefaAction} onFechar={fecharEdicao} />
+      )}
     </div>
   );
 }

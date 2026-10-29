@@ -229,6 +229,28 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
   if (!efeito[0]) throw new TarefaDivergenteError();
 }
 
+/** Campos que o botão de edição do card pode mudar. Cliente/produto ficam presos à OS e
+ *  ao saldo da contratação, coluna muda pelo arraste e prioridade pela reordenação. */
+export type EdicaoTarefa = {
+  responsavel_id: string | null;
+  tarefa: string | null;
+  deadline_cliente: string | null;
+  deadline_tarefa: string | null;
+};
+
+export async function updateTarefa(id: string, dados: EdicaoTarefa): Promise<void> {
+  assertUuid(id);
+  if (dados.responsavel_id) assertUuid(dados.responsavel_id);
+  const rows = (await sql`
+    update tarefas
+       set responsavel_id = ${dados.responsavel_id}, tarefa = ${dados.tarefa},
+           deadline_cliente = ${dados.deadline_cliente}, deadline_tarefa = ${dados.deadline_tarefa},
+           updated_at = now()
+     where id = ${id} and deleted_at is null
+    returning id`) as { id: string }[];
+  if (!rows[0]) throw new NotFoundError();
+}
+
 /** Reescreve a prioridade na ordem recebida (0, 1, 2...). Usado pelo drag dentro da
  *  coluna. Tudo numa transação: ordem parcialmente aplicada embaralharia o quadro. */
 export async function reordenarTarefas(ids: string[]): Promise<void> {

@@ -20,7 +20,7 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TarefaCard } from '@/components/TarefaCard';
 import { COLUNAS_KANBAN } from '@/lib/kanban';
-import type { Tarefa } from '@/lib/types';
+import type { Tarefa, User } from '@/lib/types';
 
 afterEach(() => cleanup());
 
@@ -49,6 +49,11 @@ function tarefa(overrides: Partial<Tarefa> = {}): Tarefa {
 }
 
 
+const usuario: User = {
+  id: 'u1', email: 'fulano@ex.com', name: 'Fulano', role: 'user',
+  is_active: true, must_change_password: false, created_at: '2026-08-01T00:00:00Z',
+};
+const editarTarefaAction = vi.fn(async () => ({ ok: true }));
 const moverTarefaAction = vi.fn(async () => ({}));
 const reordenarTarefasAction = vi.fn(async () => ({}));
 
@@ -98,7 +103,7 @@ describe('KanbanBoard', () => {
   it('renderiza as seis colunas na ordem definida', () => {
     render(
       <KanbanBoard
-        tarefas={[]}
+        tarefas={[]} users={[usuario]} editarTarefaAction={editarTarefaAction}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -111,7 +116,7 @@ describe('KanbanBoard', () => {
   it('coluna sem tarefas mostra o estado vazio', () => {
     render(
       <KanbanBoard
-        tarefas={[]}
+        tarefas={[]} users={[usuario]} editarTarefaAction={editarTarefaAction}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -133,7 +138,7 @@ describe('KanbanBoard', () => {
     ];
     render(
       <KanbanBoard
-        tarefas={tarefas}
+        tarefas={tarefas} users={[usuario]} editarTarefaAction={editarTarefaAction}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -147,7 +152,7 @@ describe('KanbanBoard', () => {
   it('cabeçalho da coluna é só título, sem botão de criar tarefa', () => {
     render(
       <KanbanBoard
-        tarefas={[]}
+        tarefas={[]} users={[usuario]} editarTarefaAction={editarTarefaAction}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -155,12 +160,70 @@ describe('KanbanBoard', () => {
     expect(screen.getByRole('heading', { name: 'RoadMap' })).toBeInTheDocument();
   });
 
+  it('lápis do card abre "Editar tarefa" com os dados atuais, sem expandir o card', () => {
+    render(
+      <KanbanBoard
+        tarefas={[tarefa()]} users={[usuario]} editarTarefaAction={editarTarefaAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    const dialogo = screen.getByRole('dialog');
+    expect(within(dialogo).getByText('Editar tarefa')).toBeInTheDocument();
+    expect(within(dialogo).getByLabelText('Responsável')).toHaveValue('u1');
+    expect(within(dialogo).getByLabelText('Tarefa')).toHaveValue('Editar o vídeo final');
+    expect(within(dialogo).getByLabelText('Deadline cliente')).toHaveValue('2026-09-01');
+    expect(within(dialogo).getByLabelText('Deadline tarefa')).toHaveValue('2026-08-30');
+    // Cliente e produto só para leitura, sem campo.
+    expect(within(dialogo).queryByLabelText('Cliente')).not.toBeInTheDocument();
+    expect(within(dialogo).getByText('Gravação de vídeo')).toBeInTheDocument();
+    // O clique no lápis não abre o estendido do card.
+    expect(screen.queryByText(/^Deadline cliente: /)).not.toBeInTheDocument();
+  });
+
+  it('salvar envia id e campos editados e fecha o modal', async () => {
+    const editar = vi.fn(async (_prev: unknown, _fd: FormData) => ({ ok: true }));
+    render(
+      <KanbanBoard
+        tarefas={[tarefa()]} users={[usuario]} editarTarefaAction={editar}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    fireEvent.change(screen.getByLabelText('Responsável'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Tarefa'), { target: { value: 'Nova descrição' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await vi.waitFor(() => expect(editar).toHaveBeenCalled());
+    const fd = editar.mock.calls[0][1];
+    expect(fd.get('id')).toBe('11111111-1111-1111-1111-111111111111');
+    expect(fd.get('responsavelId')).toBe('');
+    expect(fd.get('tarefa')).toBe('Nova descrição');
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('modal lista só usuários ativos, mas mantém o responsável atual mesmo desativado', () => {
+    const inativo: User = { ...usuario, id: 'u2', name: 'Inativo', is_active: false };
+    const outroInativo: User = { ...usuario, id: 'u3', name: 'Desligado', is_active: false };
+    render(
+      <KanbanBoard
+        tarefas={[tarefa({ responsavel_id: 'u2', responsavel_nome: 'Inativo' })]}
+        users={[usuario, inativo, outroInativo]} editarTarefaAction={editarTarefaAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    const select = screen.getByLabelText('Responsável');
+    expect(select).toHaveValue('u2');
+    expect(select).toHaveTextContent('Fulano');
+    expect(select).not.toHaveTextContent('Desligado');
+  });
+
   it('moverTarefaAction rejeitando (não só devolvendo {error}) reverte a mudança otimista e avisa', async () => {
     const t1 = tarefa({ id: 't1', cliente_nome: 'Cliente Move', coluna: 'a_fazer', prioridade: 0 });
     const moverFalho = vi.fn(async () => { throw new Error('falha de conexão com o banco'); });
     render(
       <KanbanBoard
-        tarefas={[t1]}
+        tarefas={[t1]} users={[usuario]} editarTarefaAction={editarTarefaAction}
         moverTarefaAction={moverFalho} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -191,7 +254,7 @@ describe('KanbanBoard', () => {
     const reordenarFalho = vi.fn(async () => { throw new Error('falha de conexão com o banco'); });
     render(
       <KanbanBoard
-        tarefas={[t1, t2]}
+        tarefas={[t1, t2]} users={[usuario]} editarTarefaAction={editarTarefaAction}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarFalho}
       />,
     );
