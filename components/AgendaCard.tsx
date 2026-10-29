@@ -5,7 +5,7 @@ import type { Agendamento, StatusAgendamento } from '@/lib/types';
 
 export const ALTURA_BLOCO_PX = 25;
 
-const CORES: Record<StatusAgendamento, string> = {
+export const CORES_STATUS: Record<StatusAgendamento, string> = {
   cancelado: '#ef4444', agendado: '#22c55e', pre_agendado: '#eab308',
   gravando: '#38bdf8', concluido: '#1d4ed8',
 };
@@ -39,7 +39,7 @@ export function AgendaCard({
     <div
       data-agenda-card
       className="absolute left-1 right-1 rounded text-xs text-white overflow-hidden cursor-pointer select-none"
-      style={{ top, height, backgroundColor: CORES[item.status] }}
+      style={{ top, height, backgroundColor: CORES_STATUS[item.status] }}
       onPointerDown={onPointerDownMover}
       onClick={onClick}
     >

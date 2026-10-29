@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ALTURA_BLOCO_PX, AgendaCard, calcularPosicaoCard } from '@/components/AgendaCard';
+import { AgendaCalendario } from '@/components/AgendaCalendario';
+import { hojeLocalISO, mesDe, rotuloMes, somarMeses } from '@/lib/agenda-calendario';
 import { AgendaFormularioModal, type AgendaFormState } from '@/components/AgendaFormularioModal';
 import { AgendaLista, calcularMesesDisponiveis, mesRotulo } from '@/components/AgendaLista';
 import { BloqueioFormularioModal } from '@/components/BloqueioFormularioModal';
@@ -57,9 +59,11 @@ type Rascunho = { data: string; horaInicio: string; horaFim: string; localId: st
 
 export function AgendaClient({
   itens, itensDoEstudio, bloqueiosDaSemana, bloqueiosAtivos, bloqueiosDoEstudio, clientes, locais, produtos, estudioId, inicioSemana,
-  criar, salvar, apagar, mover, criarBloqueio, apagarBloqueio,
+  criar, salvar, apagar, mover, criarBloqueio, apagarBloqueio, calendario,
 }: {
   itens: Agendamento[]; itensDoEstudio: Agendamento[];
+  /** Presente quando a URL pede a visão de calendário (`visao=calendario`). */
+  calendario?: { mes: string; itens: Agendamento[] };
   bloqueiosDaSemana: BloqueioEstudio[]; bloqueiosAtivos: BloqueioEstudio[]; bloqueiosDoEstudio: BloqueioEstudio[];
   clientes: Terceiro[]; locais: LocalGravacao[]; produtos: Produto[]; estudioId: string; inicioSemana: string;
   criar: Acao; salvar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
@@ -202,6 +206,7 @@ export function AgendaClient({
   }
 
   const navegar = (id: string, semana: string) => router.push(`/agenda?estudioId=${id}&semana=${semana}`);
+  const navegarMes = (mes: string) => router.push(`/agenda?estudioId=${estudioId}&semana=${inicioSemana}&visao=calendario&mes=${mes}`);
   const abrirEdicao = (item: Agendamento) => {
     if (suprimirProximoCliqueRef.current) {
       suprimirProximoCliqueRef.current = false;
@@ -217,6 +222,40 @@ export function AgendaClient({
     const { horaInicio, horaFim } = janelaPadrao(AGENDA_INICIO_MIN + bloco * AGENDA_BLOCO_MIN);
     setAberto({ data: dia, horaInicio, horaFim, localId: localAtual?.id ?? '', estudioId });
   };
+
+  const modalAgendamento = aberto && (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
+    >
+      <div className="w-full max-w-2xl">
+        <AgendaFormularioModal
+          item={aberto !== 'novo' && aberto && 'id' in aberto ? aberto : undefined}
+          padraoData={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.data : undefined}
+          padraoHoraInicio={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaInicio : undefined}
+          padraoHoraFim={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaFim : undefined}
+          padraoLocalId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.localId : undefined}
+          padraoEstudioId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.estudioId : undefined}
+          clientes={clientes} locais={locais} produtos={produtos} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
+        />
+      </div>
+    </div>
+  );
+
+  if (calendario) return <div className="space-y-4">
+    <div className="flex items-center justify-center gap-4 flex-wrap">
+      <h1 className="text-xl font-semibold">Agenda</h1>
+      <button type="button" className="btn" onClick={() => navegarMes(mesDe(hojeLocalISO()))}>Hoje</button>
+      <button type="button" className="btn" aria-label="Mês anterior" onClick={() => navegarMes(somarMeses(calendario.mes, -1))}>◀</button>
+      <button type="button" className="btn" aria-label="Próximo mês" onClick={() => navegarMes(somarMeses(calendario.mes, 1))}>▶</button>
+      <span className="text-lg capitalize min-w-[10rem] text-center">{rotuloMes(calendario.mes)}</span>
+      <button type="button" className="btn btn-primary" onClick={() => setAberto('novo')}>Novo agendamento</button>
+      <button type="button" className="btn" onClick={() => navegar(estudioId, inicioSemana)}>Ver agenda</button>
+    </div>
+    <AgendaCalendario mes={calendario.mes} itens={calendario.itens} locais={locais} onAbrir={(item) => setAberto(item)} />
+    {modalAgendamento}
+  </div>;
 
   return <div className="space-y-4">
     <div className="flex items-end justify-center gap-4 flex-wrap">
@@ -295,6 +334,7 @@ export function AgendaClient({
       <button type="button" className="btn btn-primary" onClick={() => setAberto('novo')}>Novo agendamento</button>
       <button type="button" className="btn" onClick={() => setBloqueioAberto(true)}>Bloquear horário</button>
       <button type="button" className="btn" onClick={() => setModoLista((atual) => !atual)}>{modoLista ? 'Ver grade' : 'Ver lista'}</button>
+      <button type="button" className="btn" onClick={() => navegarMes(mesDe(inicioSemana))}>Ver calendário</button>
     </div>
     {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}
     {modoLista && (
@@ -382,25 +422,7 @@ export function AgendaClient({
       </div>
     </div>
     </>}
-    {aberto && (
-      <div
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-        onClick={(e) => { if (e.target === e.currentTarget) setAberto(null); }}
-      >
-        <div className="w-full max-w-2xl">
-          <AgendaFormularioModal
-            item={aberto !== 'novo' && aberto && 'id' in aberto ? aberto : undefined}
-            padraoData={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.data : undefined}
-            padraoHoraInicio={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaInicio : undefined}
-            padraoHoraFim={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.horaFim : undefined}
-            padraoLocalId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.localId : undefined}
-            padraoEstudioId={aberto !== 'novo' && aberto && !('id' in aberto) ? aberto.estudioId : undefined}
-            clientes={clientes} locais={locais} produtos={produtos} criar={criar} salvar={salvar} apagar={apagar} onFechar={() => setAberto(null)}
-          />
-        </div>
-      </div>
-    )}
+    {modalAgendamento}
     {bloqueioAberto && (
       <div
         className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-16"

@@ -48,6 +48,23 @@ export async function listAgendamentosDaSemana(
      order by a.data, a.hora_inicio`) as Agendamento[];
 }
 
+/** Agendamentos de todos os estúdios entre `inicio` e `fim` (inclusive), pra visão de calendário. */
+export async function listAgendamentosDoPeriodo(inicio: string, fim: string): Promise<Agendamento[]> {
+  return (await sql`
+    select a.id, a.cliente_id, cl.nome as cliente_nome, a.local_id, a.estudio_id, e.nome as estudio_nome,
+           a.produto_id, coalesce(p.nome, cp.nome) as produto_nome, a.status,
+           a.data::text as data, a.hora_inicio::text as hora_inicio, a.hora_fim::text as hora_fim,
+           a.created_at
+      from agendamentos a
+      join clientes cl on cl.id = a.cliente_id
+      join estudios e on e.id = a.estudio_id
+      join categorias_produto cp on cp.id = a.categoria_produto_id
+      left join produtos p on p.id = a.produto_id
+     where a.deleted_at is null
+       and a.data >= ${inicio}::date and a.data <= ${fim}::date
+     order by a.data, a.hora_inicio`) as Agendamento[];
+}
+
 /** Todos os agendamentos ativos do estúdio (sem recorte de semana), pra visão em lista. */
 export async function listAgendamentosDoEstudio(estudioId: string): Promise<Agendamento[]> {
   assertUuid(estudioId);
