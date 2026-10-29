@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 import { OSClient } from '@/components/OSClient';
 import { formatarDataHora } from '@/lib/formato';
 import type { CategoriaProduto, LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
@@ -138,5 +140,38 @@ describe('OSClient', () => {
     render(<OSClient itens={[osExistente]} clientes={[cliente]} categorias={categorias} produtos={[produto]} locais={[local]} criar={criar} apagar={apagar} />);
     fireEvent.click(screen.getByText('Cancelar'));
     await vi.waitFor(() => expect(apagar).toHaveBeenCalledWith(osExistente.id));
+  });
+
+  describe('vindo do Planejamento (origem)', () => {
+    it('abre o formulário mesmo com OS na lista e só oferece categorias do quadro de origem', () => {
+      render(<OSClient itens={[osExistente]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos} locais={[local]} criar={criar} apagar={apagar} origem="edicao" />);
+      const nomes = nomesDasOpcoes(screen.getByLabelText('Categoria 1'));
+      expect(nomes).toContain('Edição');
+      expect(nomes).toContain('Cortes');
+      expect(nomes).not.toContain('Gravação');
+      expect(screen.getByRole('link', { name: /Voltar ao Planejamento · Edição/ })).toHaveAttribute('href', '/working/planejamento/edicao');
+    });
+
+    it('produto de outro quadro continua liberado pela regra da categoria escolhida', () => {
+      render(<OSClient itens={[]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos} locais={[local]} criar={criar} apagar={apagar} origem="edicao" />);
+      fireEvent.change(screen.getByLabelText('Categoria 1'), { target: { value: 'cat2' } });
+      expect(nomesDasOpcoes(screen.getByLabelText('Produto 1'))).toContain('Sessão de Estúdio');
+    });
+
+    it('criada a OS, volta para o quadro de origem', async () => {
+      const criarOk = vi.fn(async () => ({ ok: 'Ordem de serviço criada.' }));
+      render(<OSClient itens={[]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos} locais={[local]} criar={criarOk} apagar={apagar} origem="gravacao" />);
+      fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: cliente.id } });
+      fireEvent.change(screen.getByLabelText('Categoria 1'), { target: { value: 'cat1' } });
+      fireEvent.change(screen.getByLabelText('Produto 1'), { target: { value: produto.id } });
+      fireEvent.click(screen.getByText('Confirmar OS'));
+      await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/working/planejamento/gravacao'));
+    });
+
+    it('sem origem, não mostra o voltar nem filtra categorias', () => {
+      render(<OSClient itens={[]} clientes={[cliente]} categorias={categorias} produtos={todosProdutos} locais={[local]} criar={criar} apagar={apagar} />);
+      expect(screen.queryByText(/Voltar ao Planejamento/)).not.toBeInTheDocument();
+      expect(nomesDasOpcoes(screen.getByLabelText('Categoria 1'))).toContain('Gravação');
+    });
   });
 });

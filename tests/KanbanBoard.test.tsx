@@ -20,7 +20,7 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { TarefaCard } from '@/components/TarefaCard';
 import { COLUNAS_KANBAN } from '@/lib/kanban';
-import type { Tarefa, Terceiro, User } from '@/lib/types';
+import type { Tarefa } from '@/lib/types';
 
 afterEach(() => cleanup());
 
@@ -48,17 +48,7 @@ function tarefa(overrides: Partial<Tarefa> = {}): Tarefa {
   };
 }
 
-const cliente: Terceiro = {
-  id: 'c1', nome: 'ACME', contato_responsavel: null, email: null,
-  telefone: null, cidade: null, uf: null, created_at: '2026-08-01T00:00:00Z',
-};
-const usuario: User = {
-  id: 'u1', email: 'fulano@ex.com', name: 'Fulano', role: 'user',
-  is_active: true, must_change_password: false, created_at: '2026-08-01T00:00:00Z',
-};
 
-const criarTarefaAction = vi.fn(async () => ({}));
-const buscarItensDoClienteAction = vi.fn(async () => ({ itens: [] }));
 const moverTarefaAction = vi.fn(async () => ({}));
 const reordenarTarefasAction = vi.fn(async () => ({}));
 
@@ -108,8 +98,7 @@ describe('KanbanBoard', () => {
   it('renderiza as seis colunas na ordem definida', () => {
     render(
       <KanbanBoard
-        tarefas={[]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        tarefas={[]}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -122,8 +111,7 @@ describe('KanbanBoard', () => {
   it('coluna sem tarefas mostra o estado vazio', () => {
     render(
       <KanbanBoard
-        tarefas={[]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        tarefas={[]}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -145,8 +133,7 @@ describe('KanbanBoard', () => {
     ];
     render(
       <KanbanBoard
-        tarefas={tarefas} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        tarefas={tarefas}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -157,98 +144,15 @@ describe('KanbanBoard', () => {
     expect(nomes).toEqual(['Cliente Ajuste', 'Cliente Alta', 'Cliente Baixa']);
   });
 
-  it('clique no cabeçalho da coluna, confirmado, abre o modal de criação', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('cabeçalho da coluna é só título, sem botão de criar tarefa', () => {
     render(
       <KanbanBoard
-        tarefas={[]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        tarefas={[]}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'RoadMap' }));
-    expect(screen.getByText('Nova Tarefa')).toBeInTheDocument();
-    vi.restoreAllMocks();
-  });
-
-  it('clique no cabeçalho da coluna, cancelado, não abre o modal', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    render(
-      <KanbanBoard
-        tarefas={[]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
-        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'RoadMap' }));
-    expect(screen.queryByText('Nova Tarefa')).not.toBeInTheDocument();
-    vi.restoreAllMocks();
-  });
-
-  it('o modal de criação carrega o produto do cliente escolhido', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const buscarItens = vi.fn(async () => ({
-      itens: [{ contratacao_item_id: 'ci1', produto_id: 'p1', produto_nome: 'Gravação', disponivel: 3 }],
-    }));
-    render(
-      <KanbanBoard
-        tarefas={[]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
-        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
-    expect(await screen.findByRole('option', { name: /Gravação \(3 disponível\)/ })).toBeInTheDocument();
-    expect(buscarItens).toHaveBeenCalledWith('c1');
-    vi.restoreAllMocks();
-  });
-
-  it('o value da option de produto é o contratacao_item_id, não o produto_id', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const buscarItens = vi.fn(async () => ({
-      itens: [{ contratacao_item_id: 'ci1', produto_id: 'p1', produto_nome: 'Gravação', disponivel: 3 }],
-    }));
-    render(
-      <KanbanBoard
-        tarefas={[]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
-        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
-    const option = await screen.findByRole('option', { name: /Gravação \(3 disponível\)/ }) as HTMLOptionElement;
-    expect(option.value).toBe('ci1');
-    expect(option.value).not.toBe('p1');
-    vi.restoreAllMocks();
-  });
-
-  it('trocar de cliente reseta a lista de produtos, sem manter a option do cliente anterior', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const outroCliente: Terceiro = { ...cliente, id: 'c2', nome: 'Beta' };
-    const buscarItens = vi.fn(async (clienteId: string) => (
-      clienteId === 'c1'
-        ? { itens: [{ contratacao_item_id: 'ci1', produto_id: 'p1', produto_nome: 'Gravação', disponivel: 3 }] }
-        : { error: 'Falha ao buscar itens do cliente B.' }
-    ));
-    render(
-      <KanbanBoard
-        tarefas={[]} clientes={[cliente, outroCliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItens}
-        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
-      />,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'A Fazer' }));
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
-    expect(await screen.findByRole('option', { name: /Gravação \(3 disponível\)/ })).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c2' } });
-    // A option antiga do cliente A não pode continuar disponível/submetível.
-    expect(screen.queryByRole('option', { name: /Gravação \(3 disponível\)/ })).not.toBeInTheDocument();
-    await screen.findByText('Falha ao buscar itens do cliente B.');
-    expect(screen.queryByRole('option', { name: /Gravação \(3 disponível\)/ })).not.toBeInTheDocument();
-    vi.restoreAllMocks();
+    expect(screen.queryByRole('button', { name: 'RoadMap' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'RoadMap' })).toBeInTheDocument();
   });
 
   it('moverTarefaAction rejeitando (não só devolvendo {error}) reverte a mudança otimista e avisa', async () => {
@@ -256,8 +160,7 @@ describe('KanbanBoard', () => {
     const moverFalho = vi.fn(async () => { throw new Error('falha de conexão com o banco'); });
     render(
       <KanbanBoard
-        tarefas={[t1]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        tarefas={[t1]}
         moverTarefaAction={moverFalho} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
@@ -288,8 +191,7 @@ describe('KanbanBoard', () => {
     const reordenarFalho = vi.fn(async () => { throw new Error('falha de conexão com o banco'); });
     render(
       <KanbanBoard
-        tarefas={[t1, t2]} clientes={[cliente]} users={[usuario]}
-        criarTarefaAction={criarTarefaAction} buscarItensDoClienteAction={buscarItensDoClienteAction}
+        tarefas={[t1, t2]}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarFalho}
       />,
     );

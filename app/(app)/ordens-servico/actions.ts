@@ -28,6 +28,8 @@ export async function criarOS(_prev: OSState, formData: FormData): Promise<OSSta
   }
   await audit({ actorId: actor.id, action: 'create', entityType: 'ordem_servico', entityId: id });
   revalidatePath(ROTA);
+  // A OS gera tarefas nos quadros do Planejamento.
+  revalidatePath('/working/planejamento', 'layout');
   return { ok: 'Ordem de serviço criada.' };
 }
 

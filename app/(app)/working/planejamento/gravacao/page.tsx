@@ -1,11 +1,8 @@
+import Link from 'next/link';
 import { KanbanBoard } from '@/components/KanbanBoard';
-import { requireModulo } from '@/lib/auth/guards';
+import { modulosDoAtor, requireModulo } from '@/lib/auth/guards';
 import { listTarefas } from '@/lib/db/tarefas';
-import { listTerceiros } from '@/lib/db/terceiros';
-import { listUsers } from '@/lib/db/users';
-import {
-  buscarItensDoClienteAction, criarTarefaAction, moverTarefaAction, reordenarTarefasAction,
-} from '../actions';
+import { moverTarefaAction, reordenarTarefasAction } from '../actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,19 +10,21 @@ export const dynamic = 'force-dynamic';
 /** Quadro de Gravação: tarefas de produtos cuja categoria tem planejamento 'gravacao'.
  *  Gêmeo de ../edicao/page.tsx. */
 export default async function PlanejamentoGravacaoPage() {
-  await requireModulo('working');
+  const actor = await requireModulo('working');
 
-  const [tarefas, clientes, users] = await Promise.all([
-    listTarefas('gravacao'), listTerceiros('clientes'), listUsers(),
-  ]);
+  const [tarefas, modulos] = await Promise.all([listTarefas('gravacao'), modulosDoAtor(actor)]);
 
   return (
     <main className="p-4 md:p-6 space-y-4">
-      <h1 className="text-xl font-semibold">Planejamento · Gravação</h1>
+      <div className="flex items-center gap-4 flex-wrap">
+        <h1 className="text-xl font-semibold">Planejamento · Gravação</h1>
+        {/* Tarefa nasce de OS: sem acesso à área de OS, o botão nem aparece. */}
+        {modulos.includes('ordens_servico') && (
+          <Link href="/ordens-servico?origem=gravacao" className="btn btn-primary">Nova tarefa</Link>
+        )}
+      </div>
       <KanbanBoard
-        tarefas={tarefas} clientes={clientes} users={users}
-        criarTarefaAction={criarTarefaAction.bind(null, 'gravacao')}
-        buscarItensDoClienteAction={buscarItensDoClienteAction.bind(null, 'gravacao')}
+        tarefas={tarefas}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />
     </main>

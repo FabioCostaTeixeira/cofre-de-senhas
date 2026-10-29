@@ -1,9 +1,13 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { formatarDataHora } from '@/lib/formato';
 import { produtoPermitidoNaCategoria } from '@/lib/produtos-regra';
-import type { CategoriaProduto, LocalGravacao, OrdemServico, Produto, Terceiro } from '@/lib/types';
+import type { CategoriaProduto, LocalGravacao, OrdemServico, Planejamento, Produto, Terceiro } from '@/lib/types';
+
+const ROTULO_QUADRO: Record<Planejamento, string> = { edicao: 'Edição', gravacao: 'Gravação' };
 
 export type OSState = { error?: string; ok?: string };
 const inicial: OSState = {};
@@ -41,9 +45,11 @@ function serializarItens(linhas: LinhaOS[]): string {
 }
 
 function LinhaFormulario({
-  linha, index, categorias, produtos, locais, onChange, onRemover,
+  linha, index, categorias, produtos, locais, origem, onChange, onRemover,
 }: {
   linha: LinhaOS; index: number; categorias: CategoriaProduto[]; produtos: Produto[]; locais: LocalGravacao[];
+  /** Só oferece categorias deste quadro (`categorias` segue completa para a regra de produto). */
+  origem?: Planejamento;
   onChange: (i: number, campo: Partial<LinhaOS>) => void; onRemover: (i: number) => void;
 }) {
   const localAtual = locais.find((l) => l.id === linha.localId);
@@ -66,7 +72,7 @@ function LinhaFormulario({
             onChange={(e) => onChange(index, { categoriaId: e.target.value, produtoId: '' })} required
           >
             <option value="" disabled>Escolha…</option>
-            {categorias.filter((c) => c.ativo).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            {categorias.filter((c) => c.ativo && (!origem || c.planejamento === origem)).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </label>
         <label className="block space-y-1">
@@ -148,11 +154,12 @@ function LinhaFormulario({
 }
 
 function Formulario({
-  clientes, categorias, produtos, locais, criar, abertoPorPadrao,
+  clientes, categorias, produtos, locais, criar, abertoPorPadrao, origem,
 }: {
   clientes: Terceiro[]; categorias: CategoriaProduto[]; produtos: Produto[]; locais: LocalGravacao[]; criar: Acao;
-  abertoPorPadrao: boolean;
+  abertoPorPadrao: boolean; origem?: Planejamento;
 }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(criar, inicial);
   const [clienteId, setClienteId] = useState('');
   const [linhas, setLinhas] = useState<LinhaOS[]>([linhaVazia()]);
@@ -170,8 +177,11 @@ function Formulario({
   }
 
   useEffect(() => {
-    if (state.ok) { setClienteId(''); setLinhas([linhaVazia()]); }
-  }, [state.ok]);
+    if (!state.ok) return;
+    // Veio do Planejamento: as tarefas da OS já nasceram em "A fazer" — volta para o quadro.
+    if (origem) { router.push(`/working/planejamento/${origem}`); return; }
+    setClienteId(''); setLinhas([linhaVazia()]);
+  }, [state.ok, origem, router]);
 
   return (
     <details className="glass p-5" open={aberto} onToggle={(e) => setAberto(e.currentTarget.open)}>
@@ -190,7 +200,7 @@ function Formulario({
             {linhas.map((linha, i) => (
               <LinhaFormulario
                 key={i} linha={linha} index={i} categorias={categorias} produtos={produtos} locais={locais}
-                onChange={atualizarLinha} onRemover={removerLinha}
+                origem={origem} onChange={atualizarLinha} onRemover={removerLinha}
               />
             ))}
           </div>
@@ -260,17 +270,26 @@ function Lista({ itens, apagar }: { itens: OrdemServico[]; apagar: (id: string) 
 }
 
 export function OSClient({
-  itens, clientes, categorias, produtos, locais, criar, apagar,
+  itens, clientes, categorias, produtos, locais, criar, apagar, origem,
 }: {
   itens: OrdemServico[]; clientes: Terceiro[]; categorias: CategoriaProduto[]; produtos: Produto[];
   locais: LocalGravacao[]; criar: Acao; apagar: (id: string) => Promise<{ error?: string }>;
+  /** Veio do botão "Nova tarefa" deste quadro do Planejamento. */
+  origem?: Planejamento;
 }) {
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Ordens de Serviço</h1>
+      <div className="flex items-center gap-4 flex-wrap">
+        <h1 className="text-xl font-semibold">Ordens de Serviço</h1>
+        {origem && (
+          <Link href={`/working/planejamento/${origem}`} className="btn">
+            Voltar ao Planejamento · {ROTULO_QUADRO[origem]}
+          </Link>
+        )}
+      </div>
       <Formulario
         clientes={clientes} categorias={categorias} produtos={produtos} locais={locais} criar={criar}
-        abertoPorPadrao={itens.length === 0}
+        abertoPorPadrao={itens.length === 0 || !!origem} origem={origem}
       />
       <Lista itens={itens} apagar={apagar} />
     </div>
