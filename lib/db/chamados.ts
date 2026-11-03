@@ -8,6 +8,8 @@ import { assertUuid } from '@/lib/validation';
 import type { Chamado, DadosChamado } from '@/lib/types';
 
 // Diferente de `tarefas`, chamado não mexe em saldo: mover e apagar são updates simples.
+// Os parâmetros opcionais de usuário aplicam a regra de linha de lib/permissoes-cards.ts
+// dentro da própria `where`: card fora do alcance do ator é tratado como inexistente.
 
 /** Categoria/produto/responsável escolhidos não servem para chamado. */
 export class ChamadoInvalidoError extends Error {
@@ -16,7 +18,10 @@ export class ChamadoInvalidoError extends Error {
   }
 }
 
-export async function listChamados(): Promise<Chamado[]> {
+/** Com `visivelPara`, só os chamados que ele abriu ou que foram atribuídos a ele. */
+export async function listChamados(visivelPara?: string): Promise<Chamado[]> {
+  if (visivelPara) assertUuid(visivelPara);
+  const ator = visivelPara ?? null;
   return (await sql`
     select c.id, c.categoria_id, c.produto_id, p.nome as produto_nome,
            c.responsavel_id, r.name as responsavel_nome,
@@ -27,6 +32,7 @@ export async function listChamados(): Promise<Chamado[]> {
       join users a on a.id = c.criado_por
       left join users r on r.id = c.responsavel_id
      where c.deleted_at is null
+       and (${ator}::uuid is null or c.criado_por = ${ator} or c.responsavel_id = ${ator})
      order by c.prioridade, c.created_at`) as Chamado[];
 }
 
@@ -65,12 +71,16 @@ export async function createChamado(dados: DadosChamado, criadoPor: string): Pro
 }
 
 /** Edição pelo lápis do card. Responsável pode continuar o atual mesmo que tenha sido
- *  desativado depois — só troca exige usuário ativo. */
-export async function updateChamado(id: string, dados: DadosChamado): Promise<void> {
+ *  desativado depois — só troca exige usuário ativo. Com `somenteCriador`, só o
+ *  chamado que ele abriu. */
+export async function updateChamado(id: string, dados: DadosChamado, somenteCriador?: string): Promise<void> {
   assertUuid(id);
+  if (somenteCriador) assertUuid(somenteCriador);
+  const criador = somenteCriador ?? null;
   await validarCategoriaProduto(dados.categoria_id, dados.produto_id);
   const atual = (await sql`
-    select responsavel_id from chamados where id = ${id} and deleted_at is null`) as
+    select responsavel_id from chamados where id = ${id} and deleted_at is null
+       and (${criador}::uuid is null or criado_por = ${criador})`) as
     { responsavel_id: string | null }[];
   if (!atual[0]) throw new NotFoundError();
   if (atual[0].responsavel_id !== dados.responsavel_id) await validarResponsavel(dados.responsavel_id);
@@ -81,16 +91,21 @@ export async function updateChamado(id: string, dados: DadosChamado): Promise<vo
            responsavel_id = ${dados.responsavel_id}, titulo = ${dados.titulo},
            descricao = ${dados.descricao}, updated_at = now()
      where id = ${id} and deleted_at is null
+       and (${criador}::uuid is null or criado_por = ${criador})
     returning id`) as { id: string }[];
   if (!rows[0]) throw new NotFoundError();
 }
 
-export async function moverChamado(id: string, coluna: string): Promise<void> {
+/** Com `somenteEnvolvido`, só chamado que ele abriu ou que foi atribuído a ele. */
+export async function moverChamado(id: string, coluna: string, somenteEnvolvido?: string): Promise<void> {
   assertUuid(id);
+  if (somenteEnvolvido) assertUuid(somenteEnvolvido);
+  const ator = somenteEnvolvido ?? null;
   if (!COLUNAS_CHAMADO.some((c) => c.id === coluna)) throw new ChamadoInvalidoError('Coluna inválida.');
   const rows = (await sql`
     update chamados set coluna = ${coluna}, updated_at = now()
      where id = ${id} and deleted_at is null
+       and (${ator}::uuid is null or criado_por = ${ator} or responsavel_id = ${ator})
     returning id`) as { id: string }[];
   if (!rows[0]) throw new NotFoundError();
 }
@@ -106,10 +121,13 @@ export async function reordenarChamados(ids: string[]): Promise<void> {
   );
 }
 
-export async function softDeleteChamado(id: string): Promise<void> {
+export async function softDeleteChamado(id: string, somenteCriador?: string): Promise<void> {
   assertUuid(id);
+  if (somenteCriador) assertUuid(somenteCriador);
+  const criador = somenteCriador ?? null;
   const rows = (await sql`
     update chamados set deleted_at = now() where id = ${id} and deleted_at is null
+       and (${criador}::uuid is null or criado_por = ${criador})
     returning id`) as { id: string }[];
   if (!rows[0]) throw new NotFoundError();
 }

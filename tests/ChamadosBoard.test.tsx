@@ -45,7 +45,9 @@ const produtos = [
 const users: User[] = [
   { id: 'u1', email: 'f@ex.com', name: 'Fulano', role: 'user', is_active: true, must_change_password: false, created_at: '' },
 ];
+const MASTER = { id: 'u-master', role: 'master' as const };
 const acoes = () => ({
+  ator: MASTER,
   criarChamadoAction: vi.fn(async () => ({ ok: true })),
   editarChamadoAction: vi.fn(async () => ({ ok: true })),
   moverChamadoAction: vi.fn(async () => ({})),
@@ -102,5 +104,34 @@ describe('ChamadosBoard', () => {
     expect(screen.getByText('falhou')).toBeInTheDocument();
     const aberto = screen.getByRole('heading', { name: 'Aberto' }).closest('section')!;
     expect(within(aberto).getByText('Arrumar impressora')).toBeInTheDocument();
+  });
+
+  it('gestor vê chamado de outros, mas sem lápis e sem arrastar', async () => {
+    const a = acoes();
+    render(
+      <ChamadosBoard
+        chamados={[chamado()]} categorias={categorias} produtos={produtos} users={users}
+        {...a} ator={{ id: 'u-gestor', role: 'gestor' }}
+      />,
+    );
+    expect(screen.getByText('Arrumar impressora')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Editar chamado' })).not.toBeInTheDocument();
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+    await act(async () => {
+      onDragEnd({ active: { id: chamado().id }, over: { id: 'block', data: { current: { coluna: 'block' } } } });
+    });
+    expect(a.moverChamadoAction).not.toHaveBeenCalled();
+  });
+
+  it('responsável move mas não edita; quem abriu tem o lápis', () => {
+    const { unmount } = render(
+      <ChamadosBoard chamados={[chamado()]} categorias={categorias} produtos={produtos} users={users} {...acoes()} ator={{ id: 'u1', role: 'user' }} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Editar chamado' })).not.toBeInTheDocument();
+    unmount();
+    render(
+      <ChamadosBoard chamados={[chamado()]} categorias={categorias} produtos={produtos} users={users} {...acoes()} ator={{ id: 'u2', role: 'user' }} />,
+    );
+    expect(screen.getByRole('button', { name: 'Editar chamado' })).toBeInTheDocument();
   });
 });

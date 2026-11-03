@@ -39,9 +39,12 @@ export class TarefaDivergenteError extends Error {
 
 /** Sem `planejamento`, lista as tarefas dos dois quadros. Com ele, só as daquele
  *  quadro: o gravado na tarefa (categoria escolhida na OS, ou quadro onde foi criada) ou,
- *  em tarefa antiga sem esse valor, o da categoria do produto. */
-export async function listTarefas(planejamento?: Planejamento): Promise<Tarefa[]> {
+ *  em tarefa antiga sem esse valor, o da categoria do produto. Com `responsavelId`, só as
+ *  atribuídas a ele (usuário comum, ver lib/permissoes-cards.ts). */
+export async function listTarefas(planejamento?: Planejamento, responsavelId?: string): Promise<Tarefa[]> {
   const filtro = planejamento ?? null;
+  if (responsavelId) assertUuid(responsavelId);
+  const responsavel = responsavelId ?? null;
   return (await sql`
     select t.id, t.cliente_id, cl.nome as cliente_nome, t.responsavel_id, u.name as responsavel_nome,
            t.produto_id, p.nome as produto_nome, t.contratacao_item_id, t.agendamento_id, t.os_item_id,
@@ -55,6 +58,7 @@ export async function listTarefas(planejamento?: Planejamento): Promise<Tarefa[]
       left join users u on u.id = t.responsavel_id
      where t.deleted_at is null
        and (${filtro}::text is null or coalesce(t.planejamento, cp.planejamento) = ${filtro})
+       and (${responsavel}::uuid is null or t.responsavel_id = ${responsavel})
      order by t.prioridade, t.created_at`) as Tarefa[];
 }
 
@@ -141,12 +145,17 @@ const COLUNA_HOMOLOGACAO = 'homologacao_cliente';
  * - saindo de Homologação para coluna que não é Concluído: liga a flag `ajuste`;
  * - chegando em Concluído: desliga a flag.
  */
-export async function moverTarefa(id: string, coluna: string): Promise<void> {
+export async function moverTarefa(id: string, coluna: string, somenteResponsavel?: string): Promise<void> {
   assertUuid(id);
+  if (somenteResponsavel) assertUuid(somenteResponsavel);
+  // Usuário comum só move tarefa atribuída a ele: a de outra pessoa é tratada como
+  // inexistente (NotFound), aqui e no guard de cada update abaixo.
+  const responsavel = somenteResponsavel ?? null;
 
   const rows = (await sql`
     select coluna, agendamento_id, consumido, ajuste, contratacao_item_id
-      from tarefas where id = ${id} and deleted_at is null`) as
+      from tarefas where id = ${id} and deleted_at is null
+       and (${responsavel}::uuid is null or responsavel_id = ${responsavel})`) as
     { coluna: string; agendamento_id: string | null; consumido: boolean; ajuste: boolean;
       contratacao_item_id: string }[];
 
@@ -184,6 +193,7 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
                updated_at = now()
          where id = ${id} and deleted_at is null
            and coluna = ${atual.coluna} and consumido = ${atual.consumido}
+           and (${responsavel}::uuid is null or responsavel_id = ${responsavel})
         returning contratacao_item_id
       )
       update contratacao_itens ci
@@ -204,6 +214,7 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
                updated_at = now()
          where id = ${id} and deleted_at is null
            and coluna = ${atual.coluna} and consumido = ${atual.consumido}
+           and (${responsavel}::uuid is null or responsavel_id = ${responsavel})
         returning contratacao_item_id
       )
       update contratacao_itens ci
@@ -225,6 +236,7 @@ export async function moverTarefa(id: string, coluna: string): Promise<void> {
            updated_at = now()
      where id = ${id} and deleted_at is null
        and coluna = ${atual.coluna} and consumido = ${atual.consumido}
+       and (${responsavel}::uuid is null or responsavel_id = ${responsavel})
     returning id`) as { id: string }[];
   if (!efeito[0]) throw new TarefaDivergenteError();
 }

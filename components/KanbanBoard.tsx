@@ -33,7 +33,7 @@ type ReordenarAcao = (ids: string[]) => Promise<{ error?: string }>;
  */
 function TarefaCardArrastavel({
   tarefa, coluna, onEditar,
-}: { tarefa: Tarefa; coluna: string; onEditar: () => void }) {
+}: { tarefa: Tarefa; coluna: string; onEditar?: () => void }) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: tarefa.id, data: { coluna } });
@@ -63,7 +63,7 @@ function TarefaCardArrastavel({
  */
 function KanbanColuna({
   coluna, tarefas, onEditar,
-}: { coluna: ColunaKanban; tarefas: Tarefa[]; onEditar: (t: Tarefa) => void }) {
+}: { coluna: ColunaKanban; tarefas: Tarefa[]; onEditar?: (t: Tarefa) => void }) {
   const { setNodeRef } = useDroppable({ id: coluna.id, data: { coluna: coluna.id } });
   const ids = tarefas.map((t) => t.id);
 
@@ -75,7 +75,9 @@ function KanbanColuna({
           <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhuma tarefa</p>
         )}
         {tarefas.map((t) => (
-          <TarefaCardArrastavel key={t.id} tarefa={t} coluna={coluna.id} onEditar={() => onEditar(t)} />
+          <TarefaCardArrastavel
+            key={t.id} tarefa={t} coluna={coluna.id} onEditar={onEditar && (() => onEditar(t))}
+          />
         ))}
       </SortableContext>
     </section>
@@ -98,10 +100,13 @@ function KanbanColuna({
  * `router.refresh()` disparado no `catch` de erro).
  */
 export function KanbanBoard({
-  tarefas, users, moverTarefaAction, reordenarTarefasAction, editarTarefaAction,
+  tarefas, users, moverTarefaAction, reordenarTarefasAction, editarTarefaAction, gestao = true,
 }: {
   tarefas: Tarefa[]; users: User[];
   moverTarefaAction: MoverAcao; reordenarTarefasAction: ReordenarAcao; editarTarefaAction: EditarAcao;
+  /** Gestor/master (lib/permissoes-cards.ts): edita pelo lápis e reordena. Sem isso o
+   *  quadro só move os cards entre colunas — o servidor recusa o resto de qualquer forma. */
+  gestao?: boolean;
 }) {
   const router = useRouter();
   const [editando, setEditando] = useState<Tarefa | null>(null);
@@ -162,9 +167,10 @@ export function KanbanBoard({
     }
 
     // Mesma coluna: reordena. `overId` igual ao próprio card arrastado, ou sem
-    // posição encontrada na lista visível da coluna, também é no-op.
+    // posição encontrada na lista visível da coluna, também é no-op. Sem gestão também:
+    // a prioridade vale para o quadro inteiro, e o usuário só enxerga os cards dele.
     const overId = String(over.id);
-    if (overId === activeId) return;
+    if (!gestao || overId === activeId) return;
 
     const idsAtuais = ordenarTarefas(tarefasState.filter((t) => t.coluna === novaColuna))
       .map((t) => t.id);
@@ -203,7 +209,9 @@ export function KanbanBoard({
           {COLUNAS_KANBAN.map((coluna) => {
             const daColuna = ordenarTarefas(tarefasState.filter((t) => t.coluna === coluna.id));
             return (
-              <KanbanColuna key={coluna.id} coluna={coluna} tarefas={daColuna} onEditar={setEditando} />
+              <KanbanColuna
+                key={coluna.id} coluna={coluna} tarefas={daColuna} onEditar={gestao ? setEditando : undefined}
+              />
             );
           })}
         </div>

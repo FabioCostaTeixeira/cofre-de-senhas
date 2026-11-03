@@ -13,6 +13,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { ChamadoCard } from '@/components/ChamadoCard';
 import { ChamadoModal, type ChamadoState } from '@/components/ChamadoModal';
 import { COLUNAS_CHAMADO, type ColunaKanban } from '@/lib/kanban';
+import {
+  podeEditarChamado, podeMoverChamado, podeReordenarChamados, type AtorCard,
+} from '@/lib/permissoes-cards';
 import type { CategoriaProduto, Chamado, Produto, User } from '@/lib/types';
 
 type SalvarAcao = (prev: ChamadoState, fd: FormData) => Promise<ChamadoState>;
@@ -27,13 +30,14 @@ function ordenarChamados(chamados: Chamado[]): Chamado[] {
 }
 
 /** Mesmo arranjo do `TarefaCardArrastavel` (KanbanBoard): `data.coluna` diz ao
- *  `onDragEnd` em qual coluna o alvo do drop está. */
+ *  `onDragEnd` em qual coluna o alvo do drop está. `travado`: o ator vê o card mas não
+ *  pode movê-lo (gestor olhando chamado de outros). */
 function ChamadoCardArrastavel({
-  chamado, coluna, onEditar,
-}: { chamado: Chamado; coluna: string; onEditar: () => void }) {
+  chamado, coluna, travado, onEditar,
+}: { chamado: Chamado; coluna: string; travado: boolean; onEditar?: () => void }) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: chamado.id, data: { coluna } });
+  } = useSortable({ id: chamado.id, data: { coluna }, disabled: travado });
 
   return (
     <div
@@ -52,8 +56,8 @@ function ChamadoCardArrastavel({
 }
 
 function ChamadosColuna({
-  coluna, chamados, onEditar,
-}: { coluna: ColunaKanban; chamados: Chamado[]; onEditar: (c: Chamado) => void }) {
+  coluna, chamados, ator, onEditar,
+}: { coluna: ColunaKanban; chamados: Chamado[]; ator: AtorCard; onEditar: (c: Chamado) => void }) {
   const { setNodeRef } = useDroppable({ id: coluna.id, data: { coluna: coluna.id } });
 
   return (
@@ -64,7 +68,10 @@ function ChamadosColuna({
           <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhum chamado</p>
         )}
         {chamados.map((c) => (
-          <ChamadoCardArrastavel key={c.id} chamado={c} coluna={coluna.id} onEditar={() => onEditar(c)} />
+          <ChamadoCardArrastavel
+            key={c.id} chamado={c} coluna={coluna.id} travado={!podeMoverChamado(ator, c)}
+            onEditar={podeEditarChamado(ator, c) ? () => onEditar(c) : undefined}
+          />
         ))}
       </SortableContext>
     </section>
@@ -75,13 +82,15 @@ function ChamadosColuna({
  * Quadro Working › Projetos. Mesmo comportamento do `KanbanBoard` do Planejamento —
  * arrastar entre colunas move, arrastar na mesma coluna reordena, com atualização
  * otimista revertida se a action falhar — mas sem efeito de saldo: chamado nasce aqui
- * mesmo, pelo botão "Novo chamado", e não por OS.
+ * mesmo, pelo botão "Novo chamado", e não por OS. O que cada card permite (lápis,
+ * arraste, reordenar) segue lib/permissoes-cards.ts; o servidor repete a checagem.
  */
 export function ChamadosBoard({
-  chamados, categorias, produtos, users,
+  chamados, categorias, produtos, users, ator,
   criarChamadoAction, editarChamadoAction, moverChamadoAction, reordenarChamadosAction, apagarChamadoAction,
 }: {
   chamados: Chamado[]; categorias: CategoriaProduto[]; produtos: Produto[]; users: User[];
+  ator: AtorCard;
   criarChamadoAction: SalvarAcao; editarChamadoAction: SalvarAcao;
   moverChamadoAction: MoverAcao; reordenarChamadosAction: ReordenarAcao; apagarChamadoAction: ApagarAcao;
 }) {
@@ -123,7 +132,7 @@ export function ChamadosBoard({
 
     const activeId = String(active.id);
     const atual = chamadosState.find((c) => c.id === activeId);
-    if (!atual) return;
+    if (!atual || !podeMoverChamado(ator, atual)) return;
 
     const overData = over.data.current as { coluna?: string } | undefined;
     const novaColuna = overData?.coluna ?? String(over.id);
@@ -138,7 +147,7 @@ export function ChamadosBoard({
     }
 
     const overId = String(over.id);
-    if (overId === activeId) return;
+    if (!podeReordenarChamados(ator) || overId === activeId) return;
 
     const idsAtuais = ordenarChamados(chamadosState.filter((c) => c.coluna === novaColuna)).map((c) => c.id);
     const oldIndex = idsAtuais.indexOf(activeId);
@@ -166,7 +175,7 @@ export function ChamadosBoard({
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUNAS_CHAMADO.map((coluna) => (
             <ChamadosColuna
-              key={coluna.id} coluna={coluna} onEditar={setEditando}
+              key={coluna.id} coluna={coluna} ator={ator} onEditar={setEditando}
               chamados={ordenarChamados(chamadosState.filter((c) => c.coluna === coluna.id))}
             />
           ))}

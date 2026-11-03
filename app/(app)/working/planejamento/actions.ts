@@ -11,6 +11,7 @@ import {
   softDeleteTarefa,
   updateTarefa,
 } from '@/lib/db/tarefas';
+import { gerePlanejamento } from '@/lib/permissoes-cards';
 import { isUuid } from '@/lib/validation';
 import type { EditarTarefaState } from '@/components/EditarTarefaModal';
 
@@ -20,9 +21,14 @@ const ROTA = '/working/planejamento';
 
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
+// Editar, reordenar e apagar são do gestor e do master; usuário comum só arrasta os
+// cards atribuídos a ele (lib/permissoes-cards.ts).
+const SEM_PERMISSAO = 'Só o gestor pode alterar este card.';
+
 /** Botão de edição do card: só responsável, descrição e os dois deadlines. */
 export async function editarTarefaAction(_prev: EditarTarefaState, formData: FormData): Promise<EditarTarefaState> {
   const actor = await requireModulo('working');
+  if (!gerePlanejamento(actor)) return { error: SEM_PERMISSAO };
   const id = String(formData.get('id') ?? '');
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
@@ -56,7 +62,7 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
   try {
-    await moverTarefa(id, coluna);
+    await moverTarefa(id, coluna, gerePlanejamento(actor) ? undefined : actor.id);
   } catch (e) {
     if (e instanceof TarefaDivergenteError) return { error: e.message };
     if (e instanceof NotFoundError) return { error: 'Tarefa não encontrada.' };
@@ -70,6 +76,7 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
 
 export async function reordenarTarefasAction(ids: string[]): Promise<{ error?: string }> {
   const actor = await requireModulo('working');
+  if (!gerePlanejamento(actor)) return { error: SEM_PERMISSAO };
   if (!ids.every(isUuid)) return { error: 'Lista de tarefas inválida.' };
 
   await reordenarTarefas(ids);
@@ -80,6 +87,7 @@ export async function reordenarTarefasAction(ids: string[]): Promise<{ error?: s
 
 export async function apagarTarefaAction(id: string): Promise<{ error?: string }> {
   const actor = await requireModulo('working');
+  if (!gerePlanejamento(actor)) return { error: SEM_PERMISSAO };
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
   try {

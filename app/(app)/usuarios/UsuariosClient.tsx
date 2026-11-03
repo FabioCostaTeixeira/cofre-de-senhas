@@ -198,6 +198,7 @@ function NovoUsuarioForm({ salas }: { salas: SalaOpcao[] }) {
             <select name="role" className="input" value={papel}
                     onChange={(e) => trocarPapel(e.target.value as Role)}>
               <option value="user">Usuário</option>
+              <option value="gestor">Gestor</option>
               <option value="master">Master</option>
             </select>
           </label>
@@ -419,6 +420,7 @@ function Modal({
                 <select name="role" className="input" value={papel}
                         onChange={(e) => trocarPapel(e.target.value as Role)}>
                   <option value="user">Usuário</option>
+                  <option value="gestor">Gestor</option>
                   <option value="master">Master</option>
                 </select>
               </label>

@@ -1,4 +1,5 @@
-export type Role = 'master' | 'user';
+/** `gestor` distribui os cards do Planejamento (ver lib/permissoes-cards.ts). */
+export type Role = 'master' | 'gestor' | 'user';
 
 export type Actor = {
   id: string;

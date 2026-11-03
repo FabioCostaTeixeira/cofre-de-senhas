@@ -114,7 +114,7 @@ export async function salvarCadastro(
   if (!name) return { error: 'Informe o nome.' };
 
   const role = String(formData.get('role') ?? 'user') as Role;
-  if (role !== 'master' && role !== 'user') return { error: 'Papel inválido.' };
+  if (!['master', 'gestor', 'user'].includes(role)) return { error: 'Papel inválido.' };
 
   const cpf = ouNulo(formData, 'cpf');
   if (cpf && cpf !== '-' && !validarCpf(cpf)) return { error: 'CPF inválido.' };
@@ -218,7 +218,7 @@ export async function criarUsuario(
 
   if (!name) return { error: 'Informe o nome.' };
   if (!email) return { error: 'Informe o e-mail.' };
-  if (role !== 'master' && role !== 'user') return { error: 'Papel inválido.' };
+  if (!['master', 'gestor', 'user'].includes(role)) return { error: 'Papel inválido.' };
   if (senhaInicial.length < 10) {
     return { error: 'A senha inicial precisa ter ao menos 10 caracteres.' };
   }

@@ -280,4 +280,28 @@ describe('KanbanBoard', () => {
     );
     expect(refresh).toHaveBeenCalled();
   });
+
+  it('sem gestão (usuário comum): sem lápis, não reordena, mas move entre colunas', async () => {
+    const t1 = tarefa({ id: 't1', cliente_nome: 'Cliente Um', coluna: 'a_fazer', prioridade: 0 });
+    const t2 = tarefa({ id: 't2', cliente_nome: 'Cliente Dois', coluna: 'a_fazer', prioridade: 1 });
+    const mover = vi.fn(async () => ({}));
+    const reordenar = vi.fn(async () => ({}));
+    render(
+      <KanbanBoard
+        tarefas={[t1, t2]} users={[usuario]} editarTarefaAction={editarTarefaAction}
+        moverTarefaAction={mover} reordenarTarefasAction={reordenar} gestao={false}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Editar tarefa' })).not.toBeInTheDocument();
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+    await act(async () => {
+      onDragEnd({ active: { id: 't1' }, over: { id: 't2', data: { current: { coluna: 'a_fazer' } } } });
+    });
+    expect(reordenar).not.toHaveBeenCalled();
+    await act(async () => {
+      onDragEnd({ active: { id: 't1' }, over: { id: 'executando', data: { current: { coluna: 'executando' } } } });
+    });
+    expect(mover).toHaveBeenCalledWith('t1', 'executando');
+  });
 });
+

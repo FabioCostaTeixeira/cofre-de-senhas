@@ -8,10 +8,15 @@ import { audit } from '@/lib/db/audit';
 import {
   ChamadoInvalidoError, createChamado, moverChamado, reordenarChamados, softDeleteChamado, updateChamado,
 } from '@/lib/db/chamados';
+import { podeReordenarChamados } from '@/lib/permissoes-cards';
 import { isUuid } from '@/lib/validation';
 import type { ChamadoState } from '@/components/ChamadoModal';
 
 const ROTA = '/working/projetos';
+
+// Regra de linha (lib/permissoes-cards.ts): master passa `undefined` (sem filtro); os
+// demais só editam/apagam o que abriram e só movem o que abriram ou lhes foi atribuído.
+const somenteSe = (actor: { id: string; role: string }) => (actor.role === 'master' ? undefined : actor.id);
 
 export async function criarChamadoAction(_prev: ChamadoState, formData: FormData): Promise<ChamadoState> {
   const actor = await requireModulo('working');
@@ -44,7 +49,7 @@ export async function editarChamadoAction(_prev: ChamadoState, formData: FormDat
   }
 
   try {
-    await updateChamado(id, dados);
+    await updateChamado(id, dados, somenteSe(actor));
   } catch (e) {
     if (e instanceof ChamadoInvalidoError) return { error: e.message };
     if (e instanceof NotFoundError) return { error: 'Chamado não encontrado.' };
@@ -60,7 +65,7 @@ export async function moverChamadoAction(id: string, coluna: string): Promise<{ 
   if (!isUuid(id)) return { error: 'Chamado não encontrado.' };
 
   try {
-    await moverChamado(id, coluna);
+    await moverChamado(id, coluna, somenteSe(actor));
   } catch (e) {
     if (e instanceof ChamadoInvalidoError) return { error: e.message };
     if (e instanceof NotFoundError) return { error: 'Chamado não encontrado.' };
@@ -73,6 +78,7 @@ export async function moverChamadoAction(id: string, coluna: string): Promise<{ 
 
 export async function reordenarChamadosAction(ids: string[]): Promise<{ error?: string }> {
   const actor = await requireModulo('working');
+  if (!podeReordenarChamados(actor)) return { error: 'Sem permissão para reordenar os chamados.' };
   if (!ids.every(isUuid)) return { error: 'Lista de chamados inválida.' };
 
   await reordenarChamados(ids);
@@ -86,7 +92,7 @@ export async function apagarChamadoAction(id: string): Promise<{ error?: string 
   if (!isUuid(id)) return { error: 'Chamado não encontrado.' };
 
   try {
-    await softDeleteChamado(id);
+    await softDeleteChamado(id, somenteSe(actor));
   } catch (e) {
     if (e instanceof NotFoundError) return { error: 'Chamado não encontrado.' };
     throw e;
