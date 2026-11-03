@@ -2,7 +2,7 @@ import type {
   AtributoMolde, CategoriaProduto, DadosCombo, DadosPlano, DadosProduto, ItemEntrada,
   TipoAtributo, ValorAtributo,
 } from '@/lib/types';
-import { isPlanejamento } from '@/lib/kanban';
+import { isQuadroCategoria } from '@/lib/kanban';
 
 const TIPOS_ATRIBUTO: TipoAtributo[] = ['numero', 'texto', 'booleano'];
 
@@ -55,7 +55,7 @@ export function lerDadosCategoria(
   if ('error' in molde) return molde;
 
   const planejamento = String(fd.get('planejamento') ?? '');
-  if (!isPlanejamento(planejamento)) return { error: 'Escolha o planejamento.' };
+  if (!isQuadroCategoria(planejamento)) return { error: 'Escolha o planejamento.' };
 
   const unidade = String(fd.get('unidadeConsumo') ?? '').trim();
   return {

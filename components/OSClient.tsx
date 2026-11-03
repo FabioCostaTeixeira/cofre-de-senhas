@@ -48,7 +48,8 @@ function LinhaFormulario({
   linha, index, categorias, produtos, locais, origem, onChange, onRemover,
 }: {
   linha: LinhaOS; index: number; categorias: CategoriaProduto[]; produtos: Produto[]; locais: LocalGravacao[];
-  /** Só oferece categorias deste quadro (`categorias` segue completa para a regra de produto). */
+  /** Só oferece categorias deste quadro (`categorias` segue completa para a regra de produto).
+   *  Categoria de Projetos nunca aparece: chamado é aberto em Working › Projetos. */
   origem?: Planejamento;
   onChange: (i: number, campo: Partial<LinhaOS>) => void; onRemover: (i: number) => void;
 }) {
@@ -72,7 +73,7 @@ function LinhaFormulario({
             onChange={(e) => onChange(index, { categoriaId: e.target.value, produtoId: '' })} required
           >
             <option value="" disabled>Escolha…</option>
-            {categorias.filter((c) => c.ativo && (!origem || c.planejamento === origem)).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            {categorias.filter((c) => c.ativo && c.planejamento !== 'projeto' && (!origem || c.planejamento === origem)).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </label>
         <label className="block space-y-1">

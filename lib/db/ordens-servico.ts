@@ -104,6 +104,10 @@ export async function createOrdemServico(dados: DadosOS): Promise<string> {
     assertUuid(item.categoria_id);
     const escolhida = await getCategoria(item.categoria_id);
     if (!escolhida || !escolhida.ativo) throw new ItemInativoError('Esta categoria não está disponível.');
+    // Chamado não tem cliente nem saldo: nasce no quadro Working › Projetos, não por OS.
+    if (escolhida.planejamento === 'projeto') {
+      throw new ItemInativoError(`"${escolhida.nome}" é aberta como chamado em Working › Projetos.`);
+    }
     const categoriaDoProduto = await getCategoria(produto.categoria_id);
     if (!categoriaDoProduto || !produtoPermitidoNaCategoria(categoriaDoProduto, escolhida)) {
       throw new ItemInativoError(`"${produto.nome}" não pode ser escolhido na categoria "${escolhida.nome}".`);

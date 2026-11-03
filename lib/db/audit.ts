@@ -7,7 +7,7 @@ type Entry = {
   action: AuditAction;
   entityType?: 'credential' | 'room' | 'user' | 'cliente' | 'fornecedor' | 'categoria_produto'
     | 'produto' | 'combo' | 'plano' | 'local_gravacao' | 'estudio' | 'agendamento' | 'bloqueio_estudio'
-    | 'contratacao' | 'ordem_servico' | 'tarefa';
+    | 'contratacao' | 'ordem_servico' | 'tarefa' | 'chamado';
   entityId?: string | null;
   metadata?: Record<string, unknown>;
 };

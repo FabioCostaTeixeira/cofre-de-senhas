@@ -1,7 +1,7 @@
 import { sql } from '@/lib/db/client';
 import { NotFoundError } from '@/lib/authz';
 import { assertUuid } from '@/lib/validation';
-import type { AtributoMolde, CategoriaProduto, Planejamento } from '@/lib/types';
+import type { AtributoMolde, CategoriaProduto, QuadroCategoria } from '@/lib/types';
 
 export async function listCategorias(): Promise<CategoriaProduto[]> {
   return (await sql`
@@ -21,7 +21,7 @@ export async function getCategoria(id: string): Promise<CategoriaProduto | null>
  *  colunas ('edicao' e false). */
 type DadosCategoria = {
   nome: string; unidade_consumo: string | null; atributos_molde: AtributoMolde[]; ativo: boolean;
-  planejamento?: Planejamento; produtos_exclusivos?: boolean;
+  planejamento?: QuadroCategoria; produtos_exclusivos?: boolean;
 };
 
 export async function createCategoria(dados: DadosCategoria): Promise<string> {

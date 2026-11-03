@@ -27,6 +27,7 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
           items: [
             { href: '/working/planejamento/edicao', label: 'Planejamento · Edição', icon: <Kanban size={18} className={iconClass} /> },
             { href: '/working/planejamento/gravacao', label: 'Planejamento · Gravação', icon: <Kanban size={18} className={iconClass} /> },
+            { href: '/working/projetos', label: 'Projetos', icon: <FolderKanban size={18} className={iconClass} /> },
           ],
         }]
       : []),

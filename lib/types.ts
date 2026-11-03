@@ -127,13 +127,17 @@ export type AtributoMolde = {
 /** Quadro do Planejamento (Working) onde caem as tarefas dos produtos da categoria. */
 export type Planejamento = 'edicao' | 'gravacao';
 
+/** Quadro do Working para onde a categoria manda o trabalho: os do Planejamento
+ *  (tarefas de OS) ou Projetos (chamados da equipe, ver migração 017). */
+export type QuadroCategoria = Planejamento | 'projeto';
+
 export type CategoriaProduto = {
   id: string;
   nome: string;
   unidade_consumo: string | null;
   atributos_molde: AtributoMolde[];
   ativo: boolean;
-  planejamento: Planejamento;
+  planejamento: QuadroCategoria;
   /** Produtos desta categoria só aparecem na OS quando ela é a escolhida (Cortes). */
   produtos_exclusivos: boolean;
 };
@@ -373,6 +377,31 @@ export type DadosTarefa = {
   deadline_tarefa: string | null;
   /** Quadro onde a tarefa foi criada. */
   planejamento: Planejamento;
+};
+
+/** Card do quadro Working › Projetos. */
+export type Chamado = {
+  id: string;
+  categoria_id: string;
+  produto_id: string;
+  produto_nome: string;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
+  criado_por: string;
+  criado_por_nome: string;
+  titulo: string;
+  descricao: string | null;
+  coluna: string;
+  prioridade: number;
+  created_at: string;
+};
+
+export type DadosChamado = {
+  categoria_id: string;
+  produto_id: string;
+  responsavel_id: string;
+  titulo: string;
+  descricao: string | null;
 };
 
 export type DadosOSItem = {

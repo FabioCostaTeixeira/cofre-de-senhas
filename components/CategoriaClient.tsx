@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import type { AtributoMolde, CategoriaProduto, TipoAtributo } from '@/lib/types';
 import { ModalForm } from '@/components/ModalForm';
-import { PLANEJAMENTOS } from '@/lib/kanban';
+import { QUADROS_CATEGORIA } from '@/lib/kanban';
 
 export type CategoriaState = { error?: string; ok?: string };
 const inicial: CategoriaState = {};
@@ -70,7 +70,7 @@ function CamposComuns({
         <label className="block space-y-1">
           <span className="text-sm">Planejamento</span>
           <select name="planejamento" className="input" defaultValue={item?.planejamento ?? 'edicao'}>
-            {PLANEJAMENTOS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {QUADROS_CATEGORIA.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </label>
         <label className="flex items-center gap-2 text-sm">
@@ -165,7 +165,7 @@ export function CategoriaClient({
               <td className="p-2">{c.nome}</td>
               <td className="p-2">{c.unidade_consumo ?? '—'}</td>
               <td className="p-2">{c.atributos_molde.length}</td>
-              <td className="p-2">{PLANEJAMENTOS.find((p) => p.id === c.planejamento)?.label ?? '—'}</td>
+              <td className="p-2">{QUADROS_CATEGORIA.find((p) => p.id === c.planejamento)?.label ?? '—'}</td>
               <td className="p-2">{c.ativo ? 'Sim' : 'Não'}</td>
             </tr>
           ))}
