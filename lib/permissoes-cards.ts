@@ -10,7 +10,9 @@ import type { Actor, Chamado, Tarefa } from '@/lib/types';
  * - gestor: no Planejamento (Edição/Gravação) vê, edita, reordena e distribui todos os
  *   cards. Nos chamados só vê todos; editar é de quem abriu.
  * - usuário: no Planejamento, só os cards atribuídos a ele, que pode arrastar entre
- *   colunas mas não editar. Nos chamados, os que abriu ou que foram atribuídos a ele.
+ *   colunas mas não editar. Nos chamados, os que abriu ou que foram atribuídos a ele;
+ *   o responsável move à vontade, mas quem abriu só move depois que o responsável o
+ *   põe em Homologação (decisão do cliente, 2026-11-04).
  */
 export type AtorCard = Pick<Actor, 'id' | 'role'>;
 
@@ -35,8 +37,21 @@ export function podeEditarChamado(a: AtorCard, c: Pick<Chamado, 'criado_por'>): 
   return isMaster(a) || c.criado_por === a.id;
 }
 
-export function podeMoverChamado(a: AtorCard, c: Pick<Chamado, 'criado_por' | 'responsavel_id'>): boolean {
-  return isMaster(a) || c.criado_por === a.id || c.responsavel_id === a.id;
+/** Coluna em que o chamado volta para as mãos de quem o abriu. */
+export const COLUNA_HOMOLOGACAO_CHAMADO = 'homologacao';
+
+/** Quem abriu só move o chamado a partir de Homologação — vale para o usuário comum;
+ *  o gestor que abriu um chamado continua movendo-o livremente. */
+export function criadorSoMoveDaHomologacao(a: AtorCard): boolean {
+  return a.role === 'user';
+}
+
+export function podeMoverChamado(
+  a: AtorCard, c: Pick<Chamado, 'criado_por' | 'responsavel_id' | 'coluna'>,
+): boolean {
+  if (isMaster(a) || c.responsavel_id === a.id) return true;
+  if (c.criado_por !== a.id) return false;
+  return !criadorSoMoveDaHomologacao(a) || c.coluna === COLUNA_HOMOLOGACAO_CHAMADO;
 }
 
 /** Prioridade é uma ordem só para o quadro inteiro: só quem vê todos os cards e pode

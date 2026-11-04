@@ -86,11 +86,16 @@ function ChamadosColuna({
  * arraste, reordenar) segue lib/permissoes-cards.ts; o servidor repete a checagem.
  */
 export function ChamadosBoard({
-  chamados, categorias, produtos, users, ator,
+  chamados, categorias, produtos, users, ator, abas, parcial = false,
   criarChamadoAction, editarChamadoAction, moverChamadoAction, reordenarChamadosAction, apagarChamadoAction,
 }: {
   chamados: Chamado[]; categorias: CategoriaProduto[]; produtos: Produto[]; users: User[];
   ator: AtorCard;
+  /** Seletor Geral/Individual de master e gestor, exibido ao lado do título. */
+  abas?: React.ReactNode;
+  /** Quadro mostra só parte dos chamados (aba Individual): reordenar fica desligado,
+   *  porque a prioridade é uma ordem só para todos os chamados. */
+  parcial?: boolean;
   criarChamadoAction: SalvarAcao; editarChamadoAction: SalvarAcao;
   moverChamadoAction: MoverAcao; reordenarChamadosAction: ReordenarAcao; apagarChamadoAction: ApagarAcao;
 }) {
@@ -147,7 +152,7 @@ export function ChamadosBoard({
     }
 
     const overId = String(over.id);
-    if (!podeReordenarChamados(ator) || overId === activeId) return;
+    if (parcial || !podeReordenarChamados(ator) || overId === activeId) return;
 
     const idsAtuais = ordenarChamados(chamadosState.filter((c) => c.coluna === novaColuna)).map((c) => c.id);
     const oldIndex = idsAtuais.indexOf(activeId);
@@ -168,6 +173,7 @@ export function ChamadosBoard({
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
         <h1 className="text-xl font-semibold">Projetos</h1>
+        {abas}
         <button type="button" className="btn btn-primary" onClick={() => setCriando(true)}>Novo chamado</button>
       </div>
       {erro && <p className="text-sm" style={{ color: 'var(--danger)' }}>{erro}</p>}

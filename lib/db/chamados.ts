@@ -3,6 +3,7 @@ import { NotFoundError } from '@/lib/authz';
 import { getCategoria } from '@/lib/db/categorias-produto';
 import { getProduto } from '@/lib/db/produtos';
 import { COLUNAS_CHAMADO } from '@/lib/kanban';
+import { COLUNA_HOMOLOGACAO_CHAMADO } from '@/lib/permissoes-cards';
 import { produtoPermitidoNaCategoria } from '@/lib/produtos-regra';
 import { assertUuid } from '@/lib/validation';
 import type { Chamado, DadosChamado } from '@/lib/types';
@@ -18,10 +19,16 @@ export class ChamadoInvalidoError extends Error {
   }
 }
 
-/** Com `visivelPara`, só os chamados que ele abriu ou que foram atribuídos a ele. */
-export async function listChamados(visivelPara?: string): Promise<Chamado[]> {
-  if (visivelPara) assertUuid(visivelPara);
-  const ator = visivelPara ?? null;
+/** Sem filtro, todos. `envolvido`: os que ele abriu ou que foram atribuídos a ele (visão
+ *  do usuário comum). `responsavel`: só os atribuídos a ele (aba Individual de
+ *  master/gestor). */
+export async function listChamados(
+  filtro: { envolvido?: string; responsavel?: string } = {},
+): Promise<Chamado[]> {
+  if (filtro.envolvido) assertUuid(filtro.envolvido);
+  if (filtro.responsavel) assertUuid(filtro.responsavel);
+  const ator = filtro.envolvido ?? null;
+  const responsavel = filtro.responsavel ?? null;
   return (await sql`
     select c.id, c.categoria_id, c.produto_id, p.nome as produto_nome,
            c.responsavel_id, r.name as responsavel_nome,
@@ -33,6 +40,7 @@ export async function listChamados(visivelPara?: string): Promise<Chamado[]> {
       left join users r on r.id = c.responsavel_id
      where c.deleted_at is null
        and (${ator}::uuid is null or c.criado_por = ${ator} or c.responsavel_id = ${ator})
+       and (${responsavel}::uuid is null or c.responsavel_id = ${responsavel})
      order by c.prioridade, c.created_at`) as Chamado[];
 }
 
@@ -96,16 +104,23 @@ export async function updateChamado(id: string, dados: DadosChamado, somenteCria
   if (!rows[0]) throw new NotFoundError();
 }
 
-/** Com `somenteEnvolvido`, só chamado que ele abriu ou que foi atribuído a ele. */
-export async function moverChamado(id: string, coluna: string, somenteEnvolvido?: string): Promise<void> {
+/** Com `restricao`, só chamado atribuído ao ator ou que ele abriu — e, se
+ *  `criadorSoDaHomologacao`, o que ele abriu só sai do lugar estando em Homologação
+ *  (mesma regra de `podeMoverChamado`, checada na `where` para não depender de leitura
+ *  anterior). */
+export async function moverChamado(
+  id: string, coluna: string, restricao?: { ator: string; criadorSoDaHomologacao: boolean },
+): Promise<void> {
   assertUuid(id);
-  if (somenteEnvolvido) assertUuid(somenteEnvolvido);
-  const ator = somenteEnvolvido ?? null;
+  if (restricao) assertUuid(restricao.ator);
+  const ator = restricao?.ator ?? null;
+  const soDaHomologacao = restricao?.criadorSoDaHomologacao ?? false;
   if (!COLUNAS_CHAMADO.some((c) => c.id === coluna)) throw new ChamadoInvalidoError('Coluna inválida.');
   const rows = (await sql`
     update chamados set coluna = ${coluna}, updated_at = now()
      where id = ${id} and deleted_at is null
-       and (${ator}::uuid is null or criado_por = ${ator} or responsavel_id = ${ator})
+       and (${ator}::uuid is null or responsavel_id = ${ator}
+            or (criado_por = ${ator} and (not ${soDaHomologacao}::boolean or coluna = ${COLUNA_HOMOLOGACAO_CHAMADO})))
     returning id`) as { id: string }[];
   if (!rows[0]) throw new NotFoundError();
 }

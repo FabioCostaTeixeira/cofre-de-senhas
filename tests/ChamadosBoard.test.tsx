@@ -134,4 +134,23 @@ describe('ChamadosBoard', () => {
     );
     expect(screen.getByRole('button', { name: 'Editar chamado' })).toBeInTheDocument();
   });
+
+  it('aba Individual (parcial): mostra as abas e não reordena, mesmo para o master', async () => {
+    const a = acoes();
+    const c1 = chamado({ id: 'c1', titulo: 'Um', prioridade: 0 });
+    const c2 = chamado({ id: 'c2', titulo: 'Dois', prioridade: 1 });
+    render(
+      <ChamadosBoard
+        chamados={[c1, c2]} categorias={categorias} produtos={produtos} users={users} {...a}
+        parcial abas={<nav aria-label="Visão dos chamados">abas</nav>}
+      />,
+    );
+    expect(screen.getByRole('navigation', { name: 'Visão dos chamados' })).toBeInTheDocument();
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+    await act(async () => {
+      onDragEnd({ active: { id: 'c1' }, over: { id: 'c2', data: { current: { coluna: 'aberto' } } } });
+    });
+    expect(a.reordenarChamadosAction).not.toHaveBeenCalled();
+  });
 });
+

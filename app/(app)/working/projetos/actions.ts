@@ -8,7 +8,7 @@ import { audit } from '@/lib/db/audit';
 import {
   ChamadoInvalidoError, createChamado, moverChamado, reordenarChamados, softDeleteChamado, updateChamado,
 } from '@/lib/db/chamados';
-import { podeReordenarChamados } from '@/lib/permissoes-cards';
+import { criadorSoMoveDaHomologacao, podeReordenarChamados } from '@/lib/permissoes-cards';
 import { isUuid } from '@/lib/validation';
 import type { ChamadoState } from '@/components/ChamadoModal';
 
@@ -65,10 +65,14 @@ export async function moverChamadoAction(id: string, coluna: string): Promise<{ 
   if (!isUuid(id)) return { error: 'Chamado não encontrado.' };
 
   try {
-    await moverChamado(id, coluna, somenteSe(actor));
+    await moverChamado(id, coluna, actor.role === 'master'
+      ? undefined
+      : { ator: actor.id, criadorSoDaHomologacao: criadorSoMoveDaHomologacao(actor) });
   } catch (e) {
     if (e instanceof ChamadoInvalidoError) return { error: e.message };
-    if (e instanceof NotFoundError) return { error: 'Chamado não encontrado.' };
+    // Sem distinguir "não existe" de "não pode": quem abriu e tenta mover antes da
+    // Homologação cai aqui também.
+    if (e instanceof NotFoundError) return { error: 'Você não pode mover este chamado agora.' };
     throw e;
   }
   await audit({ actorId: actor.id, action: 'update', entityType: 'chamado', entityId: id });

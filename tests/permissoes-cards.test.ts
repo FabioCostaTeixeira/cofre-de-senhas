@@ -23,7 +23,7 @@ describe('Planejamento (Edição/Gravação)', () => {
 });
 
 describe('Chamados (Projetos)', () => {
-  const deOutros = { criado_por: 'x', responsavel_id: 'y' };
+  const deOutros = { criado_por: 'x', responsavel_id: 'y', coluna: 'aberto' };
 
   it('master e gestor veem todos; usuário não', () => {
     expect(veTodosChamados(master)).toBe(true);
@@ -37,11 +37,22 @@ describe('Chamados (Projetos)', () => {
     expect(podeEditarChamado(master, { criado_por: 'x' })).toBe(true);
   });
 
-  it('move quem abriu, o responsável e o master', () => {
-    expect(podeMoverChamado(user, { criado_por: 'u', responsavel_id: 'y' })).toBe(true);
-    expect(podeMoverChamado(user, { criado_por: 'x', responsavel_id: 'u' })).toBe(true);
-    expect(podeMoverChamado(gestor, deOutros)).toBe(false);
+  it('responsável e master movem em qualquer coluna', () => {
+    expect(podeMoverChamado(user, { criado_por: 'x', responsavel_id: 'u', coluna: 'aberto' })).toBe(true);
     expect(podeMoverChamado(master, deOutros)).toBe(true);
+    expect(podeMoverChamado(gestor, deOutros)).toBe(false);
+  });
+
+  it('usuário comum que abriu só move a partir de Homologação', () => {
+    for (const coluna of ['aberto', 'em_andamento', 'block', 'concluido']) {
+      expect(podeMoverChamado(user, { criado_por: 'u', responsavel_id: 'y', coluna })).toBe(false);
+    }
+    expect(podeMoverChamado(user, { criado_por: 'u', responsavel_id: 'y', coluna: 'homologacao' })).toBe(true);
+  });
+
+  it('quem abriu e também é o responsável move à vontade; gestor que abriu também', () => {
+    expect(podeMoverChamado(user, { criado_por: 'u', responsavel_id: 'u', coluna: 'aberto' })).toBe(true);
+    expect(podeMoverChamado(gestor, { criado_por: 'g', responsavel_id: 'y', coluna: 'aberto' })).toBe(true);
   });
 
   it('só o master reordena', () => {
