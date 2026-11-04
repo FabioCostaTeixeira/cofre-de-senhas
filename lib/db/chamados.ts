@@ -19,16 +19,17 @@ export class ChamadoInvalidoError extends Error {
   }
 }
 
-/** Sem filtro, todos. `envolvido`: os que ele abriu ou que foram atribuídos a ele (visão
- *  do usuário comum). `responsavel`: só os atribuídos a ele (aba Individual de
- *  master/gestor). */
+/** Sem filtro, todos. `envolvido`: os que ele abriu ou que foram atribuídos a ele.
+ *  `responsavel`: só os atribuídos a ele. `criadoPor`: só os que ele abriu. */
 export async function listChamados(
-  filtro: { envolvido?: string; responsavel?: string } = {},
+  filtro: { envolvido?: string; responsavel?: string; criadoPor?: string } = {},
 ): Promise<Chamado[]> {
   if (filtro.envolvido) assertUuid(filtro.envolvido);
   if (filtro.responsavel) assertUuid(filtro.responsavel);
+  if (filtro.criadoPor) assertUuid(filtro.criadoPor);
   const ator = filtro.envolvido ?? null;
   const responsavel = filtro.responsavel ?? null;
+  const criadoPor = filtro.criadoPor ?? null;
   return (await sql`
     select c.id, c.categoria_id, c.produto_id, p.nome as produto_nome,
            c.responsavel_id, r.name as responsavel_nome,
@@ -41,6 +42,7 @@ export async function listChamados(
      where c.deleted_at is null
        and (${ator}::uuid is null or c.criado_por = ${ator} or c.responsavel_id = ${ator})
        and (${responsavel}::uuid is null or c.responsavel_id = ${responsavel})
+       and (${criadoPor}::uuid is null or c.criado_por = ${criadoPor})
      order by c.prioridade, c.created_at`) as Chamado[];
 }
 
