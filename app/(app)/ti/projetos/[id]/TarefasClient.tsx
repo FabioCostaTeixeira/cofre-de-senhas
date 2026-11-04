@@ -2,11 +2,22 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { ModalForm } from '@/components/ModalForm';
+import { TiStatusComMotivo } from '@/components/TiStatusComMotivo';
 import { criarOuEditarTarefaAction, type TarefaActionState } from './actions';
 import { TarefasKanbanGrid } from './TarefasKanbanGrid';
 import type { TiProjeto, TiTarefa } from '@/lib/db/ti';
 
 const inicial: TarefaActionState = {};
+
+const STATUS_TAREFA = [
+  { id: 'roadmap', label: 'Roadmap' },
+  { id: 'planejamento', label: 'Planejamento' },
+  { id: 'a_fazer', label: 'A Fazer' },
+  { id: 'progresso', label: 'Em Progresso' },
+  { id: 'homologacao', label: 'Homologação' },
+  { id: 'bloqueada', label: 'Bloqueada' },
+  { id: 'concluido', label: 'Concluído' },
+] as const;
 
 export function TarefasClient({ projeto, tarefas }: { projeto: TiProjeto; tarefas: TiTarefa[] }) {
   const [modalAberto, setModalAberto] = useState(false);
@@ -65,18 +76,9 @@ export function TarefasClient({ projeto, tarefas }: { projeto: TiProjeto; tarefa
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1">
-              <span className="text-sm">Status</span>
-              <select name="status" className="input" defaultValue={tarefaEditando?.status ?? 'a_fazer'}>
-                <option value="roadmap">Roadmap</option>
-                <option value="planejamento">Planejamento</option>
-                <option value="a_fazer">A Fazer</option>
-                <option value="progresso">Em Progresso</option>
-                <option value="homologacao">Homologação</option>
-                <option value="bloqueada">Bloqueada</option>
-                <option value="concluido">Concluído</option>
-              </select>
-            </label>
+            <TiStatusComMotivo
+              opcoes={STATUS_TAREFA} inicial={tarefaEditando?.status ?? 'a_fazer'} editando={!!tarefaEditando}
+            />
             <label className="block space-y-1">
               <span className="text-sm">Prioridade</span>
               <select name="prioridade" className="input" defaultValue={tarefaEditando?.prioridade ?? 'media'}>

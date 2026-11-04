@@ -169,11 +169,6 @@ export async function updateTiTarefa(data: {
   }
 }
 
-export async function updateTiTarefaStatus(id: string, status: string): Promise<void> {
-  assertUuid(id);
-  await sql`update ti_tarefas set status = ${status} where id = ${id}`;
-}
-
 export async function deleteTiTarefa(id: string): Promise<void> {
   assertUuid(id);
   const atual = await getTiTarefa(id);
@@ -306,11 +301,6 @@ export async function updateTiAtividade(data: {
     projetoAnteriorId: anterior.projeto_id,
     projetoNovoId: novoPai.projeto_id,
   };
-}
-
-export async function updateTiAtividadeStatus(id: string, status: string): Promise<void> {
-  assertUuid(id);
-  await sql`update ti_atividades set status = ${status} where id = ${id}`;
 }
 
 export async function deleteTiAtividade(id: string): Promise<void> {

@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireTiAccess } from '@/lib/auth/guards';
+import { MotivoObrigatorioError, moverCardTi, statusAtualTi } from '@/lib/db/ti-historico';
 import {
   createTiAtividade,
   updateTiAtividade,
-  updateTiAtividadeStatus,
   deleteTiAtividade,
   atualizarOrdemAtividades,
 } from '@/lib/db/ti-tarefas';
@@ -15,7 +15,7 @@ import { isUuid } from '@/lib/validation';
 export type AtividadeActionState = { error?: string; ok?: string };
 
 export async function criarOuEditarAtividadeAction(_prev: AtividadeActionState, formData: FormData): Promise<AtividadeActionState> {
-  await requireTiAccess();
+  const actor = await requireTiAccess();
   const id = String(formData.get('id') ?? '').trim();
   const tarefaId = String(formData.get('tarefaId') ?? '');
   const nome = String(formData.get('nome') ?? '').trim();
@@ -34,6 +34,14 @@ export async function criarOuEditarAtividadeAction(_prev: AtividadeActionState, 
 
   try {
     if (id && isUuid(id)) {
+      // Trocar o status pela edição também é movimentação: exige motivo e entra na
+      // timeline (mesma regra do arraste no kanban).
+      const card = { tipo: 'atividade' as const, id };
+      const statusAntes = await statusAtualTi(card);
+      if (statusAntes === null) return { error: 'User Story não encontrada.' };
+      if (statusAntes !== status) {
+        await moverCardTi(card, status, actor.id, String(formData.get('motivo') ?? ''));
+      }
       const resultado = await updateTiAtividade({ id, tarefaId, nome, descricao, status, prioridade, responsavel, peso });
       if (!resultado) return { error: 'User Story não encontrada.' };
 
@@ -49,19 +57,9 @@ export async function criarOuEditarAtividadeAction(_prev: AtividadeActionState, 
       return { ok: 'User Story criada com sucesso!' };
     }
   } catch (err) {
+    if (err instanceof MotivoObrigatorioError) return { error: err.message };
     return { error: 'Erro ao salvar User Story.' };
   }
-}
-
-export async function mudarStatusAtividadeAction(formData: FormData): Promise<void> {
-  await requireTiAccess();
-  const id = String(formData.get('id') ?? '');
-  const tarefaId = String(formData.get('tarefaId') ?? '');
-  const status = String(formData.get('status') ?? '');
-
-  if (!isUuid(id) || !isUuid(tarefaId) || !isStatusAtividade(status)) return;
-  await updateTiAtividadeStatus(id, status);
-  revalidatePath(`/ti/tarefas/${tarefaId}`);
 }
 
 export async function excluirAtividadeAction(formData: FormData): Promise<void> {

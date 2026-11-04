@@ -2,11 +2,28 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Copy } from 'lucide-react';
+import { Copy, History } from 'lucide-react';
+import { TiHistoricoModal, type MovimentoTi } from '@/components/TiHistoricoModal';
 import type { TiProjeto } from '@/lib/db/ti';
 import type { TiTarefa } from '@/lib/db/ti';
 import { formatarDataBR } from '@/lib/documentos';
-import { duplicarTarefaAction, excluirTarefaAction, mudarStatusTarefaAction } from './actions';
+import { duplicarTarefaAction, excluirTarefaAction } from './actions';
+
+/** Abre o card expandido (timeline). Não inicia arraste nem segue o link do card. */
+function HistoricoBotao({ nome, onAbrir }: { nome: string; onAbrir: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className="p-1 rounded-md bg-black/20 hover:bg-white/10 transition-colors inline-block align-middle"
+      style={{ color: 'var(--text-dim)' }}
+      aria-label={`Histórico de ${nome}`}
+      title="Histórico do card"
+    >
+      <History size={14} aria-hidden="true" />
+    </button>
+  );
+}
 
 function DuplicarTarefaBotao({ tarefa, projetoId }: { tarefa: TiTarefa; projetoId: string }) {
   return (
@@ -46,6 +63,8 @@ const STATUS_KANBAN = [
   { id: 'concluido', label: 'Concluído' },
 ];
 
+const ROTULOS_STATUS = Object.fromEntries(Object.entries(STATUS_LABELS).map(([id, s]) => [id, s.label]));
+
 const PRIORIDADE_LABELS: Record<string, string> = {
   baixa: 'Baixa',
   media: 'Média',
@@ -65,6 +84,8 @@ export function TarefasKanbanGrid({
   onEditarTarefa: (t: TiTarefa) => void;
 }) {
   const [visao, setVisao] = useState<'grid' | 'kanban'>('grid');
+  // Card expandido. Com `movimento`, veio de um arraste e só muda de coluna com o motivo.
+  const [expandido, setExpandido] = useState<{ tarefa: TiTarefa; movimento?: MovimentoTi } | null>(null);
 
   const concluido = tarefas
     .filter((t) => t.status === 'concluido')
@@ -77,39 +98,14 @@ export function TarefasKanbanGrid({
     e.dataTransfer.setData('text/plain', id);
   };
 
-  const handleDrop = async (e: React.DragEvent, novoStatus: string) => {
+  // Soltar em outra coluna não move direto: expande o card pedindo o motivo, e a troca
+  // de status acontece junto com o registro na timeline (moverCardTiAction).
+  const handleDrop = (e: React.DragEvent, novoStatus: string) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
-    if (!id) return;
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '';
-
-    const inputId = document.createElement('input');
-    inputId.type = 'hidden';
-    inputId.name = 'id';
-    inputId.value = id;
-    form.appendChild(inputId);
-
-    const inputProj = document.createElement('input');
-    inputProj.type = 'hidden';
-    inputProj.name = 'projetoId';
-    inputProj.value = projeto.id;
-    form.appendChild(inputProj);
-
-    const inputStatus = document.createElement('input');
-    inputStatus.type = 'hidden';
-    inputStatus.name = 'status';
-    inputStatus.value = novoStatus;
-    form.appendChild(inputStatus);
-
-    document.body.appendChild(form);
-
-    const formData = new FormData(form);
-    form.remove();
-
-    await mudarStatusTarefaAction(formData);
+    const tarefa = tarefas.find((t) => t.id === id);
+    if (!tarefa || tarefa.status === novoStatus) return;
+    setExpandido({ tarefa, movimento: { de: tarefa.status, para: novoStatus } });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -227,6 +223,7 @@ export function TarefasKanbanGrid({
                       {t.descricao || '—'}
                     </td>
                     <td className="p-3 text-right space-x-2">
+                      <HistoricoBotao nome={t.nome} onAbrir={() => setExpandido({ tarefa: t })} />
                       <DuplicarTarefaBotao tarefa={t} projetoId={projeto.id} />
                       <Link href={`/ti/tarefas/${t.id}`} className="text-xs hover:underline" style={{ color: 'var(--accent)' }}>
                         Stories
@@ -298,6 +295,7 @@ export function TarefasKanbanGrid({
                       <div className="flex justify-between items-center pt-2 border-t text-xs" style={{ borderColor: 'var(--border)' }}>
                         <span style={{ color: 'var(--text-dim)' }}>{t.responsavel || '—'}</span>
                         <div className="space-x-2">
+                          <HistoricoBotao nome={t.nome} onAbrir={() => setExpandido({ tarefa: t })} />
                           <DuplicarTarefaBotao tarefa={t} projetoId={projeto.id} />
                           <button
                             type="button"
@@ -331,6 +329,13 @@ export function TarefasKanbanGrid({
             );
           })}
         </div>
+      )}
+
+      {expandido && (
+        <TiHistoricoModal
+          card={{ tipo: 'tarefa', id: expandido.tarefa.id }} nome={expandido.tarefa.nome}
+          movimento={expandido.movimento} rotulos={ROTULOS_STATUS} onFechar={() => setExpandido(null)}
+        />
       )}
     </div>
   );

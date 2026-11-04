@@ -2,11 +2,21 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { ModalForm } from '@/components/ModalForm';
+import { TiStatusComMotivo } from '@/components/TiStatusComMotivo';
 import { criarOuEditarAtividadeAction, type AtividadeActionState } from './actions';
 import { AtividadesKanbanGrid } from './AtividadesKanbanGrid';
 import type { TiTarefa, TiAtividade, TiTarefaOption } from '@/lib/db/ti';
 
 const inicial: AtividadeActionState = {};
+
+const STATUS_ATIVIDADE = [
+  { id: 'roadmap', label: 'Roadmap' },
+  { id: 'a_fazer', label: 'A Fazer' },
+  { id: 'progresso', label: 'Em Progresso' },
+  { id: 'homologacao', label: 'Homologação' },
+  { id: 'bloqueada', label: 'Bloqueada' },
+  { id: 'concluido', label: 'Concluído' },
+] as const;
 
 export function AtividadesClient({
   tarefa,
@@ -91,17 +101,9 @@ export function AtividadesClient({
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1">
-              <span className="text-sm">Status</span>
-              <select name="status" className="input" defaultValue={atividadeEditando?.status ?? 'a_fazer'}>
-                <option value="roadmap">Roadmap</option>
-                <option value="a_fazer">A Fazer</option>
-                <option value="progresso">Em Progresso</option>
-                <option value="homologacao">Homologação</option>
-                <option value="bloqueada">Bloqueada</option>
-                <option value="concluido">Concluído</option>
-              </select>
-            </label>
+            <TiStatusComMotivo
+              opcoes={STATUS_ATIVIDADE} inicial={atividadeEditando?.status ?? 'a_fazer'} editando={!!atividadeEditando}
+            />
             <label className="block space-y-1">
               <span className="text-sm">Prioridade</span>
               <select name="prioridade" className="input" defaultValue={atividadeEditando?.prioridade ?? 'media'}>

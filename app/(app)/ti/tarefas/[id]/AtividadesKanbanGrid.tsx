@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { History } from 'lucide-react';
+import { TiHistoricoModal, type MovimentoTi } from '@/components/TiHistoricoModal';
 import type { TiTarefa, TiAtividade } from '@/lib/db/ti';
-import { excluirAtividadeAction, mudarStatusAtividadeAction, reordenarAtividadesAction } from './actions';
+import { excluirAtividadeAction } from './actions';
 
 const STATUS_LABELS: Record<string, { label: string; bg: string; color?: string }> = {
   roadmap: { label: 'Roadmap', bg: '#64748b' },
@@ -21,6 +23,8 @@ const STATUS_KANBAN = [
   { id: 'bloqueada', label: 'Bloqueada' },
   { id: 'concluido', label: 'Concluído' },
 ];
+
+const ROTULOS_STATUS = Object.fromEntries(Object.entries(STATUS_LABELS).map(([id, s]) => [id, s.label]));
 
 const PRIORIDADE_LABELS: Record<string, string> = {
   baixa: 'Baixa',
@@ -41,6 +45,8 @@ export function AtividadesKanbanGrid({
   onEditarAtividade: (a: TiAtividade) => void;
 }) {
   const [visao, setVisao] = useState<'grid' | 'kanban'>('grid');
+  // Card expandido. Com `movimento`, veio de um arraste e só muda de coluna com o motivo.
+  const [expandido, setExpandido] = useState<{ atividade: TiAtividade; movimento?: MovimentoTi } | null>(null);
 
   const concluido = atividades
     .filter((a) => a.status === 'concluido')
@@ -53,39 +59,14 @@ export function AtividadesKanbanGrid({
     e.dataTransfer.setData('text/plain', id);
   };
 
-  const handleDrop = async (e: React.DragEvent, novoStatus: string) => {
+  // Soltar em outra coluna não move direto: expande o card pedindo o motivo, e a troca
+  // de status acontece junto com o registro na timeline (moverCardTiAction).
+  const handleDrop = (e: React.DragEvent, novoStatus: string) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
-    if (!id) return;
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '';
-
-    const inputId = document.createElement('input');
-    inputId.type = 'hidden';
-    inputId.name = 'id';
-    inputId.value = id;
-    form.appendChild(inputId);
-
-    const inputTarefa = document.createElement('input');
-    inputTarefa.type = 'hidden';
-    inputTarefa.name = 'tarefaId';
-    inputTarefa.value = tarefa.id;
-    form.appendChild(inputTarefa);
-
-    const inputStatus = document.createElement('input');
-    inputStatus.type = 'hidden';
-    inputStatus.name = 'status';
-    inputStatus.value = novoStatus;
-    form.appendChild(inputStatus);
-
-    document.body.appendChild(form);
-
-    const formData = new FormData(form);
-    form.remove();
-
-    await mudarStatusAtividadeAction(formData);
+    const atividade = atividades.find((a) => a.id === id);
+    if (!atividade || atividade.status === novoStatus) return;
+    setExpandido({ atividade, movimento: { de: atividade.status, para: novoStatus } });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -191,6 +172,14 @@ export function AtividadesKanbanGrid({
                     <td className="p-3 text-right space-x-2">
                       <button
                         type="button"
+                        onClick={() => setExpandido({ atividade: a })}
+                        className="text-xs hover:underline inline-flex items-center gap-1"
+                        style={{ color: 'var(--accent)' }}
+                      >
+                        <History size={12} aria-hidden="true" /> Histórico
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onEditarAtividade(a)}
                         className="text-xs hover:underline"
                         style={{ color: 'var(--warn)' }}
@@ -242,16 +231,20 @@ export function AtividadesKanbanGrid({
                       onDragStart={(e) => handleDragStart(e, a.id)}
                       className="glass p-3 space-y-2 border border-white/5 cursor-grab active:cursor-grabbing hover:border-white/20 transition-all"
                     >
-                      <div className="space-y-1">
+                      {/* Clicar no card o expande: timeline + anotação. */}
+                      <button
+                        type="button" className="w-full text-left space-y-1"
+                        onClick={() => setExpandido({ atividade: a })} title="Abrir histórico do card"
+                      >
                         <div className="flex justify-between text-xs" style={{ color: 'var(--text-dim)' }}>
                           <span>{PRIORIDADE_LABELS[a.prioridade]}</span>
                           <span>Peso: {a.peso}%</span>
                         </div>
-                        <h5 className="font-medium text-sm">{a.nome}</h5>
+                        <h5 className="font-medium text-sm hover:underline">{a.nome}</h5>
                         <p className="text-xs line-clamp-2" style={{ color: 'var(--text-dim)' }}>
                           {a.descricao}
                         </p>
-                      </div>
+                      </button>
 
                       <div className="flex justify-between items-center pt-2 border-t text-xs" style={{ borderColor: 'var(--border)' }}>
                         <span style={{ color: 'var(--text-dim)' }}>{a.responsavel || '—'}</span>
@@ -288,6 +281,13 @@ export function AtividadesKanbanGrid({
             );
           })}
         </div>
+      )}
+
+      {expandido && (
+        <TiHistoricoModal
+          card={{ tipo: 'atividade', id: expandido.atividade.id }} nome={expandido.atividade.nome}
+          movimento={expandido.movimento} rotulos={ROTULOS_STATUS} onFechar={() => setExpandido(null)}
+        />
       )}
     </div>
   );

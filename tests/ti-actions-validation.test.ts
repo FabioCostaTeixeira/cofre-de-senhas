@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
   updateTiProjeto: vi.fn(),
   createTiTarefa: vi.fn(),
   updateTiTarefa: vi.fn(),
-  updateTiTarefaStatus: vi.fn(),
   duplicateTiTarefa: vi.fn(),
   createTiAtividade: vi.fn(),
   updateTiAtividade: vi.fn(),
-  updateTiAtividadeStatus: vi.fn(),
+  moverCardTi: vi.fn(),
+  statusAtualTi: vi.fn(),
+  addNotaTi: vi.fn(),
+  listHistoricoTi: vi.fn(),
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
@@ -25,26 +27,35 @@ vi.mock('@/lib/db/ti', () => ({
 vi.mock('@/lib/db/ti-tarefas', () => ({
   createTiTarefa: mocks.createTiTarefa,
   updateTiTarefa: mocks.updateTiTarefa,
-  updateTiTarefaStatus: mocks.updateTiTarefaStatus,
   deleteTiTarefa: vi.fn(),
   duplicateTiTarefa: mocks.duplicateTiTarefa,
   atualizarOrdemTarefas: vi.fn(),
   createTiAtividade: mocks.createTiAtividade,
   updateTiAtividade: mocks.updateTiAtividade,
-  updateTiAtividadeStatus: mocks.updateTiAtividadeStatus,
   deleteTiAtividade: vi.fn(),
   atualizarOrdemAtividades: vi.fn(),
 }));
 
+vi.mock('@/lib/db/ti-historico', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/db/ti-historico')>();
+  return {
+    MotivoObrigatorioError: real.MotivoObrigatorioError,
+    moverCardTi: mocks.moverCardTi,
+    statusAtualTi: mocks.statusAtualTi,
+    addNotaTi: mocks.addNotaTi,
+    listHistoricoTi: mocks.listHistoricoTi,
+  };
+});
+
+import { MotivoObrigatorioError } from '@/lib/db/ti-historico';
+import { anotarCardTiAction, moverCardTiAction } from '@/app/(app)/ti/historico-actions';
 import { criarOuEditarProjetoAction } from '@/app/(app)/ti/projetos/actions';
 import {
   criarOuEditarTarefaAction,
   duplicarTarefaAction,
-  mudarStatusTarefaAction,
 } from '@/app/(app)/ti/projetos/[id]/actions';
 import {
   criarOuEditarAtividadeAction,
-  mudarStatusAtividadeAction,
 } from '@/app/(app)/ti/tarefas/[id]/actions';
 
 const projetoId = '11111111-1111-1111-1111-111111111111';
@@ -60,7 +71,7 @@ function formulario(campos: Record<string, string>): FormData {
 describe('validação das Server Actions TI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireTiAccess.mockResolvedValue(undefined);
+    mocks.requireTiAccess.mockResolvedValue({ id: '99999999-9999-9999-9999-999999999999', role: 'master' });
   });
 
   it('rejeita status ou prioridade forjados para projeto sem gravar', async () => {
@@ -86,20 +97,67 @@ describe('validação das Server Actions TI', () => {
   });
 
   it('rejeita status forjado no drag de Feature sem gravar', async () => {
-    await mudarStatusTarefaAction(formulario({ id: tarefaId, projetoId, status: 'apagado' }));
+    const r = await moverCardTiAction({ tipo: 'tarefa', id: tarefaId }, 'apagado', 'motivo');
 
-    expect(mocks.updateTiTarefaStatus).not.toHaveBeenCalled();
+    expect(r).toEqual({ error: 'Status inválido.' });
+    expect(mocks.moverCardTi).not.toHaveBeenCalled();
+  });
+
+  it('drag de card de TI repassa o motivo e devolve o erro de motivo vazio', async () => {
+    mocks.moverCardTi.mockResolvedValueOnce({ paiId: projetoId });
+    expect(await moverCardTiAction({ tipo: 'tarefa', id: tarefaId }, 'progresso', 'começou')).toEqual({});
+    expect(mocks.moverCardTi).toHaveBeenCalledWith(
+      { tipo: 'tarefa', id: tarefaId }, 'progresso', '99999999-9999-9999-9999-999999999999', 'começou',
+    );
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/ti/projetos/${projetoId}`);
+
+    mocks.moverCardTi.mockRejectedValueOnce(new MotivoObrigatorioError());
+    expect(await moverCardTiAction({ tipo: 'atividade', id: atividadeId }, 'progresso', ' '))
+      .toEqual({ error: 'Informe o motivo da movimentação.' });
+  });
+
+  it('anotação vazia é recusada sem gravar', async () => {
+    expect(await anotarCardTiAction({ tipo: 'tarefa', id: tarefaId }, '  ')).toEqual({ error: 'Escreva a anotação.' });
+    expect(mocks.addNotaTi).not.toHaveBeenCalled();
+  });
+
+  it('editar Feature trocando o status exige motivo e grava a movimentação antes', async () => {
+    mocks.statusAtualTi.mockResolvedValue('a_fazer');
+    mocks.moverCardTi.mockRejectedValueOnce(new MotivoObrigatorioError());
+    const semMotivo = await criarOuEditarTarefaAction({}, formulario({
+      id: tarefaId, projetoId, nome: 'Feature', status: 'progresso', prioridade: 'media', peso: '10',
+    }));
+    expect(semMotivo).toEqual({ error: 'Informe o motivo da movimentação.' });
+    expect(mocks.updateTiTarefa).not.toHaveBeenCalled();
+
+    await criarOuEditarTarefaAction({}, formulario({
+      id: tarefaId, projetoId, nome: 'Feature', status: 'progresso', prioridade: 'media', peso: '10', motivo: 'começou',
+    }));
+    expect(mocks.moverCardTi).toHaveBeenLastCalledWith(
+      { tipo: 'tarefa', id: tarefaId }, 'progresso', '99999999-9999-9999-9999-999999999999', 'começou',
+    );
+    expect(mocks.updateTiTarefa).toHaveBeenCalled();
+  });
+
+  it('editar Feature sem trocar o status não pede motivo', async () => {
+    mocks.statusAtualTi.mockResolvedValue('a_fazer');
+    await criarOuEditarTarefaAction({}, formulario({
+      id: tarefaId, projetoId, nome: 'Feature', status: 'a_fazer', prioridade: 'media', peso: '10',
+    }));
+    expect(mocks.moverCardTi).not.toHaveBeenCalled();
+    expect(mocks.updateTiTarefa).toHaveBeenCalled();
   });
 
   it('rejeita peso e status forjados para User Story sem gravar', async () => {
     const peso = await criarOuEditarAtividadeAction({}, formulario({
       tarefaId, nome: 'Story', status: 'a_fazer', prioridade: 'media', peso: '-1',
     }));
-    await mudarStatusAtividadeAction(formulario({ id: atividadeId, tarefaId, status: 'planejamento' }));
+    const status = await moverCardTiAction({ tipo: 'atividade', id: atividadeId }, 'planejamento', 'motivo');
 
     expect(peso).toEqual({ error: 'Informe um peso entre 0 e 100.' });
     expect(mocks.createTiAtividade).not.toHaveBeenCalled();
-    expect(mocks.updateTiAtividadeStatus).not.toHaveBeenCalled();
+    expect(status).toEqual({ error: 'Status inválido.' });
+    expect(mocks.moverCardTi).not.toHaveBeenCalled();
   });
 
   it('rejeita id forjado ao duplicar Feature sem gravar', async () => {

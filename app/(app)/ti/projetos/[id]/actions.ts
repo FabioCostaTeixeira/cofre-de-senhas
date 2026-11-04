@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireTiAccess } from '@/lib/auth/guards';
+import { MotivoObrigatorioError, moverCardTi, statusAtualTi } from '@/lib/db/ti-historico';
 import {
   createTiTarefa,
   updateTiTarefa,
-  updateTiTarefaStatus,
   deleteTiTarefa,
   duplicateTiTarefa,
   atualizarOrdemTarefas,
@@ -16,7 +16,7 @@ import { isUuid } from '@/lib/validation';
 export type TarefaActionState = { error?: string; ok?: string };
 
 export async function criarOuEditarTarefaAction(_prev: TarefaActionState, formData: FormData): Promise<TarefaActionState> {
-  await requireTiAccess();
+  const actor = await requireTiAccess();
   const id = String(formData.get('id') ?? '').trim();
   const projetoId = String(formData.get('projetoId') ?? '');
   const nome = String(formData.get('nome') ?? '').trim();
@@ -35,6 +35,12 @@ export async function criarOuEditarTarefaAction(_prev: TarefaActionState, formDa
 
   try {
     if (id && isUuid(id)) {
+      // Trocar o status pela edição também é movimentação: exige motivo e entra na
+      // timeline (mesma regra do arraste no kanban).
+      const card = { tipo: 'tarefa' as const, id };
+      if ((await statusAtualTi(card)) !== status) {
+        await moverCardTi(card, status, actor.id, String(formData.get('motivo') ?? ''));
+      }
       await updateTiTarefa({ id, nome, descricao, status, prioridade, responsavel, peso });
       revalidatePath(`/ti/projetos/${projetoId}`);
       revalidatePath('/ti/projetos');
@@ -46,20 +52,9 @@ export async function criarOuEditarTarefaAction(_prev: TarefaActionState, formDa
       return { ok: 'Tarefa criada com sucesso!' };
     }
   } catch (err) {
+    if (err instanceof MotivoObrigatorioError) return { error: err.message };
     return { error: 'Erro ao salvar tarefa.' };
   }
-}
-
-export async function mudarStatusTarefaAction(formData: FormData): Promise<void> {
-  await requireTiAccess();
-  const id = String(formData.get('id') ?? '');
-  const projetoId = String(formData.get('projetoId') ?? '');
-  const status = String(formData.get('status') ?? '');
-
-  if (!isUuid(id) || !isUuid(projetoId) || !isStatusTarefa(status)) return;
-  await updateTiTarefaStatus(id, status);
-  revalidatePath(`/ti/projetos/${projetoId}`);
-  revalidatePath('/ti/projetos');
 }
 
 export async function duplicarTarefaAction(formData: FormData): Promise<void> {
