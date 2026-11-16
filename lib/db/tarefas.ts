@@ -40,8 +40,12 @@ export class TarefaDivergenteError extends Error {
 /** Sem `planejamento`, lista as tarefas dos dois quadros. Com ele, só as daquele
  *  quadro: o gravado na tarefa (categoria escolhida na OS, ou quadro onde foi criada) ou,
  *  em tarefa antiga sem esse valor, o da categoria do produto. Com `responsavelId`, só as
- *  atribuídas a ele (usuário comum, ver lib/permissoes-cards.ts). */
-export async function listTarefas(planejamento?: Planejamento, responsavelId?: string): Promise<Tarefa[]> {
+ *  atribuídas a ele (usuário comum, ver lib/permissoes-cards.ts). Com `ocultarConcluidas`,
+ *  deixa de fora as que estão em Concluído: no quadro, o card some ao ser concluído
+ *  (decisão do cliente, 2026-11-16) — o registro continua no banco. */
+export async function listTarefas(
+  planejamento?: Planejamento, responsavelId?: string, ocultarConcluidas = false,
+): Promise<Tarefa[]> {
   const filtro = planejamento ?? null;
   if (responsavelId) assertUuid(responsavelId);
   const responsavel = responsavelId ?? null;
@@ -59,7 +63,23 @@ export async function listTarefas(planejamento?: Planejamento, responsavelId?: s
      where t.deleted_at is null
        and (${filtro}::text is null or coalesce(t.planejamento, cp.planejamento) = ${filtro})
        and (${responsavel}::uuid is null or t.responsavel_id = ${responsavel})
+       and (not ${ocultarConcluidas} or t.coluna <> 'concluido')
      order by t.prioridade, t.created_at`) as Tarefa[];
+}
+
+/** Cliente, produto e responsável da tarefa — o texto da notificação de conclusão. */
+export async function getResumoTarefa(id: string): Promise<
+  { cliente_nome: string; produto_nome: string; responsavel_nome: string | null } | null
+> {
+  assertUuid(id);
+  const rows = (await sql`
+    select cl.nome as cliente_nome, p.nome as produto_nome, u.name as responsavel_nome
+      from tarefas t
+      join clientes cl on cl.id = t.cliente_id
+      join produtos p on p.id = t.produto_id
+      left join users u on u.id = t.responsavel_id
+     where t.id = ${id}`) as { cliente_nome: string; produto_nome: string; responsavel_nome: string | null }[];
+  return rows[0] ?? null;
 }
 
 export type ItemDisponivel = {
@@ -144,8 +164,10 @@ const COLUNA_HOMOLOGACAO = 'homologacao_cliente';
  * - saindo de Concluído: desfaz, e só se foi esta tarefa que consumiu (`consumido`);
  * - saindo de Homologação para coluna que não é Concluído: liga a flag `ajuste`;
  * - chegando em Concluído: desliga a flag.
+ *
+ * Devolve `true` se a tarefa mudou de coluna, `false` se já estava nela (no-op).
  */
-export async function moverTarefa(id: string, coluna: string, somenteResponsavel?: string): Promise<void> {
+export async function moverTarefa(id: string, coluna: string, somenteResponsavel?: string): Promise<boolean> {
   assertUuid(id);
   if (somenteResponsavel) assertUuid(somenteResponsavel);
   // Usuário comum só move tarefa atribuída a ele: a de outra pessoa é tratada como
@@ -161,7 +183,7 @@ export async function moverTarefa(id: string, coluna: string, somenteResponsavel
 
   const atual = rows[0];
   if (!atual) throw new NotFoundError();
-  if (atual.coluna === coluna) return;
+  if (atual.coluna === coluna) return false;
 
   const vaiConsumir = coluna === COLUNA_CONCLUIDO && !atual.agendamento_id && !atual.consumido;
   // Não devolve pelo card se quem consumiu foi o agendamento — mesma regra que impede
@@ -203,7 +225,7 @@ export async function moverTarefa(id: string, coluna: string, somenteResponsavel
        where ci.id = mov.contratacao_item_id
       returning ci.id`) as { id: string }[];
     if (!efeito[0]) throw new TarefaDivergenteError();
-    return;
+    return true;
   }
 
   if (vaiDevolver) {
@@ -224,7 +246,7 @@ export async function moverTarefa(id: string, coluna: string, somenteResponsavel
        where ci.id = mov.contratacao_item_id
       returning ci.id`) as { id: string }[];
     if (!efeito[0]) throw new TarefaDivergenteError();
-    return;
+    return true;
   }
 
   // Move entre duas colunas que não são Concluído (ou vice-versa sem efeito de saldo,
@@ -239,6 +261,7 @@ export async function moverTarefa(id: string, coluna: string, somenteResponsavel
        and (${responsavel}::uuid is null or responsavel_id = ${responsavel})
     returning id`) as { id: string }[];
   if (!efeito[0]) throw new TarefaDivergenteError();
+  return true;
 }
 
 /** Campos que o botão de edição do card pode mudar. Cliente/produto ficam presos à OS e

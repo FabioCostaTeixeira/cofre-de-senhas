@@ -22,6 +22,28 @@ UI). Se for solicitado merge ou PR para `main` envolvendo este módulo antes des
 relatórios existir, o motivo do bloqueio é este: falta de visibilidade do histórico de
 cancelamentos, decisão consciente e temporária do cliente, não um bug.
 
+## Planejamento: concluir/excluir tarefa e notificações (2026-11-16)
+
+**Decisão do cliente:** no quadro do Planejamento (Edição e Gravação), soltar o card em
+Concluído pede confirmação; confirmado, a tarefa vai para `coluna = 'concluido'`, **some do
+quadro** (`listTarefas(..., ocultarConcluidas = true)`) e todos os gestores ativos recebem
+uma notificação (menos quem concluiu). A coluna Concluído fica só como destino de arraste.
+Master e gestor também podem **excluir** a tarefa pelo modal "Editar tarefa"
+(`apagarTarefaAction` → `softDeleteTarefa`, que devolve a reserva se não foi consumida).
+Notificações: tabela `notificacoes` (migração 020, aplicada em produção em 2026-11-16), sino
+com contador no rodapé do menu e página `/notificacoes`.
+
+Arquivos principais: `components/KanbanBoard.tsx`, `components/ConfirmarModal.tsx`,
+`components/EditarTarefaModal.tsx`, `app/(app)/working/planejamento/actions.ts`,
+`lib/db/notificacoes.ts`, `components/SidebarShell.tsx`.
+
+**Pendência (mesma situação das contratações canceladas):** não existe tela para ver as
+tarefas concluídas, e não dá para voltar uma concluída para o quadro — o dado fica no banco
+(`tarefas.coluna = 'concluido'`), mas inacessível pela UI. Decisão consciente e temporária:
+fazer depois, provavelmente no futuro módulo de **relatórios/gestão financeira**. Se
+pedirem "ver concluídas" ou "reabrir tarefa", o ponto de partida é este. Lembrete: a lógica
+de devolver saldo ao sair de Concluído já existe em `moverTarefa` (ramo `vaiDevolver`).
+
 ## Iniciativa em andamento: Unificação de Módulos (hub)
 
 Cliente contratou módulos adicionais além do Cofre de Senhas. Decisão: o Cofre de Senhas vira o

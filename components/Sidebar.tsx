@@ -1,13 +1,14 @@
 import { Building2, Boxes, CalendarClock, CalendarDays, ClipboardList, Cpu, FolderKanban, Home, Kanban, LayoutDashboard, Layers, MapPin, Package, ScrollText, ShoppingCart, Trash2, Truck, UserSquare2, Users, Vault } from 'lucide-react';
 import { logout } from '@/app/login/actions';
 import { modulosDoAtor } from '@/lib/auth/guards';
+import { contarNaoLidas } from '@/lib/db/notificacoes';
 import type { ModuleKey } from '@/lib/modules';
 import type { Actor } from '@/lib/types';
 import { SidebarShell, type SidebarGroup } from './SidebarShell';
 
 export async function Sidebar({ actor, children }: { actor: Actor; children: React.ReactNode }) {
   // Só cosmético: a barreira real é `requireModulo()` em cada página e action.
-  const liberados = await modulosDoAtor(actor);
+  const [liberados, naoLidas] = await Promise.all([modulosDoAtor(actor), contarNaoLidas(actor.id)]);
   const tem = (key: ModuleKey) => liberados.includes(key);
 
   const iconClass = 'shrink-0';
@@ -126,7 +127,7 @@ export async function Sidebar({ actor, children }: { actor: Actor; children: Rea
   ];
 
   return (
-    <SidebarShell groups={groups} actorName={actor.name} logoutAction={logout}>
+    <SidebarShell groups={groups} actorName={actor.name} logoutAction={logout} notificacoes={naoLidas}>
       {children}
     </SidebarShell>
   );

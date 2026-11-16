@@ -6,7 +6,7 @@ import { atorVisualizado } from '@/lib/auth/ver-como';
 import { listTarefas } from '@/lib/db/tarefas';
 import { listUsers } from '@/lib/db/users';
 import { gerePlanejamento } from '@/lib/permissoes-cards';
-import { editarTarefaAction, moverTarefaAction, reordenarTarefasAction } from '../actions';
+import { apagarTarefaAction, editarTarefaAction, moverTarefaAction, reordenarTarefasAction } from '../actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export default async function PlanejamentoEdicaoPage() {
   // Usuário comum só recebe as tarefas atribuídas a ele (lib/permissoes-cards.ts).
   const gestao = gerePlanejamento(actor);
   const [tarefas, modulos, users] = await Promise.all([
-    listTarefas('edicao', gestao ? undefined : actor.id), modulosDoAtor(actor), listUsers(),
+    listTarefas('edicao', gestao ? undefined : actor.id, true), modulosDoAtor(actor), listUsers(),
   ]);
 
   return (
@@ -36,7 +36,7 @@ export default async function PlanejamentoEdicaoPage() {
       <KanbanBoard
         tarefas={tarefas} users={users}
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
-        editarTarefaAction={editarTarefaAction} gestao={gestao}
+        editarTarefaAction={editarTarefaAction} apagarTarefaAction={apagarTarefaAction} gestao={gestao}
       />
     </main>
   );

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronLeft, ChevronRight, Lock, LogOut, Menu, X } from 'lucide-react';
+import { Bell, ChevronDown, ChevronLeft, ChevronRight, Lock, LogOut, Menu, X } from 'lucide-react';
 
 export type SidebarLink = { href: string; label: string; icon: React.ReactNode };
 /**
@@ -97,11 +97,42 @@ function NavGroups({
   );
 }
 
+/** Link do sino com o número de não lidas (some quando zera). */
+function LinkNotificacoes({
+  total, colapsado, onNavigate,
+}: { total: number; colapsado: boolean; onNavigate?: () => void }) {
+  const rotulo = total > 0 ? `Notificações (${total} não lidas)` : 'Notificações';
+  return (
+    <Link
+      href="/notificacoes"
+      title={rotulo}
+      aria-label={rotulo}
+      onClick={onNavigate}
+      className="sidebar-link"
+      style={{ justifyContent: colapsado ? 'center' : 'flex-start' }}
+    >
+      <span className="relative shrink-0">
+        <Bell size={18} />
+        {total > 0 && (
+          <span
+            className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full text-[10px] font-bold leading-4 text-center"
+            style={{ background: 'var(--danger)', color: '#fff' }}
+          >
+            {total > 99 ? '99+' : total}
+          </span>
+        )}
+      </span>
+      {!colapsado && <span>Notificações</span>}
+    </Link>
+  );
+}
+
 function Rodape({
-  actorName, colapsado, logoutAction, onNavigate,
+  actorName, colapsado, logoutAction, onNavigate, notificacoes,
 }: {
   actorName: string;
   colapsado: boolean;
+  notificacoes: number;
   logoutAction: (formData: FormData) => Promise<void>;
   onNavigate?: () => void;
 }) {
@@ -113,6 +144,7 @@ function Rodape({
       {!colapsado && (
         <p className="px-1 text-sm truncate" style={{ color: 'var(--text-dim)' }}>{actorName}</p>
       )}
+      <LinkNotificacoes total={notificacoes} colapsado={colapsado} onNavigate={onNavigate} />
       <Link
         href="/trocar-senha"
         title="Trocar senha"
@@ -140,10 +172,12 @@ function Rodape({
 }
 
 export function SidebarShell({
-  groups, actorName, logoutAction, children,
+  groups, actorName, logoutAction, children, notificacoes = 0,
 }: {
   groups: SidebarGroup[];
   actorName: string;
+  /** Notificações não lidas do usuário (contador do sino). */
+  notificacoes?: number;
   logoutAction: (formData: FormData) => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -221,12 +255,18 @@ export function SidebarShell({
           groups={groups} colapsado={colapsado} pathname={pathname}
           grupoAberto={grupoAberto} onToggleGrupo={alternarGrupo}
         />
-        <Rodape actorName={actorName} colapsado={colapsado} logoutAction={logoutAction} />
+        <Rodape actorName={actorName} colapsado={colapsado} logoutAction={logoutAction} notificacoes={notificacoes} />
       </aside>
 
       <div className="glass fixed inset-x-4 top-4 z-30 flex items-center justify-between px-4 py-3 md:hidden">
         <Image src="/brand/logo-sidebar.png" alt="4Nexus" width={240} height={80} className="h-24 w-auto brightness-125 contrast-110" priority />
-        <button className="btn" onClick={() => setGavetaAberta(true)} aria-label="Abrir menu">
+        <button
+          className="btn relative" onClick={() => setGavetaAberta(true)}
+          aria-label={notificacoes > 0 ? `Abrir menu (${notificacoes} notificações não lidas)` : 'Abrir menu'}
+        >
+          {notificacoes > 0 && (
+            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full" style={{ background: 'var(--danger)' }} />
+          )}
           <Menu size={18} />
         </button>
       </div>
@@ -257,7 +297,7 @@ export function SidebarShell({
         />
         <Rodape
           actorName={actorName} colapsado={false} logoutAction={logoutAction}
-          onNavigate={() => setGavetaAberta(false)}
+          onNavigate={() => setGavetaAberta(false)} notificacoes={notificacoes}
         />
       </aside>
 

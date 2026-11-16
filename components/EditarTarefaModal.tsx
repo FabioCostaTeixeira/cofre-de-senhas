@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
 import { ModalForm } from '@/components/ModalForm';
 import type { Tarefa, User } from '@/lib/types';
 
@@ -17,11 +18,12 @@ function paraInputData(valor: string | Date | null): string {
 /**
  * Edição do card do Planejamento. Só montado com o modal aberto, então reabrir
  * começa com o `useActionState` limpo. Cliente e produto aparecem só para leitura:
- * estão presos à OS e ao saldo da contratação.
+ * estão presos à OS e ao saldo da contratação. `onExcluir` mostra o botão de excluir
+ * (só gestor/master chegam a abrir este modal); a confirmação fica com quem chamou.
  */
 export function EditarTarefaModal({
-  tarefa, users, salvar, onFechar,
-}: { tarefa: Tarefa; users: User[]; salvar: Acao; onFechar: () => void }) {
+  tarefa, users, salvar, onFechar, onExcluir,
+}: { tarefa: Tarefa; users: User[]; salvar: Acao; onFechar: () => void; onExcluir?: () => void }) {
   const [state, action, pending] = useActionState(salvar, inicial);
 
   useEffect(() => { if (state.ok) onFechar(); }, [state.ok, onFechar]);
@@ -56,6 +58,15 @@ export function EditarTarefaModal({
         <input type="date" name="deadlineTarefa" className="input" defaultValue={paraInputData(tarefa.deadline_tarefa)} />
       </label>
       {state.error && <p className="text-sm" style={{ color: 'var(--danger)' }}>{state.error}</p>}
+      {onExcluir && (
+        <button
+          type="button" onClick={onExcluir} disabled={pending}
+          className="flex items-center gap-2 text-sm px-2 py-1 rounded-lg hover:bg-white/10 transition"
+          style={{ color: 'var(--danger)' }}
+        >
+          <Trash2 size={14} /> Excluir tarefa
+        </button>
+      )}
     </ModalForm>
   );
 }

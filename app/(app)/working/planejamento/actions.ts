@@ -4,13 +4,16 @@ import { revalidatePath } from 'next/cache';
 import { requireModulo } from '@/lib/auth/guards';
 import { NotFoundError } from '@/lib/authz';
 import { audit } from '@/lib/db/audit';
+import { notificarGestores } from '@/lib/db/notificacoes';
 import {
   TarefaDivergenteError,
+  getResumoTarefa,
   moverTarefa,
   reordenarTarefas,
   softDeleteTarefa,
   updateTarefa,
 } from '@/lib/db/tarefas';
+import { COLUNA_CONCLUIDO_TAREFA } from '@/lib/kanban';
 import { gerePlanejamento } from '@/lib/permissoes-cards';
 import { isUuid } from '@/lib/validation';
 import type { EditarTarefaState } from '@/components/EditarTarefaModal';
@@ -61,8 +64,9 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
   const actor = await requireModulo('working');
   if (!isUuid(id)) return { error: 'Tarefa não encontrada.' };
 
+  let mudou: boolean;
   try {
-    await moverTarefa(id, coluna, gerePlanejamento(actor) ? undefined : actor.id);
+    mudou = await moverTarefa(id, coluna, gerePlanejamento(actor) ? undefined : actor.id);
   } catch (e) {
     if (e instanceof TarefaDivergenteError) return { error: e.message };
     if (e instanceof NotFoundError) return { error: 'Tarefa não encontrada.' };
@@ -70,8 +74,30 @@ export async function moverTarefaAction(id: string, coluna: string): Promise<{ e
   }
 
   await audit({ actorId: actor.id, action: 'update', entityType: 'tarefa', entityId: id });
+  // Concluída (confirmada no quadro): os gestores são avisados e o card sai do quadro
+  // (listTarefas com `ocultarConcluidas`). Aviso só quando a tarefa entrou agora em
+  // Concluído — mover para onde já estava não notifica de novo.
+  if (mudou && coluna === COLUNA_CONCLUIDO_TAREFA) await avisarConclusao(id, actor);
   revalidatePath(ROTA, 'layout');
   return {};
+}
+
+/** Falha ao avisar não desfaz a conclusão: a tarefa já foi movida e o saldo consumido. */
+async function avisarConclusao(id: string, actor: { id: string; name: string }): Promise<void> {
+  try {
+    const resumo = await getResumoTarefa(id);
+    if (!resumo) return;
+    await notificarGestores({
+      titulo: `Tarefa concluída: ${resumo.cliente_nome} · ${resumo.produto_nome}`,
+      mensagem: `${actor.name} concluiu a tarefa${
+        resumo.responsavel_nome ? ` de ${resumo.responsavel_nome}` : ''
+      }.`,
+      link: ROTA,
+    }, actor.id);
+    revalidatePath('/', 'layout');
+  } catch (e) {
+    console.error('Falha ao notificar gestores da conclusão da tarefa', id, e);
+  }
 }
 
 export async function reordenarTarefasAction(ids: string[]): Promise<{ error?: string }> {

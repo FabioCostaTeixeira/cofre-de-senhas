@@ -41,6 +41,10 @@ export const COLUNAS_KANBAN: readonly ColunaKanban[] = [
   { id: 'concluido', label: 'Concluído' },
 ];
 
+/** Soltar o card aqui pede confirmação; confirmado, o card sai do quadro e os gestores
+ *  são avisados (decisão do cliente, 2026-11-16). */
+export const COLUNA_CONCLUIDO_TAREFA = 'concluido';
+
 /** Colunas do quadro Working › Projetos (chamados). Chamado nasce em Aberto. */
 export const COLUNAS_CHAMADO: readonly ColunaKanban[] = [
   { id: 'aberto', label: 'Aberto' },

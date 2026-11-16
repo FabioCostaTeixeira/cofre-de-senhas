@@ -120,7 +120,9 @@ describe('KanbanBoard', () => {
         moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
       />,
     );
-    expect(screen.getAllByText('Nenhuma tarefa')).toHaveLength(COLUNAS_KANBAN.length);
+    // Concluído é só destino de arraste: mostra a dica em vez de "Nenhuma tarefa".
+    expect(screen.getAllByText('Nenhuma tarefa')).toHaveLength(COLUNAS_KANBAN.length - 1);
+    expect(screen.getByText('Arraste aqui para concluir')).toBeInTheDocument();
   });
 
   it('mantém os identificadores estáveis das colunas', () => {
@@ -303,5 +305,96 @@ describe('KanbanBoard', () => {
     });
     expect(mover).toHaveBeenCalledWith('t1', 'executando');
   });
-});
 
+  it('soltar em Concluído pede confirmação; cancelar não move nada', () => {
+    const mover = vi.fn(async () => ({}));
+    render(
+      <KanbanBoard
+        tarefas={[tarefa({ id: 't1', cliente_nome: 'Cliente Fim', coluna: 'homologacao_cliente' })]}
+        users={[usuario]} editarTarefaAction={editarTarefaAction}
+        moverTarefaAction={mover} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+    act(() => {
+      onDragEnd({ active: { id: 't1' }, over: { id: 'concluido', data: { current: { coluna: 'concluido' } } } });
+    });
+    const dialogo = screen.getByRole('alertdialog');
+    expect(within(dialogo).getByText('Concluir tarefa?')).toBeInTheDocument();
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
+    expect(mover).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    const homolog = screen.getByRole('heading', { name: 'Homologação Cliente' }).closest('section')!;
+    expect(within(homolog).getByText('Cliente Fim')).toBeInTheDocument();
+  });
+
+  it('confirmar a conclusão move para Concluído e o card some do quadro', async () => {
+    const mover = vi.fn(async () => ({}));
+    render(
+      <KanbanBoard
+        tarefas={[tarefa({ id: 't1', cliente_nome: 'Cliente Fim', coluna: 'homologacao_cliente' })]}
+        users={[usuario]} editarTarefaAction={editarTarefaAction}
+        moverTarefaAction={mover} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    const onDragEnd = (globalThis as { __onDragEnd?: (e: unknown) => void }).__onDragEnd!;
+    act(() => {
+      onDragEnd({ active: { id: 't1' }, over: { id: 'concluido', data: { current: { coluna: 'concluido' } } } });
+    });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Concluir' }));
+    });
+    expect(mover).toHaveBeenCalledWith('t1', 'concluido');
+    expect(screen.queryByText('Cliente Fim')).not.toBeInTheDocument();
+  });
+
+  it('gestão: "Excluir tarefa" no modal pede confirmação e remove o card', async () => {
+    const apagar = vi.fn(async () => ({}));
+    render(
+      <KanbanBoard
+        tarefas={[tarefa({ id: 't1', cliente_nome: 'Cliente Apaga' })]} users={[usuario]}
+        editarTarefaAction={editarTarefaAction} moverTarefaAction={moverTarefaAction}
+        reordenarTarefasAction={reordenarTarefasAction} apagarTarefaAction={apagar}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    fireEvent.click(screen.getByRole('button', { name: /Excluir tarefa/ }));
+    const dialogo = screen.getByRole('alertdialog');
+    await act(async () => {
+      fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir' }));
+    });
+    expect(apagar).toHaveBeenCalledWith('t1');
+    expect(screen.queryByText('Cliente Apaga')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('erro ao excluir mantém a confirmação aberta com o motivo', async () => {
+    const apagar = vi.fn(async () => ({ error: 'Só o gestor pode alterar este card.' }));
+    render(
+      <KanbanBoard
+        tarefas={[tarefa({ id: 't1', cliente_nome: 'Cliente Apaga' })]} users={[usuario]}
+        editarTarefaAction={editarTarefaAction} moverTarefaAction={moverTarefaAction}
+        reordenarTarefasAction={reordenarTarefasAction} apagarTarefaAction={apagar}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    fireEvent.click(screen.getByRole('button', { name: /Excluir tarefa/ }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Excluir' }));
+    });
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Só o gestor pode alterar este card.');
+    const aFazer = screen.getByRole('heading', { name: 'A Fazer' }).closest('section')!;
+    expect(within(aFazer).getByText('Cliente Apaga')).toBeInTheDocument();
+  });
+
+  it('sem apagarTarefaAction o modal não oferece excluir', () => {
+    render(
+      <KanbanBoard
+        tarefas={[tarefa()]} users={[usuario]} editarTarefaAction={editarTarefaAction}
+        moverTarefaAction={moverTarefaAction} reordenarTarefasAction={reordenarTarefasAction}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Editar tarefa' }));
+    expect(screen.queryByRole('button', { name: /Excluir tarefa/ })).not.toBeInTheDocument();
+  });
+});

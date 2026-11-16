@@ -10,15 +10,17 @@ import {
   SortableContext, arrayMove, useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { ConfirmarModal } from '@/components/ConfirmarModal';
 import { EditarTarefaModal, type EditarTarefaState } from '@/components/EditarTarefaModal';
 import { TarefaCard } from '@/components/TarefaCard';
-import { COLUNAS_KANBAN, type ColunaKanban } from '@/lib/kanban';
+import { COLUNAS_KANBAN, COLUNA_CONCLUIDO_TAREFA, type ColunaKanban } from '@/lib/kanban';
 import { ordenarTarefas } from '@/lib/tarefas-calc';
 import type { Tarefa, User } from '@/lib/types';
 
 type EditarAcao = (prev: EditarTarefaState, fd: FormData) => Promise<EditarTarefaState>;
 type MoverAcao = (id: string, coluna: string) => Promise<{ error?: string }>;
 type ReordenarAcao = (ids: string[]) => Promise<{ error?: string }>;
+type ApagarAcao = (id: string) => Promise<{ error?: string }>;
 
 /**
  * Card arrastável: `useSortable` cuida do transform/transition visual e expõe
@@ -72,7 +74,9 @@ function KanbanColuna({
       <h2 className="text-sm font-semibold">{coluna.label}</h2>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         {tarefas.length === 0 && (
-          <p className="text-sm" style={{ color: 'var(--text-dim)' }}>Nenhuma tarefa</p>
+          <p className="text-sm" style={{ color: 'var(--text-dim)' }}>
+            {coluna.id === COLUNA_CONCLUIDO_TAREFA ? 'Arraste aqui para concluir' : 'Nenhuma tarefa'}
+          </p>
         )}
         {tarefas.map((t) => (
           <TarefaCardArrastavel
@@ -100,10 +104,13 @@ function KanbanColuna({
  * `router.refresh()` disparado no `catch` de erro).
  */
 export function KanbanBoard({
-  tarefas, users, moverTarefaAction, reordenarTarefasAction, editarTarefaAction, gestao = true,
+  tarefas, users, moverTarefaAction, reordenarTarefasAction, editarTarefaAction, apagarTarefaAction,
+  gestao = true,
 }: {
   tarefas: Tarefa[]; users: User[];
   moverTarefaAction: MoverAcao; reordenarTarefasAction: ReordenarAcao; editarTarefaAction: EditarAcao;
+  /** Sem ela (ou sem `gestao`), o modal de edição não mostra "Excluir tarefa". */
+  apagarTarefaAction?: ApagarAcao;
   /** Gestor/master (lib/permissoes-cards.ts): edita pelo lápis e reordena. Sem isso o
    *  quadro só move os cards entre colunas — o servidor recusa o resto de qualquer forma. */
   gestao?: boolean;
@@ -113,8 +120,57 @@ export function KanbanBoard({
   const fecharEdicao = useCallback(() => setEditando(null), []);
   const [tarefasState, setTarefasState] = useState(tarefas);
   const [erro, setErro] = useState<string | null>(null);
+  // Card solto em Concluído esperando confirmação; nada muda antes do "Concluir".
+  const [concluindo, setConcluindo] = useState<Tarefa | null>(null);
+  const [excluindo, setExcluindo] = useState<Tarefa | null>(null);
+  const fecharConclusao = useCallback(() => setConcluindo(null), []);
+  const fecharExclusao = useCallback(() => setExcluindo(null), []);
 
   useEffect(() => { setTarefasState(tarefas); }, [tarefas]);
+
+  /** Muda a coluna otimisticamente e chama o servidor; em erro reverte e busca a verdade. */
+  function mover(activeId: string, novaColuna: string): Promise<void> {
+    const anterior = tarefasState;
+    setErro(null);
+    setTarefasState((prev) => prev.map(
+      (t) => (t.id === activeId ? { ...t, coluna: novaColuna } : t),
+    ));
+    return moverTarefaAction(activeId, novaColuna).then((res) => {
+      if (res.error) {
+        // Corrida genuína (ex.: outra aba moveu a mesma tarefa): reverte pro
+        // último estado conhecido localmente e busca a verdade do servidor —
+        // não inventa um estado novo.
+        setTarefasState(anterior);
+        setErro(res.error);
+        router.refresh();
+      }
+    }).catch(() => {
+      // Falha inesperada (ex.: conexão com o banco caiu): a action rejeitou
+      // a promise em vez de devolver `{error}`, então nenhum `.then` acima
+      // roda. Reverte do mesmo jeito que o ramo de erro conhecido, senão o
+      // card fica preso na coluna errada até o usuário recarregar sozinho.
+      setTarefasState(anterior);
+      setErro('Não foi possível salvar a alteração.');
+      router.refresh();
+    });
+  }
+
+  async function confirmarConclusao() {
+    if (!concluindo) return;
+    const id = concluindo.id;
+    setConcluindo(null);
+    await mover(id, COLUNA_CONCLUIDO_TAREFA);
+  }
+
+  async function confirmarExclusao(): Promise<{ error?: string }> {
+    if (!excluindo || !apagarTarefaAction) return {};
+    const id = excluindo.id;
+    const res = await apagarTarefaAction(id);
+    if (res.error) return res;
+    setTarefasState((prev) => prev.filter((t) => t.id !== id));
+    setExcluindo(null);
+    return {};
+  }
 
   // `distance` evita que um clique simples (sem mover o ponteiro) no card já
   // conte como início de drag — é isso que deixa o toggle de expandir do
@@ -140,29 +196,14 @@ export function KanbanBoard({
     if (novaColuna !== atual.coluna) {
       if (!COLUNAS_KANBAN.some((c) => c.id === novaColuna)) return;
 
-      const anterior = tarefasState;
-      setErro(null);
-      setTarefasState((prev) => prev.map(
-        (t) => (t.id === activeId ? { ...t, coluna: novaColuna } : t),
-      ));
-      moverTarefaAction(activeId, novaColuna).then((res) => {
-        if (res.error) {
-          // Corrida genuína (ex.: outra aba moveu a mesma tarefa): reverte pro
-          // último estado conhecido localmente e busca a verdade do servidor —
-          // não inventa um estado novo.
-          setTarefasState(anterior);
-          setErro(res.error);
-          router.refresh();
-        }
-      }).catch(() => {
-        // Falha inesperada (ex.: conexão com o banco caiu): a action rejeitou
-        // a promise em vez de devolver `{error}`, então nenhum `.then` acima
-        // roda. Reverte do mesmo jeito que o ramo de erro conhecido, senão o
-        // card fica preso na coluna errada até o usuário recarregar sozinho.
-        setTarefasState(anterior);
-        setErro('Não foi possível salvar a alteração.');
-        router.refresh();
-      });
+      // Concluir pede confirmação: confirmado, o card some do quadro e os gestores
+      // são avisados (moverTarefaAction). Cancelado, nada mudou.
+      if (novaColuna === COLUNA_CONCLUIDO_TAREFA) {
+        setConcluindo(atual);
+        return;
+      }
+
+      void mover(activeId, novaColuna);
       return;
     }
 
@@ -207,7 +248,11 @@ export function KanbanBoard({
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUNAS_KANBAN.map((coluna) => {
-            const daColuna = ordenarTarefas(tarefasState.filter((t) => t.coluna === coluna.id));
+            // Concluído é só destino: a tarefa concluída some do quadro (o servidor já
+            // não a lista; aqui cobre o instante entre confirmar e o refresh).
+            const daColuna = coluna.id === COLUNA_CONCLUIDO_TAREFA
+              ? []
+              : ordenarTarefas(tarefasState.filter((t) => t.coluna === coluna.id));
             return (
               <KanbanColuna
                 key={coluna.id} coluna={coluna} tarefas={daColuna} onEditar={gestao ? setEditando : undefined}
@@ -217,7 +262,32 @@ export function KanbanBoard({
         </div>
       </DndContext>
       {editando && (
-        <EditarTarefaModal tarefa={editando} users={users} salvar={editarTarefaAction} onFechar={fecharEdicao} />
+        <EditarTarefaModal
+          tarefa={editando} users={users} salvar={editarTarefaAction} onFechar={fecharEdicao}
+          onExcluir={apagarTarefaAction && gestao ? () => { setExcluindo(editando); setEditando(null); } : undefined}
+        />
+      )}
+      {concluindo && (
+        <ConfirmarModal
+          titulo="Concluir tarefa?"
+          mensagem={<>
+            <strong>{concluindo.cliente_nome}</strong> · {concluindo.produto_nome}. O card sai do
+            quadro e os gestores são notificados.
+          </>}
+          confirmarLabel="Concluir"
+          onConfirmar={confirmarConclusao} onCancelar={fecharConclusao}
+        />
+      )}
+      {excluindo && (
+        <ConfirmarModal
+          titulo="Excluir tarefa?"
+          mensagem={<>
+            <strong>{excluindo.cliente_nome}</strong> · {excluindo.produto_nome}. A tarefa some do
+            quadro e, se ainda não foi consumida, a reserva volta para o saldo do cliente.
+          </>}
+          confirmarLabel="Excluir" perigo
+          onConfirmar={confirmarExclusao} onCancelar={fecharExclusao}
+        />
       )}
     </div>
   );
